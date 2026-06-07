@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import {
+  Archive,
   BarChart3,
   Bell,
   Briefcase,
@@ -42,6 +43,8 @@ const navItems: Array<{ id: PageId; label: string; icon: typeof Briefcase }> = [
   { id: 'dashboard', label: 'الرئيسية', icon: BarChart3 },
   { id: 'clients', label: 'العملاء', icon: Users },
   { id: 'cases', label: 'القضايا', icon: Briefcase },
+  { id: 'archive', label: 'الأرشيف', icon: Archive },
+  { id: 'employees', label: 'الموظفون', icon: User },
   { id: 'sessions', label: 'الجلسات', icon: Calendar },
   { id: 'documents', label: 'المستندات', icon: FileText },
   { id: 'lawyers', label: 'المحامون', icon: Shield },
@@ -113,10 +116,11 @@ export function HeaderBar({
               onChange={(e) => onRoleChange(e.target.value as UserRole)}
               className="bg-transparent text-indigo-200 outline-none cursor-pointer text-xs font-bold border-none"
             >
-              <option className="bg-indigo-950 text-white" value="admin">مدير نظام كامل</option>
-              <option className="bg-indigo-950 text-white" value="firm_manager">مدير مكتب شركاء</option>
-              <option className="bg-indigo-950 text-white" value="lawyer">محامٍ ممارس</option>
-              <option className="bg-indigo-950 text-white" value="consultant">مستشار خارجي</option>
+              <option className="bg-indigo-950 text-white" value="super_admin">سوبر أدمن</option>
+              <option className="bg-indigo-950 text-white" value="admin">أدمن</option>
+              <option className="bg-indigo-950 text-white" value="firm_manager">مدير مكتب</option>
+              <option className="bg-indigo-950 text-white" value="lawyer">محامٍ</option>
+              <option className="bg-indigo-950 text-white" value="assistant">مساعد</option>
             </select>
           </div>
 

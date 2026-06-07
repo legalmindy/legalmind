@@ -16,12 +16,15 @@ import {
   ProfilePage,
   SettingsPage
 } from './pages/WorkspacePages';
+import { ArchivePage } from './pages/ArchivePage';
+import { EmployeesPage } from './pages/EmployeesPage';
 import { ClientModal, CaseModal, SessionModal, DocumentModal } from './components/Modals';
 import { isValidYemeniPhone } from './utils/format';
 import {
   INITIAL_CASES,
   INITIAL_CLIENTS,
   INITIAL_DOCUMENTS,
+  INITIAL_EMPLOYEES,
   INITIAL_LAWYERS,
   INITIAL_NOTIFICATIONS,
   INITIAL_SESSIONS,
@@ -33,6 +36,7 @@ import type {
   CaseRecord,
   Client,
   DocumentItem,
+  Employee,
   PageId,
   SessionItem,
   SubscriptionPlan,
@@ -52,11 +56,17 @@ const initialCaseForm: Omit<CaseRecord, 'id' | 'clientName' | 'dateStarted'> = {
   title: '',
   clientId: '',
   category: 'تجاري',
-  status: 'نشط',
+  case_type: 'تجارية',
+  case_stage: 'استئناف',
+  total_amount: 0,
+  paid_amount: 0,
+  remaining_amount: 0,
+  status: 'active',
   court: '',
   caseNo: '',
   lawyerId: '',
-  description: ''
+  description: '',
+  notes: ''
 };
 
 const initialSessionForm: Omit<SessionItem, 'id' | 'caseTitle'> = {
@@ -84,6 +94,7 @@ export default function App() {
   const [sessions, setSessions] = useState<SessionItem[]>(INITIAL_SESSIONS);
   const [documents, setDocuments] = useState<DocumentItem[]>(INITIAL_DOCUMENTS);
   const [lawyers] = useState(INITIAL_LAWYERS);
+  const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
   const [activeChartTab, setActiveChartTab] = useState<'cases' | 'revenue'>('cases');
   const [hoveredDataPoint, setHoveredDataPoint] = useState<null | (typeof MONTHLY_CHART_DATA)[number]>(null);
@@ -203,7 +214,7 @@ export default function App() {
   };
 
   const deleteClient = (id: string) => {
-    if (!checkAccess(['admin', 'firm_manager'])) {
+    if (!checkAccess(['super_admin', 'admin', 'firm_manager'])) {
       showAlert('ليس لديك صلاحية حذف العملاء.', 'error');
       return;
     }
@@ -249,7 +260,7 @@ export default function App() {
   };
 
   const deleteCase = (id: string) => {
-    if (!checkAccess(['admin', 'firm_manager'])) {
+    if (!checkAccess(['super_admin', 'admin', 'firm_manager'])) {
       showAlert('ليس لديك صلاحية حذف القضايا.', 'error');
       return;
     }
@@ -355,11 +366,17 @@ export default function App() {
     [clients, searchQuery]
   );
 
+  const filteredArchiveCases = useMemo(
+    () =>
+      cases.filter((item) => item.status === 'archived' || item.status === 'closed'),
+    [cases]
+  );
+
   const stats = useMemo(
     () => ({
       totalClients: clients.length,
       totalCases: cases.length,
-      activeCases: cases.filter((item) => item.status === 'نشط' || item.status === 'جلسة قادمة').length,
+      activeCases: cases.filter((item) => item.status === 'active').length,
       upcomingSessions: sessions.filter((item) => item.status === 'مجدولة').length,
       totalDocuments: documents.length,
       lawyersCount: lawyers.length
@@ -408,6 +425,29 @@ export default function App() {
       notes: session.notes
     });
     setShowSessionModal(true);
+  };
+
+  const deleteEmployee = (id: string) => {
+    setEmployees((current) => current.filter((employee) => employee.id !== id));
+    showAlert('تم حذف الموظف من النظام.', 'info');
+  };
+
+  const toggleEmployeeStatus = (id: string) => {
+    setEmployees((current) =>
+      current.map((employee) =>
+        employee.id === id
+          ? {
+              ...employee,
+              status: employee.status === 'active' ? 'suspended' : 'active'
+            }
+          : employee
+      )
+    );
+    showAlert('تم تحديث حالة الموظف.', 'success');
+  };
+
+  const editEmployee = (employee: Employee) => {
+    showAlert(`تم فتح محرر بيانات ${employee.full_name}.`, 'info');
   };
 
   return (
@@ -498,6 +538,31 @@ export default function App() {
             }}
             onEditCase={openCaseModalForEdit}
             onDeleteCase={deleteCase}
+          />
+        )}
+
+        {currentPage === 'archive' && user && (
+          <ArchivePage
+            cases={filteredArchiveCases}
+            onRestore={(caseId) => {
+              setCases((current) =>
+                current.map((item) => (item.id === caseId ? { ...item, status: 'active', archive_date: undefined } : item))
+              );
+              showAlert('تمت استعادة القضية من الأرشيف.', 'success');
+            }}
+            onPermanentArchive={(caseId) => {
+              setCases((current) => current.filter((item) => item.id !== caseId));
+              showAlert('تمت الأرشفة النهائية للقضية.', 'info');
+            }}
+          />
+        )}
+
+        {currentPage === 'employees' && user && (
+          <EmployeesPage
+            employees={employees}
+            onDelete={deleteEmployee}
+            onToggleStatus={toggleEmployeeStatus}
+            onEdit={editEmployee}
           />
         )}
 

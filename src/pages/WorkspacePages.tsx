@@ -363,10 +363,9 @@ export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, on
           <label className="text-[10px] text-slate-500 mb-2 block">فلتر الحالة</label>
           <select value={statusFilter} onChange={(e) => onStatusFilterChange(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-right outline-none bg-white">
             <option value="الكل">الكل</option>
-            <option value="نشط">نشط</option>
-            <option value="جلسة قادمة">جلسة قادمة</option>
-            <option value="تحت الدراسة">تحت الدراسة</option>
-            <option value="مغلق">مغلق</option>
+            <option value="active">نشط</option>
+            <option value="archived">مؤرشف</option>
+            <option value="closed">مغلق</option>
           </select>
         </div>
         <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
@@ -386,7 +385,7 @@ export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, on
           <div key={caseRecord.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4 hover:border-amber-500/30 transition-all text-right">
             <div className="flex justify-between items-start gap-3">
               <span className="bg-slate-100 text-slate-700 font-mono font-bold text-xs px-2.5 py-1 rounded">رقم {caseRecord.caseNo}</span>
-              <span className={`px-2.5 py-1 rounded text-xs font-bold ${caseRecord.status === 'نشط' ? 'bg-emerald-100 text-emerald-800' : caseRecord.status === 'جلسة قادمة' ? 'bg-amber-100 text-amber-800' : caseRecord.status === 'تحت الدراسة' ? 'bg-blue-100 text-indigo-900' : 'bg-slate-100 text-slate-800'}`}>{caseRecord.status}</span>
+              <span className={`px-2.5 py-1 rounded text-xs font-bold ${caseRecord.status === 'active' ? 'bg-emerald-100 text-emerald-800' : caseRecord.status === 'archived' ? 'bg-amber-100 text-amber-800' : caseRecord.status === 'closed' ? 'bg-slate-100 text-slate-800' : 'bg-blue-100 text-indigo-900'}`}>{caseRecord.status === 'active' ? 'نشط' : caseRecord.status === 'archived' ? 'مؤرشف' : caseRecord.status === 'closed' ? 'مغلق' : caseRecord.status}</span>
             </div>
 
             <div className="space-y-1.5">

@@ -211,6 +211,86 @@ export function CaseModal({ open, caseRecord, formState, clients, lawyers, onCha
           </select>
         </div>
 
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-slate-600 mb-1 font-bold">نوع القضية</label>
+            <select
+              value={formState.case_type || formState.category}
+              onChange={(e) => onChange({ ...formState, case_type: e.target.value as any, category: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none bg-white text-right"
+            >
+              <option value="مدنية">مدنية</option>
+              <option value="تجارية">تجارية</option>
+              <option value="أحوال شخصية">أحوال شخصية</option>
+              <option value="عمالية">عمالية</option>
+              <option value="مستعجلة">مستعجلة</option>
+              <option value="جنائية">جنائية</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-slate-600 mb-1 font-bold">مرحلة القضية</label>
+            <select
+              value={formState.case_stage}
+              onChange={(e) => onChange({ ...formState, case_stage: e.target.value as any })}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none bg-white text-right"
+            >
+              <option value="ابتدائي مدني">ابتدائي مدني</option>
+              <option value="ابتدائي شخصي">ابتدائي شخصي</option>
+              <option value="ابتدائي جنائي">ابتدائي جنائي</option>
+              <option value="استئناف">استئناف</option>
+              <option value="نقض">نقض</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-slate-600 mb-1 font-bold">إجمالي المبلغ</label>
+            <input
+              type="number"
+              value={formState.total_amount ?? ''}
+              onChange={(e) => onChange({ ...formState, total_amount: parseFloat(e.target.value) || 0 })}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none text-right"
+              placeholder="0.00"
+            />
+          </div>
+          <div>
+            <label className="block text-slate-600 mb-1 font-bold">المبلغ المدفوع</label>
+            <input
+              type="number"
+              value={formState.paid_amount ?? ''}
+              onChange={(e) => onChange({ ...formState, paid_amount: parseFloat(e.target.value) || 0 })}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none text-right"
+              placeholder="0.00"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-slate-600 mb-1 font-bold">المتبقي</label>
+            <input
+              type="text"
+              readOnly
+              value={((formState.total_amount || 0) - (formState.paid_amount || 0)).toFixed(2)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-right"
+              placeholder="0.00"
+            />
+          </div>
+          <div>
+            <label className="block text-slate-600 mb-1 font-bold">حالة القضية</label>
+            <select
+              value={formState.status}
+              onChange={(e) => onChange({ ...formState, status: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none bg-white text-right"
+            >
+              <option value="active">نشط</option>
+              <option value="archived">مؤرشف</option>
+              <option value="closed">مغلق</option>
+            </select>
+          </div>
+        </div>
+
         <div>
           <label className="block text-slate-600 mb-1 font-bold">ملخص القضية والادعاءات</label>
           <textarea
@@ -219,6 +299,17 @@ export function CaseModal({ open, caseRecord, formState, clients, lawyers, onCha
             rows={2}
             className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none text-right"
             placeholder="اكتب تفاصيل وملخص الخصومة وطلبات الموكل..."
+          />
+        </div>
+
+        <div>
+          <label className="block text-slate-600 mb-1 font-bold">ملاحظات إضافية</label>
+          <textarea
+            value={formState.notes || ''}
+            onChange={(e) => onChange({ ...formState, notes: e.target.value })}
+            rows={2}
+            className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none text-right"
+            placeholder="سجل ملاحظات داخلية، أو بيانات أرشيفية إضافية..."
           />
         </div>
       </div>

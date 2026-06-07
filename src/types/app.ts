@@ -6,6 +6,8 @@ export type PageId =
   | 'dashboard'
   | 'clients'
   | 'cases'
+  | 'archive'
+  | 'employees'
   | 'sessions'
   | 'documents'
   | 'lawyers'
@@ -16,12 +18,17 @@ export type PageId =
   | 'help'
   | 'notifications';
 
-export type UserRole = 'admin' | 'firm_manager' | 'lawyer' | 'consultant';
+export type UserRole = 'super_admin' | 'admin' | 'lawyer' | 'assistant' | 'firm_manager';
 export type CustomerType = 'شركة تجارية' | 'فرد';
 export type NotificationType = 'session' | 'document' | 'case';
 export type AlertType = 'success' | 'error' | 'info';
+export type CaseType = 'مدنية' | 'تجارية' | 'أحوال شخصية' | 'عمالية' | 'مستعجلة' | 'جنائية';
+export type CaseStage = 'ابتدائي مدني' | 'ابتدائي شخصي' | 'ابتدائي جنائي' | 'استئناف' | 'نقض';
+export type CaseStatus = 'active' | 'archived' | 'closed';
+export type EmployeeStatus = 'active' | 'suspended' | 'disabled';
 
 export interface User {
+  id: string;
   name: string;
   email: string;
   role: UserRole;
@@ -48,8 +55,19 @@ export interface CaseRecord {
   title: string;
   clientId: string;
   clientName: string;
+  assignedLawyerId?: string;
+  court_case_number: string;
+  case_type: CaseType;
   category: string;
+  case_stage: CaseStage;
+  total_amount: number;
+  paid_amount: number;
+  remaining_amount: number;
   status: string;
+  judgment_date?: string;
+  archive_date?: string;
+  closed_by?: string;
+  notes?: string;
   court: string;
   caseNo: string;
   lawyerId: string;
@@ -80,6 +98,17 @@ export interface DocumentItem {
   url: string;
 }
 
+export interface Employee {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  role: UserRole;
+  status: EmployeeStatus;
+  profile_image?: string;
+  created_at: string;
+}
+
 export interface Lawyer {
   id: string;
   name: string;
@@ -87,6 +116,25 @@ export interface Lawyer {
   email: string;
   phone: string;
   specialization: string;
+  success_rate?: number;
+  attendance_rate?: number;
+  total_cases?: number;
+  won_cases?: number;
+  attended_sessions?: number;
+  missed_sessions?: number;
+}
+
+export interface CaseAttachment {
+  id: string;
+  case_id: string;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  storage_path: string;
+  uploaded_by?: string;
+  uploaded_at: string;
+  version: number;
+  notes?: string;
 }
 
 export interface SubscriptionPlan {
