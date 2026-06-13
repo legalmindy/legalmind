@@ -134,7 +134,6 @@ export interface DbNotification {
 export interface DbInvitation {
   id: string;
   firm_id: string | null;
-  office_id?: string | null;
   email: string;
   full_name: string | null;
   phone: string | null;
@@ -152,7 +151,6 @@ export interface DbInvitation {
 export interface DbInvitationPreview {
   id: string;
   firm_id: string;
-  office_id?: string;
   office_name?: string;
   firm_name: string;
   email: string;

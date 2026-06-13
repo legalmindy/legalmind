@@ -5,7 +5,7 @@ export interface OfficeProfileContext {
   userId: string;
   profileId: string;
   officeId: string;
-  firmId: string | null;
+  firmId: string;
   employeeId: string | null;
   fullName: string;
   email: string;
@@ -16,23 +16,22 @@ export interface OfficeProfileContext {
 
 interface ProfileContextRow {
   id: string;
-  office_id: string;
+  firm_id: string;
   employee_id: string | null;
   full_name: string;
   email: string;
   role: Extract<UserRole, 'admin' | 'lawyer' | 'assistant'>;
-  offices: {
+  firms: {
     id: string;
-    firm_id: string | null;
     name: string;
-    office_code: string;
+    firm_code: string;
   } | null;
 }
 
-interface RawProfileContextRow extends Omit<ProfileContextRow, 'offices'> {
-  offices:
-    | ProfileContextRow['offices']
-    | NonNullable<ProfileContextRow['offices']>[];
+interface RawProfileContextRow extends Omit<ProfileContextRow, 'firms'> {
+  firms:
+    | ProfileContextRow['firms']
+    | NonNullable<ProfileContextRow['firms']>[];
 }
 
 export async function getCurrentProfileContext(): Promise<OfficeProfileContext | null> {
@@ -42,7 +41,7 @@ export async function getCurrentProfileContext(): Promise<OfficeProfileContext |
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, office_id, employee_id, full_name, email, role, offices(id, firm_id, name, office_code)')
+    .select('id, firm_id, employee_id, full_name, email, role, firms(id, name, firm_code)')
     .eq('id', authData.user.id)
     .is('deleted_at', null)
     .single();
@@ -50,20 +49,20 @@ export async function getCurrentProfileContext(): Promise<OfficeProfileContext |
   if (error) throw error;
 
   const row = data as unknown as RawProfileContextRow;
-  const office = Array.isArray(row.offices) ? row.offices[0] : row.offices;
-  if (!office) return null;
+  const firm = Array.isArray(row.firms) ? row.firms[0] : row.firms;
+  if (!firm) return null;
 
   return {
     userId: authData.user.id,
     profileId: row.id,
-    officeId: row.office_id,
-    firmId: office.firm_id,
+    officeId: row.firm_id,
+    firmId: row.firm_id,
     employeeId: row.employee_id,
     fullName: row.full_name,
     email: row.email,
     role: row.role,
-    officeName: office.name,
-    officeCode: office.office_code
+    officeName: firm.name,
+    officeCode: firm.firm_code
   };
 }
 

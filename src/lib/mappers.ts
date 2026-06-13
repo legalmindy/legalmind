@@ -161,7 +161,7 @@ export function mapDbInvitation(row: DbInvitation): Invitation {
   return {
     id: row.id,
     firmId: row.firm_id ?? undefined,
-    officeId: row.office_id ?? undefined,
+    officeId: row.firm_id ?? undefined,
     email: row.email,
     fullName: row.full_name ?? '',
     phone: row.phone ?? '',

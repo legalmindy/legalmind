@@ -4,6 +4,7 @@ import type { Invitation, User, UserRole } from '../types/app';
 import type { DbEmployee, DbInvitationPreview } from '../types/database';
 import { mapEmployeeToUser } from './mappers';
 import { logError } from './errorLogger';
+import { isValidFirmCodeFormat, normalizeFirmCode } from './firmCode';
 
 export interface AuthResult {
   success: boolean;
@@ -48,6 +49,7 @@ export interface OfficeCodePreview {
   id: string;
   name: string;
   officeCode: string;
+  firmCode: string;
 }
 
 export interface InvitationPreview extends Pick<Invitation, 'id' | 'email' | 'role' | 'status' | 'expiresAt'> {
@@ -127,20 +129,26 @@ export async function registerOffice(data: OfficeRegistrationData): Promise<Auth
 }
 
 export async function verifyOfficeCode(officeCode: string): Promise<OfficeCodePreview | null> {
-  const { data, error } = await supabase.rpc('get_office_by_code', { office_code_input: officeCode });
+  const normalizedCode = normalizeFirmCode(officeCode);
+  if (!isValidFirmCodeFormat(normalizedCode)) return null;
+
+  const { data, error } = await supabase.rpc('get_office_by_code', { office_code_input: normalizedCode });
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : data;
   if (!row) return null;
+  const firmCode = (row.firm_code ?? row.office_code) as string;
   return {
     id: row.id as string,
     name: row.name as string,
-    officeCode: row.office_code as string
+    officeCode: (row.office_code ?? firmCode) as string,
+    firmCode
   };
 }
 
 export async function registerLawyer(data: LawyerRegistrationData): Promise<AuthResult> {
-  const office = await verifyOfficeCode(data.officeCode);
-  if (!office) return { success: false, error: 'كود المكتب غير صحيح أو غير موجود.' };
+  const firmCode = normalizeFirmCode(data.officeCode);
+  const office = await verifyOfficeCode(firmCode);
+  if (!office) return { success: false, error: 'كود المكتب غير صحيح أو غير موجود. مثال صحيح: HUD-4829' };
 
   const { error, data: authData } = await supabase.auth.signUp({
     email: data.email,
@@ -148,7 +156,8 @@ export async function registerLawyer(data: LawyerRegistrationData): Promise<Auth
     options: {
       data: {
         registration_flow: 'lawyer',
-        office_code: data.officeCode.trim().toUpperCase(),
+        firm_code: firmCode,
+        office_code: firmCode,
         full_name: data.fullName,
         role: 'lawyer'
       },
@@ -166,10 +175,10 @@ export async function fetchInvitationPreview(token: string): Promise<InvitationP
   if (error) throw error;
   const preview = Array.isArray(data) ? data[0] : data;
   if (!preview) throw new Error('الدعوة غير موجودة أو انتهت صلاحيتها.');
-  const row = preview as DbInvitationPreview & { office_id?: string; office_name?: string };
+  const row = preview as DbInvitationPreview & { office_name?: string };
   return {
     id: row.id,
-    officeId: row.office_id ?? row.firm_id,
+    officeId: row.firm_id,
     officeName: row.office_name ?? row.firm_name,
     email: row.email,
     role: row.role,
@@ -253,7 +262,7 @@ async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*, offices(name, plan)')
+    .select('*, firms(name, plan)')
     .eq('id', authUser.id)
     .is('deleted_at', null)
     .single();
@@ -264,8 +273,8 @@ async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
       name: profile.full_name as string,
       email: profile.email as string,
       role: profile.role as UserRole,
-      plan: (profile.offices as { plan?: string } | null)?.plan ?? 'free',
-      company: (profile.offices as { name?: string } | null)?.name ?? 'مكتب محاماة',
+      plan: (profile.firms as { plan?: string } | null)?.plan ?? 'free',
+      company: (profile.firms as { name?: string } | null)?.name ?? 'مكتب محاماة',
       phone: (profile.phone as string | null) ?? '',
       licenseNo: ''
     };

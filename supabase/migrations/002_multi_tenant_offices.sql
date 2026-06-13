@@ -1,5 +1,5 @@
 -- LegalMind Yemen — Multi-Tenant Office Hardening
--- Keeps firms/firm_id as the tenant boundary while exposing the concept as offices in the app.
+-- Keeps firms/firm_id as the tenant boundary for the multi-tenant app.
 
 create extension if not exists "pgcrypto";
 
