@@ -1027,13 +1027,38 @@ drop policy if exists "storage_select_case_access" on storage.objects;
 create policy "storage_select_case_access" on storage.objects for select
   using (bucket_id = 'case-documents' and can_access_case(storage_case_id(name)));
 
--- ─── Grants (Supabase RPC access) ─────────────────────────────────────────────
+-- ─── Grants + security hardening (Supabase linter) ────────────────────────────
+-- See also: supabase/migrations/009_security_hardening.sql
+
+do $$
+declare
+  fn record;
+begin
+  for fn in
+    select p.oid::regprocedure as signature
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.prokind = 'f'
+  loop
+    execute format('alter function %s set search_path = public', fn.signature);
+    execute format('revoke all on function %s from public', fn.signature);
+    execute format('revoke all on function %s from anon', fn.signature);
+    execute format('revoke all on function %s from authenticated', fn.signature);
+  end loop;
+end $$;
+
 grant execute on function get_office_by_firm_code(text) to anon, authenticated;
 grant execute on function get_office_by_code(text) to anon, authenticated;
 grant execute on function office_code_exists(text) to anon, authenticated;
+grant execute on function get_invitation_by_token(text) to anon, authenticated;
 grant execute on function get_current_profile_context() to authenticated;
 grant execute on function is_current_user_office_admin() to authenticated;
-grant execute on function get_invitation_by_token(text) to anon, authenticated;
+grant execute on function accept_invitation_for_auth_user(text) to authenticated;
+grant execute on function create_office_invitation(text, text, text) to authenticated;
+grant execute on function cancel_office_invitation(uuid) to authenticated;
+grant execute on function resend_office_invitation(uuid, text) to authenticated;
+grant execute on function sync_pull_table(text, text) to authenticated;
+grant execute on function sync_apply_event(text, text, uuid, uuid, text, jsonb) to authenticated;
 
 -- =============================================================================
 -- Done. Verify with:

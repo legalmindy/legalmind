@@ -16,6 +16,10 @@
 --   006_backend_stability_helpers.sql      — get_current_profile_context RPC
 --   007_firm_codes.sql             — firm_code ABC-1234 generation
 --   008_fix_profile_role_functions.sql     — profile role enum fix (if needed)
+--   009_security_hardening.sql             — search_path + RPC execute grants
+--
+-- SECURITY (Supabase Dashboard — not SQL):
+--   Auth → Providers → Email → enable "Leaked password protection"
 --
 -- =============================================================================
 -- TABLE ORDER (foreign-key dependencies)
