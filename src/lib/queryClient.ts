@@ -1,16 +1,21 @@
 import { QueryClient } from '@tanstack/react-query';
+import { logError } from './errorLogger';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 60_000,
-      cacheTime: 5 * 60_000,
+      gcTime: 5 * 60_000,
       retry: 1,
       refetchOnWindowFocus: false,
-      refetchOnReconnect: false
+      refetchOnReconnect: true
     },
     mutations: {
-      retry: false
+      retry: false,
+      onError: (error) => {
+        const message = error instanceof Error ? error.message : 'خطأ غير معروف';
+        void logError(message, { source: 'mutation' });
+      }
     }
   }
 });

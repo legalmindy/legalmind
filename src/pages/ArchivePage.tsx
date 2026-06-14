@@ -1,6 +1,6 @@
 import type { CaseRecord } from '../types/app';
 import { useMemo, useState } from 'react';
-import { Search, RefreshCcw, ArrowUpRight, Archive } from 'lucide-react';
+import { Search, RefreshCcw, Archive } from 'lucide-react';
 
 interface ArchivePageProps {
   cases: CaseRecord[];

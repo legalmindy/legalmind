@@ -18,7 +18,8 @@ export function DocumentManager({ documents, onUpload, cases }: DocumentManagerP
     if (!selected) return;
     const next: File[] = [];
     for (let i = 0; i < selected.length; i += 1) {
-      const file = selected[i];
+      const file = selected.item(i);
+      if (!file) continue;
       if (!supported.includes(file.type)) {
         setError('الملف غير مدعوم. يرجى رفع PDF، DOCX، XLSX، JPG، PNG أو WEBP.');
         continue;

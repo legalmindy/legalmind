@@ -8,6 +8,10 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -17,6 +21,6 @@
     "jsx": "react-jsx",
     "types": ["vite/client"]
   },
-  "include": ["src"],
+  "include": ["src", "supabaseClient.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
