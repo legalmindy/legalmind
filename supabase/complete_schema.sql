@@ -657,7 +657,9 @@ begin
 end;
 $$ language plpgsql security definer;
 
-create or replace function get_invitation_by_token(raw_token text)
+drop function if exists get_invitation_by_token(text);
+
+create function get_invitation_by_token(raw_token text)
 returns table (
   id uuid,
   firm_id uuid,
@@ -791,7 +793,9 @@ returns boolean as $$
   );
 $$ language sql stable security definer;
 
-create or replace function get_current_profile_context()
+drop function if exists get_current_profile_context();
+
+create function get_current_profile_context()
 returns table (
   profile_id uuid, firm_id uuid, employee_id uuid,
   full_name text, email text, role text,

@@ -164,7 +164,10 @@ begin
 end;
 $$ language plpgsql security definer;
 
-create or replace function get_invitation_by_token(raw_token text)
+-- Must drop first: migration 002 created this function with a different return shape.
+drop function if exists get_invitation_by_token(text);
+
+create function get_invitation_by_token(raw_token text)
 returns table (
   id uuid,
   firm_id uuid,
