@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Search, Plus, UserCheck, UserX, Edit3, Trash2, Mail, Ban, Copy, RefreshCw } from 'lucide-react';
+import { FirmCodeCard } from '../components/FirmCodeCard';
 import type { Employee, Invitation } from '../types/app';
 
 interface EmployeesPageProps {
@@ -12,9 +13,12 @@ interface EmployeesPageProps {
   onRevokeInvitation: (id: string) => void;
   onResendInvitation: (id: string) => void;
   onCopyInvitation: (url: string) => void;
+  firmCode?: string;
+  firmName?: string;
+  onFirmCodeCopied?: (message: string) => void;
 }
 
-export function EmployeesPage({ employees, onDelete, onToggleStatus, onEdit, onInvite, invitations, onRevokeInvitation, onResendInvitation, onCopyInvitation }: EmployeesPageProps) {
+export function EmployeesPage({ employees, onDelete, onToggleStatus, onEdit, onInvite, invitations, onRevokeInvitation, onResendInvitation, onCopyInvitation, firmCode, firmName, onFirmCodeCopied }: EmployeesPageProps) {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('الكل');
   const [statusFilter, setStatusFilter] = useState('الكل');
@@ -43,6 +47,10 @@ export function EmployeesPage({ employees, onDelete, onToggleStatus, onEdit, onI
           <Plus className="w-4 h-4" /> إضافة موظف جديد
         </button>
       </div>
+
+      {firmCode ? (
+        <FirmCodeCard firmCode={firmCode} firmName={firmName} onCopied={onFirmCodeCopied} />
+      ) : null}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-3">

@@ -6,7 +6,7 @@ interface FirmCodeCardProps {
   firmCode: string;
   firmName?: string;
   onCopied?: (message: string) => void;
-  variant?: 'default' | 'hero' | 'compact';
+  variant?: 'default' | 'hero' | 'compact' | 'navbar';
 }
 
 export function FirmCodeCard({ firmCode, firmName, onCopied, variant = 'default' }: FirmCodeCardProps) {
@@ -36,6 +36,29 @@ export function FirmCodeCard({ firmCode, firmName, onCopied, variant = 'default'
           aria-label="نسخ كود المكتب"
         >
           {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+        </button>
+      </div>
+    );
+  }
+
+  if (variant === 'navbar') {
+    return (
+      <div
+        className="hidden xl:flex items-center gap-2 rounded-xl border border-white/15 bg-[#641923] px-3 py-1.5"
+        dir="rtl"
+      >
+        <KeyRound className="w-3.5 h-3.5 text-amber-300 shrink-0" aria-hidden="true" />
+        <div className="text-right leading-tight">
+          <p className="text-[9px] font-bold text-amber-200/90">كود المكتب</p>
+          <p className="font-mono text-xs font-black tracking-wider !text-white">{displayCode}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleCopy()}
+          className="rounded-lg p-1.5 text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+          aria-label="نسخ كود المكتب"
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
         </button>
       </div>
     );

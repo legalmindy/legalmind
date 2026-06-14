@@ -27,6 +27,7 @@ import {
   useNotifications,
   useOffice,
   useOfficeMutations,
+  useFirmProfile,
   useRealtimeNotifications,
   useSessionMutations,
   useSessions,
@@ -98,6 +99,10 @@ export default function App() {
   const { data: invitations = [] } = useInvitations(isAuth);
   const { data: office } = useOffice(isAuth);
   const { data: notifications = [] } = useNotifications(isAuth);
+  const canShowFirmCode = Boolean(auth.user && canManageOffice(auth.user.role));
+  const { data: firmProfile } = useFirmProfile(isAuth && canShowFirmCode);
+  const firmCode = office?.firmCode ?? firmProfile?.officeCode;
+  const firmName = office?.name ?? firmProfile?.officeName ?? auth.user?.company;
 
   const clientMutations = useClientMutations();
   const caseMutations = useCaseMutations();
@@ -377,6 +382,8 @@ export default function App() {
             markAllNotificationsRead={() => void notificationMutations.markAllNotificationsRead.mutateAsync()}
             markNotificationRead={(id) => void notificationMutations.markNotificationRead.mutateAsync(id)}
             handleLogout={() => void handleLogout()}
+            firmCode={canShowFirmCode ? firmCode : undefined}
+            onFirmCodeCopied={(msg) => showAlert(msg, 'success')}
           />
           <SyncStatusBar {...syncState} onSyncNow={() => void syncState.syncNow()} />
         </>
@@ -447,7 +454,11 @@ export default function App() {
             onEdit={(employee) => { setEditingEmployee(employee); setNewEmployee({ full_name: employee.full_name, email: employee.email, phone: employee.phone, role: employee.role, status: employee.status, profile_image: employee.profile_image }); setShowEmployeeModal(true); }}
             onRevokeInvitation={(id) => void employeeMutations.revokeInvitation.mutateAsync(id).then(() => showAlert('تم إلغاء الدعوة.', 'info'))}
             onResendInvitation={(id) => void employeeMutations.resendInvitation.mutateAsync(id).then(() => showAlert('تم تجديد رابط الدعوة.', 'success')).catch((err) => showAlert(err instanceof Error ? err.message : 'فشل إعادة إرسال الدعوة.', 'error'))}
-            onCopyInvitation={(url) => void navigator.clipboard.writeText(url).then(() => showAlert('تم نسخ رابط الدعوة.', 'success')).catch(() => showAlert('تعذر نسخ الرابط.', 'error'))} />
+            onCopyInvitation={(url) => void navigator.clipboard.writeText(url).then(() => showAlert('تم نسخ رابط الدعوة.', 'success')).catch(() => showAlert('تعذر نسخ الرابط.', 'error'))}
+            firmCode={firmCode}
+            firmName={firmName}
+            onFirmCodeCopied={(msg) => showAlert(msg, 'success')}
+          />
         )}
 
         {currentPage === 'sessions' && user && !dataLoading && (

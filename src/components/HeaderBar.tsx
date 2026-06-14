@@ -17,6 +17,7 @@ import {
   Users,
   X
 } from 'lucide-react';
+import { FirmCodeCard } from './FirmCodeCard';
 import type { NotificationItem, PageId, User as UserType, UserRole } from '../types/app';
 
 interface HeaderBarProps {
@@ -35,6 +36,8 @@ interface HeaderBarProps {
   markAllNotificationsRead: () => void;
   markNotificationRead: (id: string) => void;
   handleLogout: () => void;
+  firmCode?: string;
+  onFirmCodeCopied?: (message: string) => void;
 }
 
 const navItems: Array<{ id: PageId; label: string; icon: typeof Briefcase; roles: UserRole[] }> = [
@@ -64,7 +67,9 @@ export function HeaderBar({
   setIsMobileMenuOpen,
   markAllNotificationsRead,
   markNotificationRead,
-  handleLogout
+  handleLogout,
+  firmCode,
+  onFirmCodeCopied
 }: HeaderBarProps) {
   const unreadCount = useMemo(() => notifications.filter((item) => !item.read).length, [notifications]);
   const visibleNavItems = useMemo(() => navItems.filter((item) => item.roles.includes(role)), [role]);
@@ -107,6 +112,10 @@ export function HeaderBar({
         </nav>
 
         <div className="flex items-center gap-3 shrink-0">
+          {firmCode ? (
+            <FirmCodeCard variant="navbar" firmCode={firmCode} onCopied={onFirmCodeCopied} />
+          ) : null}
+
           <div className="hidden md:flex items-center gap-2 bg-[#641923] px-3 py-1.5 rounded-full text-xs border border-white/10">
             <span className="font-semibold text-[10px] !text-white">الصلاحية:</span>
             <span className="!text-white font-bold">{role}</span>
@@ -178,6 +187,12 @@ export function HeaderBar({
                 <div className="px-4 py-3 border-b border-slate-100 text-right bg-slate-50">
                   <p className="text-xs font-bold text-slate-800">{user.name}</p>
                   <p className="text-[10px] text-slate-500 mt-0.5 break-all">{user.email}</p>
+                  {firmCode ? (
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <p className="text-[10px] font-bold text-slate-500 mb-1.5">كود المكتب</p>
+                      <FirmCodeCard variant="compact" firmCode={firmCode} onCopied={onFirmCodeCopied} />
+                    </div>
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -237,6 +252,12 @@ export function HeaderBar({
 
       {isMobileMenuOpen && (
         <div className="lg:hidden bg-[#7A1F2B] border-t border-white/10 px-4 py-3 space-y-1">
+          {firmCode ? (
+            <div className="mb-3 rounded-xl border border-white/15 bg-[#641923] p-3" dir="rtl">
+              <p className="text-[10px] font-bold text-amber-200 mb-2">كود المكتب — للمشاركة مع الفريق</p>
+              <FirmCodeCard variant="compact" firmCode={firmCode} onCopied={onFirmCodeCopied} />
+            </div>
+          ) : null}
           {visibleNavItems.map((item) => {
             const Icon = item.icon;
             return (
