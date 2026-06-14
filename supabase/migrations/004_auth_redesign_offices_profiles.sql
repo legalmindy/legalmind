@@ -73,9 +73,19 @@ returns uuid as $$
   select get_current_firm_id();
 $$ language sql stable security definer;
 
+drop function if exists is_office_profile_admin();
+drop function if exists get_current_profile_role();
+
 create or replace function get_current_profile_role()
-returns profile_role_enum as $$
-  select role from profiles where id = auth.uid() and deleted_at is null limit 1;
+returns text as $$
+  select case role::text
+    when 'firm_manager' then 'admin'
+    when 'super_admin' then 'admin'
+    else role::text
+  end
+  from profiles
+  where id = auth.uid() and deleted_at is null
+  limit 1;
 $$ language sql stable security definer;
 
 create or replace function is_office_profile_admin()
