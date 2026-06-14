@@ -1,6 +1,9 @@
 -- LegalMind Yemen - backend stability helper RPCs
 -- Idempotent helpers for profile/firm context checks.
 
+alter table firms add column if not exists firm_code text;
+alter table firms add column if not exists deleted_at timestamptz;
+
 drop function if exists get_current_profile_context();
 create function get_current_profile_context()
 returns table (
@@ -48,9 +51,9 @@ create or replace function office_code_exists(office_code_input text)
 returns boolean as $$
   select exists (
     select 1
-    from firms
-    where upper(firm_code) = upper(trim(office_code_input))
-      and deleted_at is null
+    from firms f
+    where upper(f.firm_code) = upper(trim(office_code_input))
+      and f.deleted_at is null
   );
 $$ language sql stable security definer;
 
