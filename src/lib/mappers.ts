@@ -153,7 +153,8 @@ export function mapDbFirm(row: DbFirm): Office {
     id: row.id,
     name: row.name,
     licenseNo: row.license_no ?? '',
-    plan: row.plan
+    plan: row.plan,
+    firmCode: row.firm_code ?? undefined
   };
 }
 

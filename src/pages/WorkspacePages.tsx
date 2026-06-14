@@ -3,6 +3,7 @@ import type { CaseRecord, Client, DocumentItem, Lawyer, Office, PageId, SessionI
 import { Briefcase, Calendar, CheckCircle, Clock, FileText, Lock, MapPin, Plus, Search, Trash2, Edit3, Download, AlertCircle, User as UserIcon } from 'lucide-react';
 import { StatCard } from '../components/StatCard';
 import { MfaSettings } from '../components/MfaSettings';
+import { FirmCodeCard } from '../components/FirmCodeCard';
 
 interface DashboardPageProps {
   user: User;
@@ -25,6 +26,8 @@ interface DashboardPageProps {
   setShowClientModal: (value: boolean) => void;
   setShowCaseModal: (value: boolean) => void;
   setShowSessionModal: (value: boolean) => void;
+  office?: Office;
+  onFirmCodeCopied?: (message: string) => void;
 }
 
 interface ClientsPageProps {
@@ -96,10 +99,18 @@ export function DashboardPage({
   setCurrentPage,
   setShowClientModal,
   setShowCaseModal,
-  setShowSessionModal
+  setShowSessionModal,
+  office,
+  onFirmCodeCopied
 }: DashboardPageProps) {
+  const isAdmin = user.role === 'admin' || user.role === 'firm_manager' || user.role === 'super_admin';
+  const firmCode = office?.firmCode;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-6">
+      {isAdmin && firmCode ? (
+        <FirmCodeCard firmCode={firmCode} firmName={office?.name ?? user.company} onCopied={onFirmCodeCopied} />
+      ) : null}
       <div className="bg-gradient-to-l from-slate-950 via-indigo-950 to-indigo-900 text-white p-6 rounded-2xl shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">

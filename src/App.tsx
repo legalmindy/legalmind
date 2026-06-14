@@ -409,7 +409,9 @@ export default function App() {
             setActiveChartTab={setActiveChartTab} setHoveredDataPoint={setHoveredDataPoint}
             stats={stats} monthlyData={MONTHLY_CHART_DATA} setCurrentPage={setCurrentPage}
             setShowClientModal={setShowClientModal} setShowCaseModal={setShowCaseModal}
-            setShowSessionModal={setShowSessionModal} />
+            setShowSessionModal={setShowSessionModal}
+            office={office}
+            onFirmCodeCopied={(msg) => showAlert(msg, 'success')} />
         )}
 
         {currentPage === 'clients' && user && !dataLoading && (

@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Scale, Shield, Mail, Loader2, UserPlus, Building2 } from 'lucide-react';
+import { Scale, Shield, Mail, Loader2, UserPlus, Building2, CheckCircle2 } from 'lucide-react';
 import { isValidEmail, isStrongPassword } from '../lib/sanitize';
+import { isValidFirmCodeFormat, normalizeFirmCode, validateFirmCodeForRegistration } from '../lib/firmCode';
+import { getCurrentProfileContext } from '../services/profileService';
+import { FirmCodeCard } from '../components/FirmCodeCard';
 import { fetchInvitationPreview, type AuthResult, type InvitationPreview, type InvitedUserRegistrationData, type LawyerRegistrationData, type OfficeRegistrationData, type SignUpData } from '../lib/auth';
 
 interface AuthPagesProps {
@@ -35,6 +38,10 @@ export function AuthPages({
   const [success, setSuccess] = useState('');
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
   const [pendingEmail, setPendingEmail] = useState('');
+  const [registeredFirmCode, setRegisteredFirmCode] = useState('');
+  const [firmPreviewName, setFirmPreviewName] = useState('');
+  const [firmCodeInput, setFirmCodeInput] = useState('');
+  const [firmCodeStatus, setFirmCodeStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const inviteToken = useMemo(() => {
     const pathToken = window.location.pathname.startsWith('/invite/') ? window.location.pathname.split('/invite/')[1] : '';
     return decodeURIComponent(pathToken || new URLSearchParams(window.location.search).get('token') || '');
@@ -49,6 +56,41 @@ export function AuthPages({
       .catch((err) => setError(err instanceof Error ? err.message : 'تعذر تحميل الدعوة.'))
       .finally(() => setLoading(false));
   }, [currentPage, inviteToken]);
+
+  useEffect(() => {
+    if (currentPage !== 'register-lawyer') return;
+    const normalized = normalizeFirmCode(firmCodeInput);
+    if (!normalized) {
+      setFirmCodeStatus('idle');
+      setFirmPreviewName('');
+      return;
+    }
+    if (!isValidFirmCodeFormat(normalized)) {
+      setFirmCodeStatus('invalid');
+      setFirmPreviewName('');
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setFirmCodeStatus('checking');
+      void validateFirmCodeForRegistration(normalized)
+        .then((result) => {
+          if (result.valid) {
+            setFirmCodeStatus('valid');
+            setFirmPreviewName(result.firmName ?? '');
+          } else {
+            setFirmCodeStatus('invalid');
+            setFirmPreviewName('');
+          }
+        })
+        .catch(() => {
+          setFirmCodeStatus('invalid');
+          setFirmPreviewName('');
+        });
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [currentPage, firmCodeInput]);
 
   if (!isConfigured) {
     return (
@@ -188,13 +230,20 @@ export function AuthPages({
                 setError('كلمة المرور يجب أن تكون 8 أحرف على الأقل وتحتوي على حرف كبير وصغير ورقم.');
                 return;
               }
-              void handleAsync(() => onRegisterOffice({
-                lawFirmName: data.get('officeName') as string,
-                ownerFullName: data.get('ownerName') as string,
-                email,
-                password,
-                phone: data.get('phone') as string
-              }));
+              void handleAsync(async () => {
+                const result = await onRegisterOffice({
+                  lawFirmName: data.get('officeName') as string,
+                  ownerFullName: data.get('ownerName') as string,
+                  email,
+                  password,
+                  phone: data.get('phone') as string
+                });
+                if (result.success && !result.needsEmailVerification) {
+                  const ctx = await getCurrentProfileContext();
+                  if (ctx?.officeCode) setRegisteredFirmCode(ctx.officeCode);
+                }
+                return result;
+              });
             }}
             className="space-y-4"
           >
@@ -230,6 +279,12 @@ export function AuthPages({
             </div>
             {error && <p className="text-rose-600 text-xs font-bold" role="alert">{error}</p>}
             {success && <p className="text-emerald-600 text-xs font-bold" role="status">{success}</p>}
+            {registeredFirmCode ? (
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-slate-700 text-right">كود مكتبك للمشاركة مع فريقك:</p>
+                <FirmCodeCard firmCode={registeredFirmCode} compact />
+              </div>
+            ) : null}
             <button type="submit" disabled={loading} className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-bold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               تسجيل مكتب محاماة
@@ -255,24 +310,39 @@ export function AuthPages({
             <p className="text-xs text-slate-500 mt-1">أدخل كود المكتب للانضمام كعضو قانوني.</p>
           </div>
           <form
+            noValidate
             onSubmit={(e) => {
               e.preventDefault();
               const data = new FormData(e.currentTarget);
-              const email = data.get('email') as string;
+              const email = (data.get('email') as string).trim();
               const password = data.get('password') as string;
               const confirmPassword = data.get('confirmPassword') as string;
+              const firmCode = normalizeFirmCode(data.get('firmCode') as string);
+
+              setError('');
               if (!isValidEmail(email)) { setError('البريد الإلكتروني غير صالح.'); return; }
               if (password !== confirmPassword) { setError('كلمتا المرور غير متطابقتين.'); return; }
               if (!isStrongPassword(password)) {
                 setError('كلمة المرور يجب أن تكون 8 أحرف على الأقل وتحتوي على حرف كبير وصغير ورقم.');
                 return;
               }
-              void handleAsync(() => onRegisterLawyer({
-                fullName: data.get('fullName') as string,
-                email,
-                password,
-                officeCode: data.get('officeCode') as string
-              }));
+              if (!isValidFirmCodeFormat(firmCode)) {
+                setError('صيغة كود المكتب غير صحيحة. مثال: HUD-4829');
+                return;
+              }
+
+              void handleAsync(async () => {
+                const validation = await validateFirmCodeForRegistration(firmCode);
+                if (!validation.valid) {
+                  return { success: false, error: validation.error ?? 'كود المكتب غير صالح.' };
+                }
+                return onRegisterLawyer({
+                  fullName: data.get('fullName') as string,
+                  email,
+                  password,
+                  officeCode: validation.normalizedCode
+                });
+              });
             }}
             className="space-y-4"
           >
@@ -285,8 +355,29 @@ export function AuthPages({
               <input id="lawyer-email" name="email" type="email" required autoComplete="email" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none text-sm text-right" />
             </div>
             <div>
-              <label htmlFor="office-code" className="block text-xs font-bold text-slate-700 mb-1">كود المكتب</label>
-              <input id="office-code" name="officeCode" type="text" required placeholder="LMY-XXXXXXXX" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none text-sm text-center font-mono uppercase" />
+              <label htmlFor="firm-code" className="block text-xs font-bold text-slate-700 mb-1">كود المكتب</label>
+              <input
+                id="firm-code"
+                name="firmCode"
+                type="text"
+                value={firmCodeInput}
+                onChange={(e) => setFirmCodeInput(e.target.value.toUpperCase())}
+                placeholder="HUD-4829"
+                autoComplete="off"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none text-sm text-center font-mono uppercase tracking-wider"
+              />
+              {firmCodeStatus === 'checking' && (
+                <p className="text-[11px] text-slate-500 mt-1 text-right">جاري التحقق من الكود...</p>
+              )}
+              {firmCodeStatus === 'valid' && firmPreviewName && (
+                <p className="text-[11px] text-emerald-700 mt-1 text-right flex items-center justify-end gap-1 font-bold">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  مكتب: {firmPreviewName}
+                </p>
+              )}
+              {firmCodeStatus === 'invalid' && firmCodeInput.trim() && (
+                <p className="text-[11px] text-rose-600 mt-1 text-right font-bold">كود غير صالح أو غير موجود.</p>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input name="password" type="password" required minLength={8} placeholder="كلمة المرور" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm" />

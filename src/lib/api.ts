@@ -64,7 +64,7 @@ export async function fetchOffice(): Promise<Office> {
   const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('firms')
-    .select('*')
+    .select('id, name, license_no, plan, firm_code')
     .eq('id', firmId)
     .single();
   if (error) throw error;

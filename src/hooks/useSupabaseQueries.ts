@@ -12,9 +12,12 @@ import {
 import {
   cancelInvitation,
   fetchInvitations,
+  fetchOffice,
   inviteOfficeUser,
   resendInvitation
 } from '../lib/api';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
+import { isOnline } from '../lib/syncEngine';
 import type { PaginationParams } from '../types/database';
 import type { Employee } from '../types/app';
 
@@ -79,7 +82,16 @@ export function useInvitations(enabled = true) {
 export function useOffice(enabled = true) {
   return useQuery({
     queryKey: queryKeys.office,
-    queryFn: () => localOfficeRepository.get(),
+    queryFn: async () => {
+      if (isSupabaseConfigured() && isOnline()) {
+        try {
+          return await fetchOffice();
+        } catch {
+          return localOfficeRepository.get();
+        }
+      }
+      return localOfficeRepository.get();
+    },
     enabled,
     staleTime: 60_000
   });

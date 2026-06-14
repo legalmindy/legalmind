@@ -49,6 +49,7 @@ export interface Office {
   name: string;
   licenseNo: string;
   plan: string;
+  firmCode?: string;
 }
 
 export interface Client {
