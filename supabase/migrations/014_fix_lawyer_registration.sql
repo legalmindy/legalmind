@@ -6,6 +6,8 @@
 
 -- ─── Signup provisioning helpers ───────────────────────────────────────────────
 
+drop function if exists public.create_lawyer_profile(uuid, text, text, text);
+
 create or replace function create_office_admin_profile(
   auth_user_id uuid,
   office_name text,
@@ -46,7 +48,7 @@ $$;
 
 create or replace function create_lawyer_profile(
   auth_user_id uuid,
-  firm_code_input text,
+  office_code_input text,
   lawyer_name text,
   lawyer_email text
 )
@@ -58,7 +60,7 @@ as $$
 declare
   target_firm_id uuid;
   new_employee_id uuid;
-  normalized_code text := upper(trim(firm_code_input));
+  normalized_code text := upper(trim(office_code_input));
   normalized_email text := lower(trim(lawyer_email));
   normalized_name text := trim(lawyer_name);
 begin
