@@ -66,13 +66,24 @@ function mapAuthError(error: AuthError): string {
     over_request_rate_limit: 'تم تجاوز عدد المحاولات. يرجى الانتظار قليلاً.',
     otp_expired: 'انتهت صلاحية رمز التحقق. يرجى طلب رمز جديد.'
   };
-  return messages[error.message] ?? error.message ?? 'حدث خطأ غير متوقع.';
+  const key = error.code ?? error.message;
+  return messages[key] ?? error.message ?? 'حدث خطأ غير متوقع.';
 }
 
 export async function signIn(email: string, password: string): Promise<AuthResult> {
-  console.log('[AUTH] Attempting sign in for email:', email);
-  
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedPassword = password;
+
+  if (!normalizedEmail || !normalizedPassword) {
+    return { success: false, error: 'يرجى إدخال البريد الإلكتروني وكلمة المرور.' };
+  }
+
+  console.log('[AUTH] Attempting sign in for email:', normalizedEmail);
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: normalizedEmail,
+    password: normalizedPassword
+  });
   
   if (error) {
     console.error('[AUTH] Sign in failed:', error.message);

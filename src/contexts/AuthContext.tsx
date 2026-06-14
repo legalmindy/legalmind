@@ -100,24 +100,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isConfigured]);
 
   const login = useCallback(async (email: string, password: string) => {
-    console.log('[AUTH CONTEXT] Login attempt for email:', email);
-    
     const result = await signIn(email, password);
-    
-    if (result.success) {
-      console.log('[AUTH CONTEXT] Sign in successful, fetching current user...');
-      const u = await fetchCurrentUser();
-      
-      if (u) {
-        console.log('[AUTH CONTEXT] User fetched successfully:', u.id);
-        setUser(u);
-      } else {
-        console.error('[AUTH CONTEXT] Failed to fetch user after successful sign in');
-      }
-    } else {
-      console.error('[AUTH CONTEXT] Sign in failed:', result.error);
+
+    if (!result.success) {
+      return result;
     }
-    
+
+    const u = await fetchCurrentUser();
+    if (!u) {
+      await signOut();
+      return {
+        success: false,
+        error: 'تم التحقق من الحساب لكن ملف المستخدم غير مكتمل. تأكد من وجود سجل في profiles أو employees.'
+      };
+    }
+
+    setUser(u);
     return result;
   }, []);
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Scale, Shield, Mail, Loader2, UserPlus, Building2 } from 'lucide-react';
 import { isValidEmail, isStrongPassword } from '../lib/sanitize';
 import { fetchInvitationPreview, type AuthResult, type InvitationPreview, type InvitedUserRegistrationData, type LawyerRegistrationData, type OfficeRegistrationData, type SignUpData } from '../lib/auth';
@@ -78,21 +78,45 @@ export function AuthPages({
         setSuccess('تم إرسال رابط التحقق إلى بريدك الإلكتروني. يرجى تأكيد حسابك.');
         return;
       }
-      if (!result.success && result.error) {
-        setError(result.error);
+      if (!result.success) {
+        setError(result.error ?? 'فشلت العملية. يرجى المحاولة مرة أخرى.');
+        return;
       }
-      // If login successful, redirect to dashboard after a short delay
-      if (result.success && currentPage === 'login') {
+      if (currentPage === 'login') {
         setSuccess('تم تسجيل الدخول بنجاح! جاري التحويل...');
-        setTimeout(() => {
-          onNavigate('login'); // This will trigger the redirect in App.tsx
-        }, 500);
       }
-    } catch {
-      setError('حدث خطأ غير متوقع. يرجى المحاولة لاحقاً.');
+    } catch (err) {
+      console.error('[AuthPages] submit error:', err);
+      setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع. يرجى المحاولة لاحقاً.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLoginSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    const email = (data.get('email') as string)?.trim() ?? '';
+    const password = (data.get('password') as string) ?? '';
+
+    setPendingEmail(email);
+    setError('');
+    setSuccess('');
+
+    if (!email) {
+      setError('يرجى إدخال البريد الإلكتروني.');
+      return;
+    }
+    if (!password) {
+      setError('يرجى إدخال كلمة المرور.');
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setError('البريد الإلكتروني غير صالح.');
+      return;
+    }
+
+    void handleAsync(() => onLogin(email, password));
   };
 
   if (mfaFactorId) {
@@ -395,19 +419,13 @@ export function AuthPages({
         </div>
 
         <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const data = new FormData(e.currentTarget);
-            const email = data.get('email') as string;
-            setPendingEmail(email);
-            if (!isValidEmail(email)) { setError('البريد الإلكتروني غير صالح.'); return; }
-            void handleAsync(() => onLogin(email, data.get('password') as string));
-          }}
+          noValidate
+          onSubmit={handleLoginSubmit}
           className="space-y-4"
         >
           <div>
             <label htmlFor="login-email" className="block text-xs font-bold text-slate-700 mb-1">البريد الإلكتروني المهني</label>
-            <input id="login-email" name="email" type="email" required autoComplete="email" placeholder="name@firm.com" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none text-sm text-right" />
+            <input id="login-email" name="email" type="email" autoComplete="email" placeholder="name@firm.com" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none text-sm text-right" />
           </div>
           <div>
             <div className="flex justify-between items-center mb-1">
@@ -416,7 +434,7 @@ export function AuthPages({
                 نسيت كلمة المرور؟
               </button>
             </div>
-            <input id="login-password" name="password" type="password" required autoComplete="current-password" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none text-sm" />
+            <input id="login-password" name="password" type="password" autoComplete="current-password" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none text-sm" />
           </div>
           {error && (
             <div role="alert">
@@ -432,6 +450,7 @@ export function AuthPages({
               )}
             </div>
           )}
+          {success && <p className="text-emerald-600 text-xs font-bold" role="status">{success}</p>}
           <button type="submit" disabled={loading} className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-bold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
             تسجيل الدخول الآمن
