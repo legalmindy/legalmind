@@ -2,6 +2,29 @@
 
 create extension if not exists "pgcrypto";
 
+-- Profile helpers required by invitation RPCs and RLS (idempotent if 004 already ran)
+do $$ begin
+  create type profile_role_enum as enum ('admin','lawyer','assistant');
+exception when duplicate_object then null; end $$;
+
+create or replace function get_current_profile_role()
+returns profile_role_enum as $$
+  select role from profiles where id = auth.uid() and deleted_at is null limit 1;
+$$ language sql stable security definer;
+
+create or replace function is_office_profile_admin()
+returns boolean as $$
+  select coalesce(get_current_profile_role() = 'admin', false);
+$$ language sql stable security definer;
+
+create or replace function get_current_firm_id()
+returns uuid as $$
+  select coalesce(
+    (select firm_id from profiles where id = auth.uid() and deleted_at is null limit 1),
+    (select firm_id from employees where auth_uid = auth.uid() and deleted_at is null limit 1)
+  );
+$$ language sql stable security definer;
+
 alter table invitations add column if not exists invite_url text;
 alter table invitations add column if not exists resent_at timestamptz;
 alter table invitations add column if not exists cancelled_at timestamptz;
