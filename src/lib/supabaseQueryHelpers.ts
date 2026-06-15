@@ -51,5 +51,8 @@ export function formatCaseSaveError(err: unknown): string {
   if (/invalid input value for enum|case_type|case_stage/i.test(combined)) {
     return 'تعذر حفظ القضية. نوع أو مرحلة القضية غير صالحة.';
   }
+  if (/sync_version/i.test(combined)) {
+    return 'تعذر حفظ القضية. إعدادات قاعدة البيانات تحتاج تحديث — نفّذ migration 020 في Supabase SQL Editor.';
+  }
   return message || 'فشل حفظ القضية.';
 }
