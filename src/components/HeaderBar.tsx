@@ -76,8 +76,8 @@ export function HeaderBar({
 
   return (
     <header className="sticky top-0 z-40 bg-[#7A1F2B] !text-white shadow-lg shadow-black/10 border-b border-white/10" dir="rtl">
-      <div className="w-full max-w-[1440px] mx-auto px-5 sm:px-8 lg:px-10 h-[72px] flex items-center justify-between gap-5">
-        <div className="flex items-center gap-3 cursor-pointer shrink-0" onClick={() => onChangePage('dashboard')}>
+      <div className="w-full max-w-[1440px] mx-auto px-5 pl-5 pr-8 sm:px-8 sm:pl-8 sm:pr-12 lg:px-10 lg:pl-10 lg:pr-14 xl:pr-16 h-[72px] flex items-center justify-between gap-4 sm:gap-5">
+        <div className="flex items-center gap-3 cursor-pointer shrink-0 pr-4 sm:pr-6" onClick={() => onChangePage('dashboard')}>
           <div className="bg-white p-2.5 rounded-xl text-[#7A1F2B] shadow-sm">
             <ShieldCheck className="w-6 h-6 stroke-[2.5]" />
           </div>
@@ -87,7 +87,7 @@ export function HeaderBar({
           </div>
         </div>
 
-        <nav className="hidden lg:flex items-center justify-center gap-2 flex-1 px-5">
+        <nav className="hidden lg:flex items-center justify-center gap-2 flex-1 px-4 lg:px-6 min-w-0">
           {visibleNavItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -111,7 +111,7 @@ export function HeaderBar({
           })}
         </nav>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0 me-1 sm:me-2">
           {firmCode ? (
             <FirmCodeCard variant="navbar" firmCode={firmCode} onCopied={onFirmCodeCopied} />
           ) : null}
@@ -251,7 +251,7 @@ export function HeaderBar({
       </div>
 
       {isMobileMenuOpen && (
-        <div className="lg:hidden bg-[#7A1F2B] border-t border-white/10 px-4 py-3 space-y-1">
+        <div className="lg:hidden bg-[#7A1F2B] border-t border-white/10 px-5 pl-5 pr-8 sm:px-8 sm:pl-8 sm:pr-12 py-3 space-y-1">
           {firmCode ? (
             <div className="mb-3 rounded-xl border border-white/15 bg-[#641923] p-3" dir="rtl">
               <p className="text-[10px] font-bold text-amber-200 mb-2">كود المكتب — للمشاركة مع الفريق</p>
