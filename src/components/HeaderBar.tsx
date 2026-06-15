@@ -11,13 +11,14 @@ import {
   Menu,
   Settings,
   Shield,
-  ShieldCheck,
   TrendingUp,
   User,
   Users,
   X
 } from 'lucide-react';
+import { AppLogo } from './AppLogo';
 import { FirmCodeCard } from './FirmCodeCard';
+import { UserAvatar } from './ui/UserAvatar';
 import type { NotificationItem, PageId, User as UserType, UserRole } from '../types/app';
 
 interface HeaderBarProps {
@@ -84,11 +85,11 @@ export function HeaderBar({
         <div className="flex shrink-0 items-center">
           <button
             type="button"
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-[#7A1F2B] shadow-sm transition-opacity hover:opacity-90 lg:h-10 lg:w-10"
+            className="transition-opacity hover:opacity-90"
             onClick={() => onChangePage('dashboard')}
             aria-label="الرئيسية"
           >
-            <ShieldCheck className="h-4 w-4 stroke-[2.5] lg:h-5 lg:w-5" />
+            <AppLogo variant="law" size="sm" tone="inverted" />
           </button>
         </div>
 
@@ -188,9 +189,7 @@ export function HeaderBar({
               onClick={() => setShowUserDropdown(!showUserDropdown)}
               className="flex items-center gap-1.5 rounded-lg p-1 text-right transition-colors hover:bg-[#641923] sm:p-1.5 xl:gap-2"
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/30 bg-white text-[10px] font-bold text-[#7A1F2B] shadow-sm lg:h-9 lg:w-9">
-                {user.name.substring(0, 2)}
-              </div>
+              <UserAvatar name={user.name} imageUrl={user.image} size="sm" />
               <div className="hidden min-w-0 xl:block">
                 <p className="max-w-20 truncate text-[11px] font-bold leading-tight text-white 2xl:max-w-28">{user.name}</p>
                 <p className="mt-0.5 text-[9px] text-white/70">مكتب معتمد</p>

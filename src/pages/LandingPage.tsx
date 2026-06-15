@@ -1,4 +1,5 @@
 import { Award, Briefcase, Calendar, Bell, FileText, Shield, TrendingUp, Scale, LogIn, UserPlus, Building2, Phone, Mail, MapPin, MessageCircle, Instagram } from 'lucide-react';
+import { AppLogo } from '../components/AppLogo';
 
 interface LandingPageProps {
   onNavigate: (page: 'login' | 'register-office' | 'register-lawyer') => void;
@@ -31,9 +32,7 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
     <div className="bg-gradient-to-b from-[#7A1F2B] via-[#641923] to-[#3F1118] text-white min-h-screen">
       <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-10 py-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="bg-white p-2.5 rounded-2xl text-[#7A1F2B] shadow-lg shadow-black/10">
-            <Scale className="w-6 h-6 stroke-[2.5]" />
-          </div>
+          <AppLogo variant="law" size="lg" tone="inverted" className="shadow-lg shadow-black/10" />
           <div className="leading-tight text-right">
             <span className="font-extrabold text-2xl tracking-tight !text-white">LegalMind</span>
             <span className="block text-[11px] !text-white/80 font-semibold mt-0.5">نظام إدارة مكاتب المحاماة</span>

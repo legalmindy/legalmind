@@ -43,6 +43,7 @@ import type {
   UserRole
 } from './types/app';
 import { testSupabaseConnection } from './lib/testSupabaseConnection';
+import { updateUserProfile, uploadProfileAvatar } from './lib/profileImage';
 
 const LandingPage = lazy(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
 const AuthPages = lazy(() => import('./pages/AuthPages').then((m) => ({ default: m.AuthPages })));
@@ -475,7 +476,16 @@ export default function App() {
         {currentPage === 'lawyers' && user && !dataLoading && <LawyersPage lawyers={lawyers} />}
         {currentPage === 'reports' && user && <ReportsPage role={user.role} />}
         {currentPage === 'subscription' && user && <SubscriptionPage plans={SUBSCRIPTION_PLANS} />}
-        {currentPage === 'profile' && user && <ProfilePage user={user} />}
+        {currentPage === 'profile' && user && (
+          <ProfilePage
+            user={user}
+            onUploadAvatar={async (file) => uploadProfileAvatar(file, user.id)}
+            onSave={async (input) => {
+              await updateUserProfile(input);
+              await auth.refreshUser();
+            }}
+          />
+        )}
         {currentPage === 'settings' && user && (
           <SettingsPage
             user={user}

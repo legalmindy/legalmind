@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Scale, Shield, Mail, Loader2, UserPlus, Building2, CheckCircle2 } from 'lucide-react';
+import { Shield, Mail, Loader2, UserPlus, CheckCircle2 } from 'lucide-react';
+import { AppLogo } from '../components/AppLogo';
 import { isValidEmail, isStrongPassword } from '../lib/sanitize';
 import { isValidFirmCodeFormat, normalizeFirmCode, validateFirmCodeForRegistration } from '../lib/firmCode';
 import { getCurrentProfileContext } from '../services/profileService';
@@ -210,9 +211,7 @@ export function AuthPages({
       <div className="max-w-2xl mx-auto mt-10 px-4">
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
           <div className="text-center mb-6">
-            <div className="bg-indigo-900 w-12 h-12 rounded-2xl flex items-center justify-center text-amber-400 mx-auto mb-3 shadow">
-              <Building2 className="w-6 h-6" aria-hidden="true" />
-            </div>
+            <AppLogo variant="office" size="md" className="mx-auto mb-3 shadow" />
             <h2 className="text-2xl font-black text-slate-900">تسجيل مكتب محاماة</h2>
             <p className="text-xs text-slate-500 mt-1">سيتم إنشاء مكتب جديد وتعيين المالك كمدير للنظام.</p>
           </div>
@@ -502,9 +501,7 @@ export function AuthPages({
     <div className="max-w-md mx-auto mt-20 px-4">
       <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
         <div className="text-center mb-6">
-          <div className="bg-amber-500 w-12 h-12 rounded-2xl flex items-center justify-center text-slate-950 mx-auto mb-3 shadow">
-            <Scale className="w-6 h-6 stroke-[2]" aria-hidden="true" />
-          </div>
+          <AppLogo variant="law" size="md" className="mx-auto mb-3 shadow" />
           <h2 className="text-2xl font-black text-slate-900">تسجيل الدخول للمنصة</h2>
           <p className="text-xs text-slate-500 mt-1">دخول المدراء والمحامين والمساعدين حسب الصلاحية.</p>
         </div>

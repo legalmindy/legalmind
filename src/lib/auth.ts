@@ -287,7 +287,7 @@ export async function fetchCurrentUser(): Promise<User | null> {
 async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('*, firms(name, plan)')
+    .select('*, firms(name, plan), employees(profile_image)')
     .eq('id', authUser.id)
     .is('deleted_at', null)
     .maybeSingle();
@@ -297,6 +297,8 @@ async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
   }
 
   if (profile) {
+    const employeeImage = (profile.employees as { profile_image?: string | null } | null)?.profile_image;
+    const profileImage = (profile.profile_image as string | null) ?? employeeImage ?? undefined;
     return {
       id: profile.id as string,
       name: (profile.full_name as string) ?? authUser.email ?? '',
@@ -305,7 +307,8 @@ async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
       plan: (profile.firms as { plan?: string } | null)?.plan ?? 'free',
       company: (profile.firms as { name?: string } | null)?.name ?? 'مكتب محاماة',
       phone: (profile.phone as string | null) ?? '',
-      licenseNo: ''
+      licenseNo: (profile.license_no as string | null) ?? '',
+      image: profileImage ?? undefined
     };
   }
 

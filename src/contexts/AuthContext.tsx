@@ -39,6 +39,7 @@ interface AuthContextValue {
   verifyMfa: (factorId: string, code: string) => Promise<AuthResult>;
   resendVerification: (email: string) => Promise<AuthResult>;
   acceptInvite: (token: string) => Promise<AuthResult>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -154,6 +155,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return result;
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const u = await fetchCurrentUser();
+    setUser(u);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -170,9 +176,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       changePassword,
       verifyMfa,
       resendVerification,
-      acceptInvite
+      acceptInvite,
+      refreshUser
     }),
-    [user, isLoading, isConfigured, login, register, registerOfficeAccount, registerLawyerAccount, registerInvitedAccount, logout, forgotPassword, changePassword, verifyMfa, resendVerification, acceptInvite]
+    [user, isLoading, isConfigured, login, register, registerOfficeAccount, registerLawyerAccount, registerInvitedAccount, logout, forgotPassword, changePassword, verifyMfa, resendVerification, acceptInvite, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

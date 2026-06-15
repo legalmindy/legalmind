@@ -31,6 +31,8 @@ export interface DbProfile {
   email: string;
   role: 'admin' | 'lawyer' | 'assistant';
   phone: string | null;
+  profile_image: string | null;
+  license_no: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
