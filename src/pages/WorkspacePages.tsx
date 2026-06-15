@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { CaseRecord, Client, DocumentItem, Lawyer, Office, PageId, SessionItem, SubscriptionPlan, User, UserRole } from '../types/app';
 import { Briefcase, Calendar, CheckCircle, Clock, FileText, Lock, MapPin, Plus, Search, Trash2, Edit3, Download, AlertCircle, User as UserIcon, Loader2, Archive } from 'lucide-react';
 import { StatCard } from '../components/StatCard';
 import { MfaSettings } from '../components/MfaSettings';
 import { FirmCodeCard } from '../components/FirmCodeCard';
 import { ProfileAvatarUpload } from '../components/ProfileAvatarUpload';
+import { SubscriptionUpgradeModal } from '../components/SubscriptionUpgradeModal';
 import { useFirmProfile } from '../hooks/useSupabaseQueries';
+import { subscriptionQueryKeys, useFirmSubscription, useSubscriptionRequests } from '../hooks/useSubscription';
+import { SUBSCRIPTION_PLANS } from '../constants/subscription';
+import { submitSubscriptionRequest } from '../lib/subscription';
 import type { ProfileUpdateInput } from '../lib/profileImage';
 
 interface DashboardPageProps {
@@ -74,10 +79,6 @@ interface LawyersPageProps {
 
 interface ReportsPageProps {
   role: UserRole;
-}
-
-interface SubscriptionPageProps {
-  plans: SubscriptionPlan[];
 }
 
 interface ProfilePageProps {
@@ -426,6 +427,7 @@ export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, on
 
             <div className="bg-slate-50 p-3.5 rounded-xl text-xs space-y-2">
               <div className="flex justify-between"><span className="text-slate-400">العميل:</span><span className="font-bold text-slate-800">{caseRecord.clientName}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">المحامي المباشر:</span><span className="font-bold text-indigo-800">{caseRecord.lawyerName ?? 'غير معيّن'}</span></div>
               <div className="flex justify-between"><span className="text-slate-400">المحكمة:</span><span className="font-bold text-slate-700">{caseRecord.court}</span></div>
               <div className="flex justify-between"><span className="text-slate-400">التصنيف:</span><span className="font-semibold text-indigo-700">{caseRecord.category}</span></div>
             </div>
@@ -603,17 +605,69 @@ export function ReportsPage({ role }: ReportsPageProps) {
   );
 }
 
-export function SubscriptionPage({ plans }: SubscriptionPageProps) {
+export function SubscriptionPage() {
+  const queryClient = useQueryClient();
+  const { data: subscription } = useFirmSubscription();
+  const { data: requests = [] } = useSubscriptionRequests();
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState('');
+
+  const pending = requests.find((r) => r.status === 'pending');
+
+  const handleSubmit = async (payload: { transferReference: string; receiptFile: File }) => {
+    if (!selectedPlan) return;
+    setSubmitting(true);
+    try {
+      await submitSubscriptionRequest({
+        plan: selectedPlan.id,
+        amountYer: selectedPlan.amountYer,
+        transferReference: payload.transferReference,
+        receiptFile: payload.receiptFile
+      });
+      setFeedback('تم إرسال طلب التجديد. سيتم مراجعته وتفعيل حسابك قريباً.');
+      void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.requests });
+      setSelectedPlan(null);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-8 text-right">
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-1">
+      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-3">
         <h1 className="text-2xl font-black text-slate-900">باقة اشتراك المكتب وفواتير التجديد</h1>
-        <p className="text-xs text-slate-500 font-medium">حالة الاشتراك الحالية وتفاصيل التحويل.</p>
+        <p className="text-xs text-slate-500 font-medium">حالة الاشتراك الحالية وتفاصيل التحويل عبر بنك الكريمي.</p>
+        {subscription ? (
+          <div className="flex flex-wrap gap-3 text-xs pt-2">
+            <span className="rounded-full bg-slate-100 px-3 py-1 font-bold text-slate-700">
+              الباقة: {SUBSCRIPTION_PLANS.find((p) => p.id === subscription.plan)?.name ?? subscription.plan}
+            </span>
+            <span className={`rounded-full px-3 py-1 font-bold ${subscription.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+              {subscription.isActive ? 'نشط' : subscription.status === 'trial' ? 'تجريبي' : 'منتهي / مقفل'}
+            </span>
+            {subscription.expiresAt ? (
+              <span className="rounded-full bg-amber-50 px-3 py-1 font-bold text-amber-800">
+                ينتهي في: {subscription.expiresAt.split('T')[0]}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+        {pending ? (
+          <p className="text-xs text-indigo-700 font-bold bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2">
+            طلب تجديد قيد المراجعة (رقم الحوالة: {pending.transferReference})
+          </p>
+        ) : null}
+        {feedback ? <p className="text-xs text-emerald-700 font-bold">{feedback}</p> : null}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {plans.map((plan) => (
+        {SUBSCRIPTION_PLANS.map((plan) => (
           <div key={plan.id} className={`bg-white rounded-2xl border p-8 flex flex-col justify-between relative ${plan.color}`}>
-            {plan.badge && (<span className="absolute -top-3 right-6 bg-amber-500 text-slate-950 text-[10px] font-extrabold px-3 py-1 rounded-full uppercase shadow">{plan.badge}</span>)}
+            {plan.badge ? (
+              <span className="absolute -top-3 right-6 bg-amber-500 text-slate-950 text-[10px] font-extrabold px-3 py-1 rounded-full uppercase shadow">
+                {plan.badge}
+              </span>
+            ) : null}
             <div>
               <h3 className="font-bold text-lg text-slate-800 mb-2">{plan.name}</h3>
               <div className="my-6">
@@ -623,14 +677,32 @@ export function SubscriptionPage({ plans }: SubscriptionPageProps) {
               <div className="border-t border-slate-100 my-6" />
               <ul className="space-y-3 text-xs text-slate-600">
                 {plan.features.map((feat) => (
-                  <li key={feat} className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-emerald-500" />{feat}</li>
+                  <li key={feat} className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                    {feat}
+                  </li>
                 ))}
               </ul>
             </div>
-            <button type="button" className="mt-8 w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded-xl text-xs transition-colors">ترقية / تجديد الآن</button>
+            <button
+              type="button"
+              disabled={plan.id === 'free' || Boolean(pending)}
+              onClick={() => setSelectedPlan(plan)}
+              className="mt-8 w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-xl text-xs transition-colors"
+            >
+              {plan.id === 'free' ? 'الباقة الحالية التجريبية' : 'ترقية / تجديد الآن'}
+            </button>
           </div>
         ))}
       </div>
+
+      <SubscriptionUpgradeModal
+        open={Boolean(selectedPlan)}
+        plan={selectedPlan}
+        submitting={submitting}
+        onClose={() => setSelectedPlan(null)}
+        onSubmit={handleSubmit}
+      />
     </div>
   );
 }

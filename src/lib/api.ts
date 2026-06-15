@@ -42,7 +42,7 @@ const ADMIN_ROLES: UserRole[] = ['super_admin', 'admin', 'firm_manager'];
 /** lawyers.employee_id → employees.id (not lawyers.updated_by → employees.id) */
 const LAWYERS_EMPLOYEE_FK = 'lawyers_employee_id_fkey';
 
-async function getCurrentFirmId(): Promise<string> {
+export async function getCurrentFirmId(): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('غير مصرح');
 
@@ -76,7 +76,7 @@ export async function fetchOffice(): Promise<Office> {
   const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('firms')
-    .select('id, name, license_no, plan, firm_code')
+    .select('id, name, license_no, plan, firm_code, subscription_status, subscription_plan, subscription_expires_at, is_locked')
     .eq('id', firmId)
     .single();
   if (error) throw error;
@@ -174,7 +174,8 @@ export async function softDeleteClient(clientId: string): Promise<void> {
 }
 
 // ─── Cases ────────────────────────────────────────────────────
-const CASE_SELECT = '*, clients(name)';
+const CASE_SELECT =
+  '*, clients(name), assigned_lawyer:lawyers(id, employee:employees!lawyers_employee_id_fkey(full_name))';
 
 export async function fetchCases(params: PaginationParams = {}): Promise<PaginatedResult<CaseRecord>> {
   const firmId = await getCurrentFirmId();

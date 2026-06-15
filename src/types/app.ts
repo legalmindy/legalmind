@@ -50,6 +50,10 @@ export interface Office {
   licenseNo: string;
   plan: string;
   firmCode?: string;
+  subscriptionStatus?: SubscriptionStatus;
+  subscriptionPlan?: SubscriptionPlanId;
+  subscriptionExpiresAt?: string | null;
+  isLocked?: boolean;
 }
 
 export interface Client {
@@ -84,6 +88,7 @@ export interface CaseRecord {
   court: string;
   caseNo: string;
   lawyerId: string;
+  lawyerName?: string;
   dateStarted: string;
   description: string;
 }
@@ -167,10 +172,39 @@ export interface CaseAttachment {
   notes?: string;
 }
 
-export interface SubscriptionPlan {
+export type SubscriptionPlanId = 'free' | 'professional' | 'corporate';
+export type SubscriptionStatus = 'trial' | 'active' | 'expired';
+export type SubscriptionRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface FirmSubscription {
+  firmId: string;
+  status: SubscriptionStatus;
+  plan: SubscriptionPlanId;
+  expiresAt: string | null;
+  isLocked: boolean;
+  isActive: boolean;
+  legacyPlan?: string;
+}
+
+export interface SubscriptionRequest {
   id: string;
+  firmId: string;
+  plan: SubscriptionPlanId;
+  amountYer: number;
+  transferReference: string;
+  receiptPath: string;
+  receiptUrl?: string;
+  status: SubscriptionRequestStatus;
+  adminNotes?: string;
+  createdAt: string;
+  reviewedAt?: string;
+}
+
+export interface SubscriptionPlan {
+  id: SubscriptionPlanId;
   name: string;
   price: string;
+  amountYer: number;
   period: string;
   features: string[];
   color: string;

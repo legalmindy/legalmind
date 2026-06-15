@@ -19,7 +19,8 @@ export function ArchivePage({ cases, onRestore, onPermanentArchive }: ArchivePag
       const matchesQuery =
         item.court_case_number.toLowerCase().includes(search) ||
         item.clientName.toLowerCase().includes(search) ||
-        item.title.toLowerCase().includes(search);
+        item.title.toLowerCase().includes(search) ||
+        (item.lawyerName ?? '').toLowerCase().includes(search);
       const matchesType = typeFilter === 'الكل' || item.case_type === typeFilter;
       const matchesStatus = statusFilter === 'الكل' || item.status === statusFilter;
       return matchesQuery && matchesType && matchesStatus;
@@ -87,6 +88,7 @@ export function ArchivePage({ cases, onRestore, onPermanentArchive }: ArchivePag
 
             <div className="grid grid-cols-1 gap-3 text-xs text-slate-600">
               <div className="flex justify-between"><span>الموكل</span><span className="font-bold text-slate-900">{caseItem.clientName}</span></div>
+              <div className="flex justify-between"><span>المحامي المباشر</span><span className="font-bold text-indigo-800">{caseItem.lawyerName ?? 'غير معيّن'}</span></div>
               <div className="flex justify-between"><span>نوع القضية</span><span>{caseItem.case_type}</span></div>
               <div className="flex justify-between"><span>المرحلة</span><span>{caseItem.case_stage}</span></div>
               <div className="flex justify-between"><span>صافي المتبقي</span><span className="font-bold">{caseItem.remaining_amount?.toLocaleString()} ر.ي</span></div>

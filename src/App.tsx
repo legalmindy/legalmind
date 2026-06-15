@@ -11,7 +11,7 @@ import { ClientModal, CaseModal, SessionModal, DocumentModal, EmployeeModal, Arc
 import { isValidYemeniPhone } from './utils/format';
 import { canManageCases, canManageClients, canManageOffice, checkRoleAccess } from './lib/api';
 import { formatCaseSaveError } from './lib/supabaseQueryHelpers';
-import { MONTHLY_CHART_DATA, SUBSCRIPTION_PLANS } from './constants/sampleData';
+import { MONTHLY_CHART_DATA } from './constants/sampleData';
 import {
   useArchivedCases,
   useCaseMutations,
@@ -45,6 +45,7 @@ import type {
 } from './types/app';
 import { testSupabaseConnection } from './lib/testSupabaseConnection';
 import { updateUserProfile, uploadProfileAvatar } from './lib/profileImage';
+import { SubscriptionGuard } from './components/SubscriptionGuard';
 
 const LandingPage = lazy(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
 const AuthPages = lazy(() => import('./pages/AuthPages').then((m) => ({ default: m.AuthPages })));
@@ -425,6 +426,12 @@ export default function App() {
         </>
       )}
 
+      <SubscriptionGuard
+        isAuthenticated={isAuth}
+        currentPage={currentPage}
+        onNavigate={setCurrentPage}
+        onLogout={() => void handleLogout()}
+      >
       <main className="pb-16">
         {currentPage === 'landing' && <LandingPage onNavigate={setCurrentPage} />}
 
@@ -511,7 +518,7 @@ export default function App() {
 
         {currentPage === 'lawyers' && user && !dataLoading && <LawyersPage lawyers={lawyers} />}
         {currentPage === 'reports' && user && <ReportsPage role={user.role} />}
-        {currentPage === 'subscription' && user && <SubscriptionPage plans={SUBSCRIPTION_PLANS} />}
+        {currentPage === 'subscription' && user && <SubscriptionPage />}
         {currentPage === 'profile' && user && (
           <ProfilePage
             user={user}
@@ -531,6 +538,7 @@ export default function App() {
           />
         )}
       </main>
+      </SubscriptionGuard>
 
       <ClientModal open={showClientModal} client={editingClient} formState={newClient}
         onChange={setNewClient} onSave={() => void saveClient()} onClose={() => setShowClientModal(false)} />

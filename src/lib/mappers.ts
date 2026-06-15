@@ -52,7 +52,16 @@ export function mapDbClient(row: DbClient): Client {
   };
 }
 
+function resolveEmbeddedName(
+  relation?: { full_name: string } | { full_name: string }[] | null
+): string | undefined {
+  if (!relation) return undefined;
+  if (Array.isArray(relation)) return relation[0]?.full_name;
+  return relation.full_name;
+}
+
 export function mapDbCase(row: DbCase): CaseRecord {
+  const lawyerName = resolveEmbeddedName(row.assigned_lawyer?.employee);
   return {
     id: row.id,
     title: row.title,
@@ -74,6 +83,7 @@ export function mapDbCase(row: DbCase): CaseRecord {
     court: row.court,
     caseNo: row.court_case_number,
     lawyerId: row.assigned_lawyer_id ?? '',
+    lawyerName: lawyerName ?? (row.assigned_lawyer_id ? 'محامٍ' : 'غير معيّن'),
     dateStarted: row.created_at.split('T')[0] ?? row.created_at,
     description: row.description ?? ''
   };
@@ -154,7 +164,11 @@ export function mapDbFirm(row: DbFirm): Office {
     name: row.name,
     licenseNo: row.license_no ?? '',
     plan: row.plan,
-    firmCode: row.firm_code ?? undefined
+    firmCode: row.firm_code ?? undefined,
+    subscriptionStatus: (row.subscription_status as Office['subscriptionStatus']) ?? undefined,
+    subscriptionPlan: (row.subscription_plan as Office['subscriptionPlan']) ?? undefined,
+    subscriptionExpiresAt: row.subscription_expires_at ?? undefined,
+    isLocked: row.is_locked ?? undefined
   };
 }
 

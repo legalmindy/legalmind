@@ -45,7 +45,7 @@ const navItems: Array<{ id: PageId; label: string; shortLabel?: string; icon: ty
   { id: 'dashboard', label: 'الرئيسية', shortLabel: 'الرئيسية', icon: BarChart3, roles: ['super_admin', 'admin', 'firm_manager', 'lawyer', 'assistant'] },
   { id: 'clients', label: 'العملاء', icon: Users, roles: ['super_admin', 'admin', 'firm_manager', 'assistant'] },
   { id: 'cases', label: 'القضايا', icon: Briefcase, roles: ['super_admin', 'admin', 'firm_manager', 'lawyer', 'assistant'] },
-  { id: 'archive', label: 'الأرشيف', icon: Archive, roles: ['super_admin', 'admin', 'firm_manager'] },
+  { id: 'archive', label: 'الأرشيف', icon: Archive, roles: ['super_admin', 'admin', 'firm_manager', 'lawyer'] },
   { id: 'employees', label: 'الموظفون', shortLabel: 'موظفون', icon: User, roles: ['super_admin', 'admin', 'firm_manager'] },
   { id: 'sessions', label: 'الجلسات', icon: Calendar, roles: ['super_admin', 'admin', 'firm_manager', 'lawyer', 'assistant'] },
   { id: 'documents', label: 'المستندات', shortLabel: 'مستندات', icon: FileText, roles: ['super_admin', 'admin', 'firm_manager', 'lawyer', 'assistant'] },

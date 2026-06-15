@@ -60,7 +60,7 @@ interface EmployeeModalProps {
   onClose: () => void;
 }
 
-function ModalShell({
+export function ModalShell({
   title,
   children,
   footer,
@@ -111,7 +111,7 @@ function ModalShell({
   );
 }
 
-function ModalFooter({
+export function ModalFooter({
   onClose,
   onSave,
   cancelLabel,

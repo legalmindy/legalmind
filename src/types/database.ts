@@ -18,6 +18,10 @@ export interface DbFirm {
   email?: string | null;
   phone?: string | null;
   plan: string;
+  subscription_status?: string;
+  subscription_plan?: string;
+  subscription_expires_at?: string | null;
+  is_locked?: boolean;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -92,6 +96,10 @@ export interface DbCase {
   updated_at: string;
   deleted_at: string | null;
   clients?: { name: string } | null;
+  assigned_lawyer?: {
+    id: string;
+    employee?: { full_name: string } | { full_name: string }[] | null;
+  } | null;
 }
 
 export interface DbSession {

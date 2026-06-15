@@ -6,37 +6,8 @@ import type {
   Employee,
   Lawyer,
   NotificationType,
-  SubscriptionPlan,
   SessionItem
 } from '../types/app';
-
-export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
-  {
-    id: 'free',
-    name: 'الباقة التجريبية',
-    price: '0',
-    period: 'شهرياً',
-    features: ['إدارة حتى 5 قضايا', 'إدارة حتى 10 عملاء', 'مساحة تخزين 1 جيجابايت', 'دعم فني عبر البريد'],
-    color: 'border-slate-300'
-  },
-  {
-    id: 'pro',
-    name: 'باقة المحامي المحترف',
-    price: '45,000',
-    period: 'شهرياً',
-    features: ['عدد قضايا غير محدود', 'عدد عملاء غير محدود', 'مساحة تخزين 20 جيجابايت', 'مزامنة مع التقويم والرسائل القصيرة', 'دعم فني وتحديثات مستمرة', 'صياغة ذكية للعرائض'],
-    color: 'border-amber-500 shadow-md ring-2 ring-amber-500/20',
-    badge: 'الأكثر طلباً في اليمن'
-  },
-  {
-    id: 'firm',
-    name: 'باقة الشركات والمكاتب والشركاء',
-    price: '120,000',
-    period: 'شهرياً',
-    features: ['كل ميزات الباقة المحترفة', 'إدارة حتى 10 محامين بالشركة', 'مساحة تخزين 100 جيجابايت', 'صلاحيات مخصصة وتوزيع مهام تلقائي', 'تقارير الأداء المالي والعملي المتقدمة', 'خط ساخن مخصص للدعم الفني'],
-    color: 'border-indigo-800'
-  }
-];
 
 export const INITIAL_CLIENTS: Client[] = [
   {
