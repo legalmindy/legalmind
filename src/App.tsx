@@ -79,6 +79,17 @@ const initialEmployeeForm: Omit<Employee, 'id' | 'created_at'> = {
   full_name: '', email: '', phone: '', role: 'lawyer', status: 'active'
 };
 
+const PUBLIC_PAGES: PageId[] = [
+  'landing',
+  'login',
+  'register',
+  'register-office',
+  'register-lawyer',
+  'invite',
+  'forgot',
+  'accept-invite'
+];
+
 export default function App() {
   const auth = useAuth();
   const isAuth = auth.isAuthenticated;
@@ -383,12 +394,13 @@ export default function App() {
   if (auth.isLoading) return <PageLoader />;
 
   const dataLoading = isAuth && (clientsLoading || casesLoading);
+  const showAppChrome = Boolean(user) && !PUBLIC_PAGES.includes(currentPage);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-amber-500 selection:text-white">
       {alertMsg && <AlertBanner alert={alertMsg} />}
 
-      {user && (
+      {showAppChrome && user && (
         <>
           <HeaderBar
             user={user}
