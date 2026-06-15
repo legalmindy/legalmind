@@ -102,12 +102,18 @@ export default function App() {
   const isAuth = auth.isAuthenticated;
   const syncState = useOfflineSync(isAuth);
 
-  // Test Supabase connection in development
+  // Dev-only: run once after auth is ready (avoid racing with data queries)
   useEffect(() => {
-    if (import.meta.env.DEV) {
-      testSupabaseConnection();
-    }
-  }, []);
+    if (!import.meta.env.DEV || !isAuth) return;
+    const timer = window.setTimeout(() => {
+      void testSupabaseConnection().then((result) => {
+        if (!result.syncRpcReady && result.authenticated) {
+          console.info('[TEST] المزامنة غير جاهزة — تأكد من تشغيل migrations 021 و 025 في Supabase');
+        }
+      });
+    }, 5_000);
+    return () => window.clearTimeout(timer);
+  }, [isAuth]);
 
   const { data: clients = [], isLoading: clientsLoading } = useClients(isAuth);
   const { data: cases = [], isLoading: casesLoading } = useCases(isAuth);

@@ -10,19 +10,19 @@ import {
   type OutboxEvent,
   type SyncStatus
 } from './localDbClient';
+import { callRpc } from './rpcClient';
 
-/** Tables allowed by Supabase sync_pull_table RPC (must match DB allow-list). */
+/**
+ * Tables synced for offline cache. Excludes firms/invitations/notifications
+ * (loaded via normal API). Must match DB allow-list in sync_pull_table.
+ */
 export const REMOTE_SYNC_TABLES = [
-  'firms',
-  'employees',
-  'invitations',
   'clients',
   'cases',
   'sessions',
   'documents',
-  'case_attachments',
-  'lawyers',
-  'notifications'
+  'employees',
+  'lawyers'
 ] as const satisfies readonly LocalTable[];
 
 export type RemoteSyncTable = (typeof REMOTE_SYNC_TABLES)[number];
@@ -30,16 +30,40 @@ export type RemoteSyncTable = (typeof REMOTE_SYNC_TABLES)[number];
 export interface SyncResult extends SyncStatus {
   pushed: number;
   pulled: number;
+  skipped?: boolean;
 }
 
+const TABLE_PULL_DELAY_MS = 200;
 let syncInFlight = false;
+let syncDisabledUntil = 0;
+let consecutivePullFailures = 0;
 
 export function isOnline(): boolean {
   return typeof navigator === 'undefined' ? true : navigator.onLine;
 }
 
+export function isSyncTemporarilyDisabled(): boolean {
+  return Date.now() < syncDisabledUntil;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function notePullFailure(): void {
+  consecutivePullFailures += 1;
+  if (consecutivePullFailures >= 3) {
+    syncDisabledUntil = Date.now() + 5 * 60_000;
+  }
+}
+
+function notePullSuccess(): void {
+  consecutivePullFailures = 0;
+  syncDisabledUntil = 0;
+}
+
 export async function pushOutboxEvent(event: OutboxEvent): Promise<void> {
-  const { error } = await supabase.rpc('sync_apply_event', {
+  const { error } = await callRpc<void>('sync_apply_event', {
     event_id: event.id,
     table_name: event.tableName,
     record_id: event.recordId,
@@ -55,20 +79,19 @@ export async function pullRemoteChanges(tableName: RemoteSyncTable): Promise<num
   const rawCursor = localStorage.getItem(`legalmind.sync.cursor.${tableName}`);
   const sinceCursor = rawCursor?.trim() ? rawCursor : null;
 
-  const { data, error } = await supabase.rpc('sync_pull_table', {
-    table_name: tableName,
-    since_cursor: sinceCursor
-  });
+  const { data, error } = await callRpc<Record<string, unknown>[]>(
+    'sync_pull_table',
+    { table_name: tableName, since_cursor: sinceCursor },
+    { timeoutMs: 10_000, retries: 1 }
+  );
 
   if (error) {
-    const msg = error.message ?? String(error);
-    if (!msg.includes('Failed to fetch') && !msg.includes('ERR_CONNECTION')) {
-      console.warn(`[sync] pull skipped for ${tableName}:`, msg);
-    }
+    notePullFailure();
     return 0;
   }
 
-  const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+  notePullSuccess();
+  const rows = Array.isArray(data) ? data : [];
 
   for (const row of rows) {
     const id = row.id;
@@ -107,17 +130,17 @@ export async function pullRemoteChanges(tableName: RemoteSyncTable): Promise<num
 export async function runSyncCycle(): Promise<SyncResult> {
   if (syncInFlight) {
     const status = await getLocalSyncStatus();
-    return { ...status, pushed: 0, pulled: 0 };
+    return { ...status, pushed: 0, pulled: 0, skipped: true };
   }
-  if (!isOnline()) {
+  if (!isOnline() || isSyncTemporarilyDisabled()) {
     const status = await getLocalSyncStatus();
-    return { ...status, pushed: 0, pulled: 0 };
+    return { ...status, pushed: 0, pulled: 0, skipped: true };
   }
 
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     const status = await getLocalSyncStatus();
-    return { ...status, pushed: 0, pulled: 0 };
+    return { ...status, pushed: 0, pulled: 0, skipped: true };
   }
 
   syncInFlight = true;
@@ -128,8 +151,8 @@ export async function runSyncCycle(): Promise<SyncResult> {
       try {
         await pushOutboxEvent(event);
         pushed += 1;
-      } catch (err) {
-        console.warn('[sync] push failed:', err instanceof Error ? err.message : err);
+      } catch {
+        // Outbox events retry on next cycle
       }
     }
 
@@ -137,9 +160,10 @@ export async function runSyncCycle(): Promise<SyncResult> {
     for (const tableName of REMOTE_SYNC_TABLES) {
       try {
         pulled += await pullRemoteChanges(tableName);
-      } catch (err) {
-        console.warn(`[sync] pull failed for ${tableName}:`, err instanceof Error ? err.message : err);
+      } catch {
+        notePullFailure();
       }
+      await sleep(TABLE_PULL_DELAY_MS);
     }
 
     const status = await getLocalSyncStatus();

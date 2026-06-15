@@ -12,6 +12,7 @@ export function SyncStatusBar({
   conflicts,
   lastSyncAt,
   error,
+  syncPaused,
   onSyncNow
 }: SyncStatusBarProps) {
   return (
@@ -29,6 +30,9 @@ export function SyncStatusBar({
             </span>
           )}
           {lastSyncAt && <span className="text-slate-400">آخر مزامنة: {new Date(lastSyncAt).toLocaleString('ar-YE')}</span>}
+          {syncPaused && (
+            <span className="text-amber-700 font-bold">المزامنة متوقفة مؤقتاً — ستُستأنف تلقائياً</span>
+          )}
           {error && <span className="text-rose-600 font-bold">{error}</span>}
         </div>
         <button

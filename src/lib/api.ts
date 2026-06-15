@@ -12,6 +12,10 @@ import {
 import { sanitizeFileName, validateFile } from './fileValidation';
 import { logError } from './errorLogger';
 import { throwIfSupabaseError } from './supabaseQueryHelpers';
+
+function cleanText(value: string, maxLength = 500): string {
+  return value.trim().replace(/\0/g, '').slice(0, maxLength);
+}
 import type {
   CaseRecord,
   Client,
@@ -134,10 +138,10 @@ export async function createClient(payload: Omit<Client, 'id' | 'casesCount' | '
     .from('clients')
     .insert({
       firm_id: firmId,
-      name: payload.name,
+      name: cleanText(payload.name, 200),
       phone: payload.phone || null,
-      email: payload.email || null,
-      address: payload.address || null,
+      email: payload.email ? cleanText(payload.email, 120) : null,
+      address: payload.address ? cleanText(payload.address, 300) : null,
       type: payload.type,
       cases_count: 0
     })
@@ -152,10 +156,10 @@ export async function updateClientRecord(payload: Client): Promise<Client> {
   const { data, error } = await supabase
     .from('clients')
     .update({
-      name: fields.name,
+      name: cleanText(fields.name, 200),
       phone: fields.phone || null,
-      email: fields.email || null,
-      address: fields.address || null,
+      email: fields.email ? cleanText(fields.email, 120) : null,
+      address: fields.address ? cleanText(fields.address, 300) : null,
       type: fields.type
     })
     .eq('id', id)
