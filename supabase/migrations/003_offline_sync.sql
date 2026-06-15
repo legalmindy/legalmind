@@ -16,6 +16,19 @@ create table if not exists sync_events (
 create index if not exists idx_sync_events_firm_created on sync_events(firm_id, created_at);
 create index if not exists idx_sync_events_table_record on sync_events(table_name, record_id);
 
+-- Drop sync triggers first so backfill UPDATEs never hit bump_sync_metadata prematurely.
+do $$ declare t text; begin
+  foreach t in array array[
+    'firms', 'employees', 'invitations', 'clients', 'cases',
+    'sessions', 'documents', 'case_attachments', 'lawyers', 'notifications'
+  ]
+  loop
+    if to_regclass(format('public.%I', t)) is not null then
+      execute format('drop trigger if exists sync_metadata_%s on %I', t, t);
+    end if;
+  end loop;
+end $$;
+
 do $$ declare t text; begin
   foreach t in array array[
     'firms',
@@ -30,6 +43,10 @@ do $$ declare t text; begin
     'notifications'
   ]
   loop
+    if to_regclass(format('public.%I', t)) is null then
+      continue;
+    end if;
+
     if not exists (
       select 1 from information_schema.columns
       where table_schema = 'public' and table_name = t and column_name = 'updated_at'
@@ -85,6 +102,10 @@ do $$ declare t text; begin
     'notifications'
   ]
   loop
+    if to_regclass(format('public.%I', t)) is null then
+      continue;
+    end if;
+
     if exists (
       select 1 from information_schema.columns
       where table_schema = 'public' and table_name = t and column_name = 'sync_version'
