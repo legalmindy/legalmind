@@ -948,64 +948,187 @@ grant execute on function public.get_invitation_by_token(text) to anon, authenti
 grant execute on function public.office_code_exists(text) to anon, authenticated;
 grant execute on function public.is_email_available_for_registration(text) to anon, authenticated;
 
--- ─── 12) Optional tables (threads/messages) if present in project ───────────
+-- ─── 12) Optional tables (threads/messages) — schema-aware, no assumptions ───
 do $$
-declare pol record;
+declare
+  pol record;
+  threads_has_firm_id boolean := false;
+  threads_has_case_id boolean := false;
+  threads_has_office_id boolean := false;
+  threads_has_created_by boolean := false;
+  messages_has_firm_id boolean := false;
+  messages_has_thread_id boolean := false;
+  messages_has_case_id boolean := false;
+  messages_has_sender_id boolean := false;
+  messages_has_user_id boolean := false;
+  thread_scope_expr text := null;
+  message_scope_expr text := null;
+  message_insert_expr text := null;
 begin
   if exists (select 1 from pg_tables where schemaname = 'public' and tablename = 'threads') then
-    for pol in select policyname from pg_policies where schemaname = 'public' and tablename = 'threads'
-    loop execute format('drop policy if exists %I on public.threads', pol.policyname); end loop;
-    if exists (
+    select exists (
       select 1 from information_schema.columns
       where table_schema = 'public' and table_name = 'threads' and column_name = 'firm_id'
-    ) then
-      execute $p$
-        create policy "threads_select" on public.threads for select
-          using (firm_id = (select private.get_current_firm_id()));
-        create policy "threads_insert" on public.threads for insert
-          with check (firm_id = (select private.get_current_firm_id()));
-        create policy "threads_update" on public.threads for update
-          using (firm_id = (select private.get_current_firm_id()))
-          with check (firm_id = (select private.get_current_firm_id()));
-      $p$;
+    ) into threads_has_firm_id;
+
+    select exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'threads' and column_name = 'case_id'
+    ) into threads_has_case_id;
+
+    select exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'threads' and column_name = 'office_id'
+    ) into threads_has_office_id;
+
+    select exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'threads' and column_name = 'created_by'
+    ) into threads_has_created_by;
+
+    for pol in
+      select policyname from pg_policies
+      where schemaname = 'public' and tablename = 'threads'
+    loop
+      execute format('drop policy if exists %I on public.threads', pol.policyname);
+    end loop;
+
+    if threads_has_firm_id then
+      thread_scope_expr := 'firm_id = (select private.get_current_firm_id())';
+    elsif threads_has_office_id then
+      thread_scope_expr := 'office_id = (select private.get_current_firm_id())';
+    elsif threads_has_case_id then
+      thread_scope_expr := format(
+        'exists (
+          select 1 from public.cases c
+          where c.id = threads.case_id
+            and c.firm_id = (select private.get_current_firm_id())
+            and c.deleted_at is null
+        )'
+      );
+    elsif threads_has_created_by then
+      thread_scope_expr := 'created_by = (select auth.uid())';
+    else
+      raise notice 'threads: skipped RLS recreate — no firm/case/office scope column found';
+      thread_scope_expr := null;
+    end if;
+
+    if thread_scope_expr is not null then
+      execute format(
+        'create policy "threads_select" on public.threads for select using (%s)',
+        thread_scope_expr
+      );
+      execute format(
+        'create policy "threads_insert" on public.threads for insert with check (%s)',
+        thread_scope_expr
+      );
+      execute format(
+        'create policy "threads_update" on public.threads for update using (%1$s) with check (%1$s)',
+        thread_scope_expr
+      );
     end if;
   end if;
 
   if exists (select 1 from pg_tables where schemaname = 'public' and tablename = 'messages') then
-    for pol in select policyname from pg_policies where schemaname = 'public' and tablename = 'messages'
-    loop execute format('drop policy if exists %I on public.messages', pol.policyname); end loop;
-    if exists (
+    select exists (
       select 1 from information_schema.columns
       where table_schema = 'public' and table_name = 'messages' and column_name = 'firm_id'
-    ) then
-      execute $p$
-        create policy "messages_select" on public.messages for select
-          using (firm_id = (select private.get_current_firm_id()));
-        create policy "messages_insert" on public.messages for insert
-          with check (firm_id = (select private.get_current_firm_id()));
-      $p$;
-    elsif exists (
+    ) into messages_has_firm_id;
+
+    select exists (
       select 1 from information_schema.columns
       where table_schema = 'public' and table_name = 'messages' and column_name = 'thread_id'
-    ) then
-      execute $p$
-        create policy "messages_select" on public.messages for select
-          using (
-            exists (
-              select 1 from public.threads t
-              where t.id = messages.thread_id
-                and t.firm_id = (select private.get_current_firm_id())
-            )
-          );
-        create policy "messages_insert" on public.messages for insert
-          with check (
-            exists (
-              select 1 from public.threads t
-              where t.id = thread_id
-                and t.firm_id = (select private.get_current_firm_id())
-            )
-          );
-      $p$;
+    ) into messages_has_thread_id;
+
+    select exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'messages' and column_name = 'case_id'
+    ) into messages_has_case_id;
+
+    select exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'messages' and column_name = 'sender_id'
+    ) into messages_has_sender_id;
+
+    select exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'messages' and column_name = 'user_id'
+    ) into messages_has_user_id;
+
+    for pol in
+      select policyname from pg_policies
+      where schemaname = 'public' and tablename = 'messages'
+    loop
+      execute format('drop policy if exists %I on public.messages', pol.policyname);
+    end loop;
+
+    if messages_has_firm_id then
+      message_scope_expr := 'firm_id = (select private.get_current_firm_id())';
+    elsif messages_has_case_id then
+      message_scope_expr := format(
+        'exists (
+          select 1 from public.cases c
+          where c.id = messages.case_id
+            and c.firm_id = (select private.get_current_firm_id())
+            and c.deleted_at is null
+        )'
+      );
+    elsif messages_has_thread_id and thread_scope_expr is not null then
+      if threads_has_firm_id then
+        message_scope_expr := format(
+          'exists (
+            select 1 from public.threads t
+            where t.id = messages.thread_id
+              and t.firm_id = (select private.get_current_firm_id())
+          )'
+        );
+      elsif threads_has_office_id then
+        message_scope_expr := format(
+          'exists (
+            select 1 from public.threads t
+            where t.id = messages.thread_id
+              and t.office_id = (select private.get_current_firm_id())
+          )'
+        );
+      elsif threads_has_case_id then
+        message_scope_expr := format(
+          'exists (
+            select 1 from public.threads t
+            join public.cases c on c.id = t.case_id and c.deleted_at is null
+            where t.id = messages.thread_id
+              and c.firm_id = (select private.get_current_firm_id())
+          )'
+        );
+      elsif threads_has_created_by then
+        message_scope_expr := format(
+          'exists (
+            select 1 from public.threads t
+            where t.id = messages.thread_id
+              and t.created_by = (select auth.uid())
+          )'
+        );
+      end if;
+    elsif messages_has_sender_id then
+      message_scope_expr := 'sender_id = (select auth.uid())';
+    elsif messages_has_user_id then
+      message_scope_expr := 'user_id = (select auth.uid())';
+    else
+      raise notice 'messages: skipped RLS recreate — no tenant scope column found';
+      message_scope_expr := null;
+    end if;
+
+    if message_scope_expr is not null then
+      message_insert_expr := message_scope_expr;
+      message_insert_expr := replace(message_insert_expr, 'messages.thread_id', 'thread_id');
+      message_insert_expr := replace(message_insert_expr, 'messages.case_id', 'case_id');
+      execute format(
+        'create policy "messages_select" on public.messages for select using (%s)',
+        message_scope_expr
+      );
+      execute format(
+        'create policy "messages_insert" on public.messages for insert with check (%s)',
+        message_insert_expr
+      );
     end if;
   end if;
 end $$;
