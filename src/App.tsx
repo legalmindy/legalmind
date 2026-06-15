@@ -11,7 +11,13 @@ import { ClientModal, CaseModal, SessionModal, DocumentModal, EmployeeModal, Arc
 import { isValidYemeniPhone } from './utils/format';
 import { canManageCases, canManageClients, canManageOffice, checkRoleAccess } from './lib/api';
 import { formatCaseSaveError } from './lib/supabaseQueryHelpers';
-import { MONTHLY_CHART_DATA } from './constants/sampleData';
+import {
+  buildFinancialSummary,
+  buildMonthlyChartData,
+  buildPerformanceMetrics,
+  buildStatHints
+} from './lib/dashboardAnalytics';
+import type { ChartPoint } from './types/app';
 import {
   useArchivedCases,
   useCaseMutations,
@@ -128,7 +134,7 @@ export default function App() {
 
   const [currentPage, setCurrentPage] = useState<PageId>('landing');
   const [activeChartTab, setActiveChartTab] = useState<'cases' | 'revenue'>('cases');
-  const [hoveredDataPoint, setHoveredDataPoint] = useState<null | (typeof MONTHLY_CHART_DATA)[number]>(null);
+  const [hoveredDataPoint, setHoveredDataPoint] = useState<ChartPoint | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('الكل');
   const [categoryFilter, setCategoryFilter] = useState('الكل');
@@ -392,6 +398,14 @@ export default function App() {
     lawyersCount: lawyers.length
   }), [clients.length, cases, sessions, documents.length, lawyers.length]);
 
+  const monthlyData = useMemo(() => buildMonthlyChartData(cases), [cases]);
+  const dashboardPerformance = useMemo(() => buildPerformanceMetrics(cases, sessions), [cases, sessions]);
+  const dashboardFinancials = useMemo(() => buildFinancialSummary(cases), [cases]);
+  const dashboardStatHints = useMemo(
+    () => buildStatHints(cases, clients, sessions, documents),
+    [cases, clients, sessions, documents]
+  );
+
   if (auth.isLoading) return <PageLoader />;
 
   const dataLoading = isAuth && (clientsLoading || casesLoading);
@@ -457,7 +471,9 @@ export default function App() {
           <DashboardPage user={user} sessions={sessions} documents={documents}
             activeChartTab={activeChartTab} hoveredDataPoint={hoveredDataPoint}
             setActiveChartTab={setActiveChartTab} setHoveredDataPoint={setHoveredDataPoint}
-            stats={stats} monthlyData={MONTHLY_CHART_DATA} setCurrentPage={setCurrentPage}
+            stats={stats} monthlyData={monthlyData} performance={dashboardPerformance}
+            financials={dashboardFinancials} statHints={dashboardStatHints}
+            setCurrentPage={setCurrentPage}
             setShowClientModal={setShowClientModal} setShowCaseModal={setShowCaseModal}
             setShowSessionModal={setShowSessionModal}
             office={office}
@@ -517,7 +533,9 @@ export default function App() {
         )}
 
         {currentPage === 'lawyers' && user && !dataLoading && <LawyersPage lawyers={lawyers} />}
-        {currentPage === 'reports' && user && <ReportsPage role={user.role} />}
+        {currentPage === 'reports' && user && (
+          <ReportsPage role={user.role} performance={dashboardPerformance} financials={dashboardFinancials} />
+        )}
         {currentPage === 'subscription' && user && <SubscriptionPage />}
         {currentPage === 'profile' && user && (
           <ProfilePage

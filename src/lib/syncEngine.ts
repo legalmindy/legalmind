@@ -61,7 +61,10 @@ export async function pullRemoteChanges(tableName: RemoteSyncTable): Promise<num
   });
 
   if (error) {
-    console.warn(`[sync] pull skipped for ${tableName}:`, error.message);
+    const msg = error.message ?? String(error);
+    if (!msg.includes('Failed to fetch') && !msg.includes('ERR_CONNECTION')) {
+      console.warn(`[sync] pull skipped for ${tableName}:`, msg);
+    }
     return 0;
   }
 
@@ -132,7 +135,11 @@ export async function runSyncCycle(): Promise<SyncResult> {
 
     let pulled = 0;
     for (const tableName of REMOTE_SYNC_TABLES) {
-      pulled += await pullRemoteChanges(tableName);
+      try {
+        pulled += await pullRemoteChanges(tableName);
+      } catch (err) {
+        console.warn(`[sync] pull failed for ${tableName}:`, err instanceof Error ? err.message : err);
+      }
     }
 
     const status = await getLocalSyncStatus();

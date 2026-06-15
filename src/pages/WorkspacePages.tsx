@@ -12,6 +12,8 @@ import { subscriptionQueryKeys, useFirmSubscription, useSubscriptionRequests } f
 import { SUBSCRIPTION_PLANS, getPlanLabel } from '../constants/subscription';
 import { submitSubscriptionRequest } from '../lib/subscription';
 import type { ProfileUpdateInput } from '../lib/profileImage';
+import type { DashboardFinancials, DashboardPerformance, DashboardStatHints } from '../lib/dashboardAnalytics';
+import { formatPercent, formatYer } from '../lib/dashboardAnalytics';
 
 interface DashboardPageProps {
   user: User;
@@ -30,6 +32,9 @@ interface DashboardPageProps {
     lawyersCount: number;
   };
   monthlyData: { month: string; cases: number; resolved: number; revenue: number }[];
+  performance: DashboardPerformance;
+  financials: DashboardFinancials;
+  statHints: DashboardStatHints;
   setCurrentPage: (page: PageId) => void;
   setShowClientModal: (value: boolean) => void;
   setShowCaseModal: (value: boolean) => void;
@@ -79,6 +84,8 @@ interface LawyersPageProps {
 
 interface ReportsPageProps {
   role: UserRole;
+  performance: DashboardPerformance;
+  financials: DashboardFinancials;
 }
 
 interface ProfilePageProps {
@@ -104,6 +111,9 @@ export function DashboardPage({
   setHoveredDataPoint,
   stats,
   monthlyData,
+  performance,
+  financials,
+  statHints,
   setCurrentPage,
   setShowClientModal,
   setShowCaseModal,
@@ -112,6 +122,9 @@ export function DashboardPage({
   onFirmCodeCopied
 }: DashboardPageProps) {
   const isAdmin = user.role === 'admin' || user.role === 'firm_manager' || user.role === 'super_admin';
+  const chartMaxCases = Math.max(1, ...monthlyData.map((d) => d.cases));
+  const chartMaxRevenue = Math.max(1, ...monthlyData.map((d) => d.revenue));
+  const currentYear = new Date().getFullYear();
   const { data: firmProfile } = useFirmProfile(isAdmin);
   const firmCode = office?.firmCode ?? firmProfile?.officeCode;
   const firmName = office?.name ?? firmProfile?.officeName ?? user.company;
@@ -153,10 +166,10 @@ export function DashboardPage({
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="إجمالي القضايا النشطة" value={stats.activeCases} desc="قضايا تحت المرافعة" change="+12% هذا الشهر" icon={Briefcase} iconBg="bg-amber-500/5" iconText="text-amber-500" borderStyle="border-amber-500/10" />
-        <StatCard title="الموكلين المسجلين" value={stats.totalClients} desc="دليل عملاء المكتب" change="3 شركات تجارية نشطة" icon={UserIcon} iconBg="bg-indigo-500/5" iconText="text-indigo-500" borderStyle="border-indigo-500/10" />
-        <StatCard title="الجلسات المجدولة" value={stats.upcomingSessions} desc="أجندة الحضور بالمحاكم" change="3 قضايا هذا الأسبوع" icon={Calendar} iconBg="bg-emerald-500/5" iconText="text-emerald-500" borderStyle="border-emerald-500/10" />
-        <StatCard title="الوثائق والأدلة" value={stats.totalDocuments} desc="مؤرشفة ومشفرة بالكامل" change="12.4 GB مستخدم" icon={FileText} iconBg="bg-rose-500/5" iconText="text-rose-500" borderStyle="border-rose-500/10" />
+        <StatCard title="إجمالي القضايا النشطة" value={stats.activeCases} desc="قضايا تحت المرافعة" change={statHints.casesMonthlyChange} icon={Briefcase} iconBg="bg-amber-500/5" iconText="text-amber-500" borderStyle="border-amber-500/10" />
+        <StatCard title="الموكلين المسجلين" value={stats.totalClients} desc="دليل عملاء المكتب" change={statHints.corporateClientsLabel} icon={UserIcon} iconBg="bg-indigo-500/5" iconText="text-indigo-500" borderStyle="border-indigo-500/10" />
+        <StatCard title="الجلسات المجدولة" value={stats.upcomingSessions} desc="أجندة الحضور بالمحاكم" change={statHints.weeklySessionsLabel} icon={Calendar} iconBg="bg-emerald-500/5" iconText="text-emerald-500" borderStyle="border-emerald-500/10" />
+        <StatCard title="الوثائق والأدلة" value={stats.totalDocuments} desc="مؤرشفة ومشفرة بالكامل" change={statHints.documentsStorageLabel} icon={FileText} iconBg="bg-rose-500/5" iconText="text-rose-500" borderStyle="border-rose-500/10" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -164,7 +177,7 @@ export function DashboardPage({
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="space-y-0.5 text-right">
               <h3 className="font-extrabold text-slate-900 text-sm">مؤشرات الإيرادات ونشاط القضايا المنجزة</h3>
-              <p className="text-[11px] text-slate-400">تفاعل بالوقوف على الأعمدة لرصد الأرقام بدقة لعام 2026.</p>
+              <p className="text-[11px] text-slate-400">تفاعل بالوقوف على الأعمدة لرصد الأرقام بدقة لعام {currentYear}.</p>
             </div>
             <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl">
               <button type="button" onClick={() => { setActiveChartTab('cases'); setHoveredDataPoint(null); }} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeChartTab === 'cases' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>معدل القضايا</button>
@@ -175,9 +188,9 @@ export function DashboardPage({
           <div className="relative pt-6">
             <div className="h-64 w-full flex items-end justify-between gap-2.5 sm:gap-4 px-2">
               {monthlyData.map((data) => {
-                const maxCases = 25;
-                const maxRevenue = 1000000;
-                const heightPercent = activeChartTab === 'cases' ? (data.cases / maxCases) * 100 : (data.revenue / maxRevenue) * 100;
+                const heightPercent = activeChartTab === 'cases'
+                  ? (data.cases / chartMaxCases) * 100
+                  : (data.revenue / chartMaxRevenue) * 100;
                 return (
                   <div key={data.month} className="flex-1 flex flex-col items-center group relative cursor-pointer" onMouseEnter={() => setHoveredDataPoint(data)} onMouseLeave={() => setHoveredDataPoint(null)}>
                     <div className="w-full bg-slate-50 rounded-2xl h-48 flex items-end overflow-hidden relative border border-slate-100/50">
@@ -193,7 +206,7 @@ export function DashboardPage({
 
             {hoveredDataPoint && (
               <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-950 text-white p-3 rounded-xl shadow-xl border border-slate-800 text-right space-y-1.5 z-20 min-w-[160px]">
-                <p className="text-xs font-bold border-b border-slate-800 pb-1 text-slate-400">{hoveredDataPoint.month} 2026</p>
+                <p className="text-xs font-bold border-b border-slate-800 pb-1 text-slate-400">{hoveredDataPoint.month} {currentYear}</p>
                 {activeChartTab === 'cases' ? (
                   <div className="space-y-1">
                     <p className="text-[11px] text-slate-300">القضايا الجديدة: <strong className="text-indigo-400 text-xs font-mono">{hoveredDataPoint.cases} قضية</strong></p>
@@ -217,30 +230,35 @@ export function DashboardPage({
           </div>
 
           {[
-            { label: 'نسبة النجاح وكسب الأحكام', value: '87%', color: 'bg-emerald-500', text: 'text-emerald-600' },
-            { label: 'التسويات الودية والصلح الناجح', value: '64%', color: 'bg-amber-500', text: 'text-amber-600' },
-            { label: 'التزام الرد المتبادل وتقديم العرائض', value: '94%', color: 'bg-indigo-600', text: 'text-indigo-600' }
+            { label: 'نسبة النجاح وكسب الأحكام', value: performance.winRate, color: 'bg-emerald-500', text: 'text-emerald-600' },
+            { label: 'التسويات الودية والصلح الناجح', value: performance.settlementRate, color: 'bg-amber-500', text: 'text-amber-600' },
+            { label: 'التزام الرد المتبادل وتقديم العرائض', value: performance.sessionCompliance, color: 'bg-indigo-600', text: 'text-indigo-600' }
           ].map((item) => (
             <div key={item.label} className="space-y-1.5">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-bold text-slate-700">{item.label}</span>
-                <span className={`font-black ${item.text}`}>{item.value}</span>
+                <span className={`font-black ${item.text}`}>{formatPercent(item.value)}</span>
               </div>
               <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <div className={`${item.color} h-full rounded-full`} style={{ width: item.value }} />
+                <div className={`${item.color} h-full rounded-full`} style={{ width: `${item.value}%` }} />
               </div>
             </div>
           ))}
 
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-right">
-            <div className="flex items-center gap-1.5 text-amber-600 font-bold text-xs">
-              <AlertCircle className="w-4 h-4" />
-              <span>تنبيه الموقف المالي للمكتب</span>
+          {financials.topPendingCase && financials.totalPendingFees > 0 ? (
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-right">
+              <div className="flex items-center gap-1.5 text-amber-600 font-bold text-xs">
+                <AlertCircle className="w-4 h-4" />
+                <span>تنبيه الموقف المالي للمكتب</span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                هناك مبلغ <strong className="text-slate-900">{formatYer(financials.topPendingCase.remaining_amount)}</strong> معلق كمتبقي أتعاب مرافعة جارية
+                {financials.topPendingCase.clientName ? (
+                  <> لـ <strong className="text-slate-900">{financials.topPendingCase.clientName}</strong></>
+                ) : null}.
+              </p>
             </div>
-            <p className="text-[11px] text-slate-500 leading-relaxed">
-              هناك مبلغ <strong className="text-slate-900">245,000 ريال يمني</strong> معلق كمتبقي أتعاب مرافعة جارية لمجموعة هائل سعيد أنعم.
-            </p>
-          </div>
+          ) : null}
         </div>
       </div>
 
@@ -573,8 +591,9 @@ export function LawyersPage({ lawyers }: LawyersPageProps) {
   );
 }
 
-export function ReportsPage({ role }: ReportsPageProps) {
+export function ReportsPage({ role, performance, financials }: ReportsPageProps) {
   const accessDenied = role !== 'admin' && role !== 'firm_manager';
+  const currentYear = new Date().getFullYear();
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-8">
       <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-right">
@@ -591,13 +610,13 @@ export function ReportsPage({ role }: ReportsPageProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-100 space-y-4 text-right shadow-sm">
             <h3 className="font-bold text-slate-800 text-sm">أتعاب المحاماة الإجمالية</h3>
-            <div className="text-3xl font-black text-emerald-600 font-mono">٣,٣٧٠,٠٠٠ ر.ي</div>
-            <p className="text-xs text-slate-400">إجمالي الإيرادات المسجلة عبر الحسابات الأساسية.</p>
+            <div className="text-3xl font-black text-emerald-600 font-mono">{formatYer(financials.totalPaidFees)}</div>
+            <p className="text-xs text-slate-400">إجمالي المبالغ المحصّلة المسجلة في قضايا هذا المكتب.</p>
           </div>
           <div className="bg-white p-6 rounded-2xl border border-slate-100 space-y-4 text-right shadow-sm">
             <h3 className="font-bold text-slate-800 text-sm">معدل الفوز بالأحكام المنجزة</h3>
-            <div className="text-3xl font-black text-indigo-600 font-mono">٨٧.٥%</div>
-            <p className="text-xs text-slate-400">نسبة كسب القضايا التجارية والمدنية المسجلة لعام 2026.</p>
+            <div className="text-3xl font-black text-indigo-600 font-mono">{formatPercent(performance.winRate)}</div>
+            <p className="text-xs text-slate-400">نسبة القضايا المغلقة التي سُجّل لها تاريخ حكم لعام {currentYear}.</p>
           </div>
         </div>
       )}
