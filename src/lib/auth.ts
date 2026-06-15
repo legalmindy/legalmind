@@ -4,7 +4,7 @@ import type { Invitation, User, UserRole } from '../types/app';
 import type { DbEmployee, DbInvitationPreview } from '../types/database';
 import { mapEmployeeToUser } from './mappers';
 import { logError } from './errorLogger';
-import { isValidFirmCodeFormat, normalizeFirmCode } from './firmCode';
+import { isValidFirmCodeFormat, normalizeFirmCode, isEmailAvailableForRegistration } from './firmCode';
 
 export interface AuthResult {
   success: boolean;
@@ -69,7 +69,12 @@ function mapAuthError(error: AuthError): string {
   };
 
   if (/database error saving new user/i.test(raw)) {
+    console.error('[AUTH] Supabase signup provisioning error:', raw);
     return 'تعذر إنشاء الحساب في قاعدة البيانات. تأكد من صحة كود المكتب، وأن البريد غير مستخدم مسبقاً، ثم أعد المحاولة.';
+  }
+
+  if (/duplicate key|unique constraint|already registered/i.test(raw)) {
+    return 'هذا البريد الإلكتروني مسجل مسبقاً في النظام.';
   }
 
   if (/signup provisioning failed/i.test(raw)) {
@@ -176,6 +181,16 @@ export async function registerLawyer(data: LawyerRegistrationData): Promise<Auth
   const firmCode = normalizeFirmCode(data.officeCode);
   const office = await verifyOfficeCode(firmCode);
   if (!office) return { success: false, error: 'كود المكتب غير صحيح أو غير موجود. مثال صحيح: HUD-4829' };
+
+  const normalizedEmail = data.email.trim().toLowerCase();
+  try {
+    const emailAvailable = await isEmailAvailableForRegistration(normalizedEmail);
+    if (!emailAvailable) {
+      return { success: false, error: 'هذا البريد الإلكتروني مسجل مسبقاً في النظام. جرّب تسجيل الدخول أو استخدم بريداً آخر.' };
+    }
+  } catch (err) {
+    console.warn('[AUTH] Email availability check failed:', err);
+  }
 
   const { error, data: authData } = await supabase.auth.signUp({
     email: data.email,

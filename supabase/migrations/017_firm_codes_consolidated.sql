@@ -280,7 +280,9 @@ begin
   insert into profiles(id, firm_id, employee_id, full_name, email, role)
   values (auth_user_id, target_firm_id, new_employee_id, normalized_name, normalized_email, 'lawyer');
 
-  insert into lawyers(employee_id) values (new_employee_id);
+  insert into lawyers(employee_id)
+  values (new_employee_id)
+  on conflict (employee_id) do nothing;
 
   return target_firm_id;
 end;

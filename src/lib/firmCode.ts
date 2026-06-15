@@ -79,6 +79,17 @@ export interface FirmCodeValidationResult {
 }
 
 /** Validates format + existence in Supabase (lawyer registration). */
+export async function isEmailAvailableForRegistration(email: string): Promise<boolean> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return false;
+
+  const { data, error } = await supabase.rpc('is_email_available_for_registration', {
+    check_email: normalized
+  });
+  if (error) throw error;
+  return Boolean(data);
+}
+
 export async function validateFirmCodeForRegistration(code: string): Promise<FirmCodeValidationResult> {
   const normalizedCode = normalizeFirmCode(code);
 
