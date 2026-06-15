@@ -54,5 +54,8 @@ export function formatCaseSaveError(err: unknown): string {
   if (/sync_version/i.test(combined)) {
     return 'تعذر حفظ القضية. إعدادات قاعدة البيانات تحتاج تحديث — نفّذ migration 020 في Supabase SQL Editor.';
   }
+  if (/more than one relationship|could not embed/i.test(combined)) {
+    return 'تعذر تحميل المحامين. حدّث الصفحة — إذا استمر الخطأ نفّذ migration 021 في Supabase.';
+  }
   return message || 'فشل حفظ القضية.';
 }

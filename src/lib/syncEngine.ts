@@ -11,7 +11,8 @@ import {
   type SyncStatus
 } from './localDbClient';
 
-export const SYNC_TABLES: LocalTable[] = [
+/** Tables allowed by Supabase sync_pull_table RPC (must match DB allow-list). */
+export const REMOTE_SYNC_TABLES = [
   'firms',
   'employees',
   'invitations',
@@ -21,9 +22,10 @@ export const SYNC_TABLES: LocalTable[] = [
   'documents',
   'case_attachments',
   'lawyers',
-  'notifications',
-  'audit_logs'
-];
+  'notifications'
+] as const satisfies readonly LocalTable[];
+
+export type RemoteSyncTable = (typeof REMOTE_SYNC_TABLES)[number];
 
 export interface SyncResult extends SyncStatus {
   pushed: number;
@@ -49,13 +51,21 @@ export async function pushOutboxEvent(event: OutboxEvent): Promise<void> {
   await markOutboxEventSynced(event.id);
 }
 
-export async function pullRemoteChanges(tableName: LocalTable): Promise<number> {
+export async function pullRemoteChanges(tableName: RemoteSyncTable): Promise<number> {
+  const rawCursor = localStorage.getItem(`legalmind.sync.cursor.${tableName}`);
+  const sinceCursor = rawCursor?.trim() ? rawCursor : null;
+
   const { data, error } = await supabase.rpc('sync_pull_table', {
     table_name: tableName,
-    since_cursor: localStorage.getItem(`legalmind.sync.cursor.${tableName}`)
+    since_cursor: sinceCursor
   });
-  if (error) throw error;
-  const rows = Array.isArray(data) ? data as Record<string, unknown>[] : [];
+
+  if (error) {
+    console.warn(`[sync] pull skipped for ${tableName}:`, error.message);
+    return 0;
+  }
+
+  const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
 
   for (const row of rows) {
     const id = row.id;
@@ -112,12 +122,16 @@ export async function runSyncCycle(): Promise<SyncResult> {
     const outbox = await listOutboxEvents(100);
     let pushed = 0;
     for (const event of outbox) {
-      await pushOutboxEvent(event);
-      pushed += 1;
+      try {
+        await pushOutboxEvent(event);
+        pushed += 1;
+      } catch (err) {
+        console.warn('[sync] push failed:', err instanceof Error ? err.message : err);
+      }
     }
 
     let pulled = 0;
-    for (const tableName of SYNC_TABLES) {
+    for (const tableName of REMOTE_SYNC_TABLES) {
       pulled += await pullRemoteChanges(tableName);
     }
 

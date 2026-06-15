@@ -6,7 +6,6 @@ import {
   mapDbEmployee,
   mapDbFirm,
   mapDbInvitation,
-  mapDbLawyer,
   mapDbNotification,
   mapDbSession
 } from './mappers';
@@ -32,7 +31,6 @@ import type {
   DbEmployee,
   DbFirm,
   DbInvitation,
-  DbLawyer,
   DbNotification,
   DbSession,
   PaginatedResult,
@@ -41,6 +39,8 @@ import type {
 
 const DEFAULT_PAGE_SIZE = 20;
 const ADMIN_ROLES: UserRole[] = ['super_admin', 'admin', 'firm_manager'];
+/** lawyers.employee_id → employees.id (not lawyers.updated_by → employees.id) */
+const LAWYERS_EMPLOYEE_FK = 'lawyers_employee_id_fkey';
 
 async function getCurrentFirmId(): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -239,16 +239,8 @@ export async function createCase(
 
   const lawyerId = payload.lawyerId?.trim() ? payload.lawyerId.trim() : null;
   if (lawyerId) {
-    const { data: lawyerRow, error: lawyerError } = await supabase
-      .from('lawyers')
-      .select('id, employees!inner(firm_id, deleted_at, status)')
-      .eq('id', lawyerId)
-      .eq('employees.firm_id', firmId)
-      .is('employees.deleted_at', null)
-      .eq('employees.status', 'active')
-      .maybeSingle();
-    throwIfSupabaseError(lawyerError);
-    if (!lawyerRow) {
+    const lawyerValid = await isActiveFirmLawyer(firmId, lawyerId);
+    if (!lawyerValid) {
       throw new Error('المحامي المختار غير مسجّل في النظام — اختر محامياً من القائمة أو اترك الحقل فارغاً.');
     }
   }
@@ -602,17 +594,104 @@ export async function deleteEmployeeRecord(employeeId: string): Promise<{ id: st
 }
 
 // ─── Lawyers ──────────────────────────────────────────────────
+async function isActiveFirmLawyer(firmId: string, lawyerId: string): Promise<boolean> {
+  const { data: lawyerRow, error: lawyerError } = await supabase
+    .from('lawyers')
+    .select('id, employee_id')
+    .eq('id', lawyerId)
+    .maybeSingle();
+  throwIfSupabaseError(lawyerError);
+  if (!lawyerRow?.employee_id) return false;
+
+  const { data: employeeRow, error: employeeError } = await supabase
+    .from('employees')
+    .select('id')
+    .eq('id', lawyerRow.employee_id)
+    .eq('firm_id', firmId)
+    .eq('role', 'lawyer')
+    .is('deleted_at', null)
+    .eq('status', 'active')
+    .maybeSingle();
+  throwIfSupabaseError(employeeError);
+  return Boolean(employeeRow);
+}
+
+type EmployeeLawyerJoinRow = {
+  full_name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  lawyers:
+    | {
+        id: string;
+        specialization: string | null;
+        success_rate: number | null;
+        attendance_rate: number | null;
+        total_cases: number | null;
+        won_cases: number | null;
+        attended_sessions: number | null;
+        missed_sessions: number | null;
+      }
+    | {
+        id: string;
+        specialization: string | null;
+        success_rate: number | null;
+        attendance_rate: number | null;
+        total_cases: number | null;
+        won_cases: number | null;
+        attended_sessions: number | null;
+        missed_sessions: number | null;
+      }[]
+    | null;
+};
+
+function mapEmployeeLawyerRow(row: EmployeeLawyerJoinRow): Lawyer | null {
+  const lawyerRow = Array.isArray(row.lawyers) ? row.lawyers[0] : row.lawyers;
+  if (!lawyerRow) return null;
+  return {
+    id: lawyerRow.id,
+    name: row.full_name,
+    role: row.role,
+    email: row.email ?? '',
+    phone: row.phone ?? '',
+    specialization: lawyerRow.specialization ?? 'عام',
+    success_rate: lawyerRow.success_rate ?? undefined,
+    attendance_rate: lawyerRow.attendance_rate ?? undefined,
+    total_cases: lawyerRow.total_cases ?? undefined,
+    won_cases: lawyerRow.won_cases ?? undefined,
+    attended_sessions: lawyerRow.attended_sessions ?? undefined,
+    missed_sessions: lawyerRow.missed_sessions ?? undefined
+  };
+}
+
 export async function fetchLawyers(): Promise<Lawyer[]> {
   const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
-    .from('lawyers')
-    .select('*, employees!inner(full_name, email, phone, role, firm_id, status, deleted_at)')
-    .eq('employees.firm_id', firmId)
-    .eq('employees.role', 'lawyer')
-    .is('employees.deleted_at', null)
-    .eq('employees.status', 'active');
-  if (error) throw error;
-  return (data as DbLawyer[]).map(mapDbLawyer);
+    .from('employees')
+    .select(`
+      full_name,
+      email,
+      phone,
+      role,
+      lawyers!${LAWYERS_EMPLOYEE_FK} (
+        id,
+        specialization,
+        success_rate,
+        attendance_rate,
+        total_cases,
+        won_cases,
+        attended_sessions,
+        missed_sessions
+      )
+    `)
+    .eq('firm_id', firmId)
+    .eq('role', 'lawyer')
+    .is('deleted_at', null)
+    .eq('status', 'active');
+  throwIfSupabaseError(error);
+  return (data as EmployeeLawyerJoinRow[])
+    .map(mapEmployeeLawyerRow)
+    .filter((lawyer): lawyer is Lawyer => lawyer !== null);
 }
 
 export async function assignCaseLawyer(caseId: string, lawyerId: string | null): Promise<CaseRecord> {
