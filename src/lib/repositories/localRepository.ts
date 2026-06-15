@@ -128,6 +128,18 @@ export const localCaseRepository = {
     return this.update({ ...found, status: 'active', archive_date: undefined });
   },
 
+  async archive(id: string, notes?: string): Promise<CaseRecord> {
+    const rows = await listLocalRows<CaseRecord>({ table: 'cases', firmId: getCurrentFirmIdFallback() });
+    const found = rows.find((row) => row.id === id);
+    if (!found) throw new Error('القضية غير موجودة محلياً.');
+    return this.update({
+      ...found,
+      status: 'archived',
+      archive_date: new Date().toISOString().split('T')[0],
+      notes: notes?.trim() || found.notes
+    });
+  },
+
   async softDelete(id: string): Promise<{ id: string }> {
     await softDeleteLocalRow({ table: 'cases', id, firmId: getCurrentFirmIdFallback() });
     return { id };
@@ -260,19 +272,7 @@ export const localEmployeeRepository = {
 
 export const localPeopleRepository = {
   async listLawyers(): Promise<Lawyer[]> {
-    const rows = await listLocalRows<Lawyer>({ table: 'lawyers', firmId: getCurrentFirmIdFallback() });
-    if (rows.length > 0) return rows;
-    const employees = await localEmployeeRepository.list();
-    return employees
-      .filter((employee) => employee.role === 'lawyer')
-      .map((employee) => ({
-        id: employee.id,
-        name: employee.full_name,
-        role: employee.role,
-        email: employee.email,
-        phone: employee.phone,
-        specialization: 'عام'
-      }));
+    return listLocalRows<Lawyer>({ table: 'lawyers', firmId: getCurrentFirmIdFallback() });
   }
 };
 

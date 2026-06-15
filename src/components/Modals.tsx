@@ -60,20 +60,85 @@ interface EmployeeModalProps {
   onClose: () => void;
 }
 
-function ModalShell({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+function ModalShell({
+  title,
+  children,
+  footer,
+  onClose,
+  wide = false
+}: {
+  title: string;
+  children: ReactNode;
+  footer?: ReactNode;
+  onClose: () => void;
+  wide?: boolean;
+}) {
   return (
-    <div className="fixed inset-0 bg-slate-900/55 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-right animate-scaleUp">
-        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-          <h3 className="font-extrabold text-base text-slate-800 font-bold">{title}</h3>
-          <button type="button" onClick={onClose} className="p-1 hover:bg-slate-50 rounded-lg">
-            <span className="sr-only">إغلاق</span>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/55 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <div
+        className={`flex w-full max-h-[92vh] flex-col rounded-t-2xl bg-white text-right shadow-2xl sm:max-h-[90vh] sm:rounded-2xl ${
+          wide ? 'max-w-2xl' : 'max-w-lg'
+        }`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
+          <h3 id="modal-title" className="text-base font-extrabold text-slate-800">
+            {title}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50"
+            aria-label="إغلاق"
+          >
             ✕
           </button>
         </div>
-        {children}
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">
+          {children}
+        </div>
+
+        {footer ? (
+          <div className="flex shrink-0 justify-end gap-2.5 border-t border-slate-100 bg-white px-5 py-4 sm:rounded-b-2xl sm:px-6">
+            {footer}
+          </div>
+        ) : null}
       </div>
     </div>
+  );
+}
+
+function ModalFooter({
+  onClose,
+  onSave,
+  cancelLabel,
+  saveLabel
+}: {
+  onClose: () => void;
+  onSave: () => void;
+  cancelLabel: string;
+  saveLabel: string;
+}) {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onClose}
+        className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs text-slate-500 hover:bg-slate-50"
+      >
+        {cancelLabel}
+      </button>
+      <button
+        type="button"
+        onClick={onSave}
+        className="rounded-xl bg-amber-500 px-5 py-2.5 text-xs font-bold text-slate-950 hover:bg-amber-600"
+      >
+        {saveLabel}
+      </button>
+    </>
   );
 }
 
@@ -81,7 +146,11 @@ export function ClientModal({ open, client, formState, onChange, onSave, onClose
   if (!open) return null;
 
   return (
-    <ModalShell title={client ? 'تعديل بيانات الموكل' : 'تسجيل موكل جديد'} onClose={onClose}>
+    <ModalShell
+      title={client ? 'تعديل بيانات الموكل' : 'تسجيل موكل جديد'}
+      onClose={onClose}
+      footer={<ModalFooter onClose={onClose} onSave={onSave} cancelLabel="إلغاء الأمر" saveLabel="حفظ العميل" />}
+    >
       <div className="space-y-3 text-xs">
         <div>
           <label className="block text-slate-600 mb-1 font-bold">اسم الموكل</label>
@@ -129,15 +198,6 @@ export function ClientModal({ open, client, formState, onChange, onSave, onClose
           />
         </div>
       </div>
-
-      <div className="border-t border-slate-100 pt-4 flex justify-end gap-2.5">
-        <button type="button" onClick={onClose} className="px-4 py-2 border border-slate-200 rounded-xl text-xs text-slate-500 hover:bg-slate-50">
-          إلغاء الأمر
-        </button>
-        <button type="button" onClick={onSave} className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs">
-          حفظ العميل
-        </button>
-      </div>
     </ModalShell>
   );
 }
@@ -146,7 +206,19 @@ export function CaseModal({ open, caseRecord, formState, clients, lawyers, onCha
   if (!open) return null;
 
   return (
-    <ModalShell title={caseRecord ? 'تعديل ملف القضية' : 'فتح ملف قضية جديد'} onClose={onClose}>
+    <ModalShell
+      title={caseRecord ? 'تعديل ملف القضية' : 'فتح ملف قضية جديد'}
+      onClose={onClose}
+      wide
+      footer={
+        <ModalFooter
+          onClose={onClose}
+          onSave={onSave}
+          cancelLabel="إلغاء الأمر"
+          saveLabel="حفظ ملف القضية"
+        />
+      }
+    >
       <div className="space-y-3 text-xs">
         <div>
           <label className="block text-slate-600 mb-1 font-bold">موضوع القضية الرئيسي</label>
@@ -327,15 +399,6 @@ export function CaseModal({ open, caseRecord, formState, clients, lawyers, onCha
           />
         </div>
       </div>
-
-      <div className="border-t border-slate-100 pt-4 flex justify-end gap-2.5">
-        <button type="button" onClick={onClose} className="px-4 py-2 border border-slate-200 rounded-xl text-xs text-slate-500 hover:bg-slate-50">
-          إلغاء الأمر
-        </button>
-        <button type="button" onClick={onSave} className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs">
-          حفظ ملف القضية
-        </button>
-      </div>
     </ModalShell>
   );
 }
@@ -344,7 +407,18 @@ export function SessionModal({ open, session, formState, cases, onChange, onSave
   if (!open) return null;
 
   return (
-    <ModalShell title={session ? 'تحديث الجلسة' : 'جدولة جلسة جديدة'} onClose={onClose}>
+    <ModalShell
+      title={session ? 'تحديث الجلسة' : 'جدولة جلسة جديدة'}
+      onClose={onClose}
+      footer={
+        <ModalFooter
+          onClose={onClose}
+          onSave={onSave}
+          cancelLabel="إلغاء الموعد"
+          saveLabel="جدولة الجلسة"
+        />
+      }
+    >
       <div className="space-y-3 text-xs">
         <div>
           <label className="block text-slate-600 mb-1 font-bold">الملف القضائي</label>
@@ -414,15 +488,6 @@ export function SessionModal({ open, session, formState, cases, onChange, onSave
           />
         </div>
       </div>
-
-      <div className="border-t border-slate-100 pt-4 flex justify-end gap-2.5">
-        <button type="button" onClick={onClose} className="px-4 py-2 border border-slate-200 rounded-xl text-xs text-slate-500 hover:bg-slate-50">
-          إلغاء الموعد
-        </button>
-        <button type="button" onClick={onSave} className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs">
-          جدولة الجلسة
-        </button>
-      </div>
     </ModalShell>
   );
 }
@@ -431,7 +496,28 @@ export function DocumentModal({ open, formState, cases, onChange, onSave, onClos
   if (!open) return null;
 
   return (
-    <ModalShell title="رفع مستند قانوني آمن" onClose={onClose}>
+    <ModalShell
+      title="رفع مستند قانوني آمن"
+      onClose={onClose}
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs text-slate-500 hover:bg-slate-50"
+          >
+            إلغاء الأمر
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            className="rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-bold text-white hover:bg-slate-800"
+          >
+            رفع المستند
+          </button>
+        </>
+      }
+    >
       <div className="space-y-3 text-xs">
         <div>
           <label className="block text-slate-600 mb-1 font-bold">ربط المستند بالقضية</label>
@@ -477,15 +563,6 @@ export function DocumentModal({ open, formState, cases, onChange, onSave, onClos
           )}
         </div>
       </div>
-
-      <div className="border-t border-slate-100 pt-4 flex justify-end gap-2.5">
-        <button type="button" onClick={onClose} className="px-4 py-2 border border-slate-200 rounded-xl text-xs text-slate-500 hover:bg-slate-50">
-          إلغاء الأمر
-        </button>
-        <button type="button" onClick={onSave} className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs">
-          رفع المستند
-        </button>
-      </div>
     </ModalShell>
   );
 }
@@ -494,7 +571,18 @@ export function EmployeeModal({ open, employee, formState, onChange, onSave, onC
   if (!open) return null;
 
   return (
-    <ModalShell title={employee ? 'تعديل عضو الفريق' : 'دعوة عضو جديد للمكتب'} onClose={onClose}>
+    <ModalShell
+      title={employee ? 'تعديل عضو الفريق' : 'دعوة عضو جديد للمكتب'}
+      onClose={onClose}
+      footer={
+        <ModalFooter
+          onClose={onClose}
+          onSave={onSave}
+          cancelLabel="إلغاء الأمر"
+          saveLabel={employee ? 'حفظ التعديلات' : 'إرسال الدعوة'}
+        />
+      }
+    >
       <div className="space-y-3 text-xs">
         <div>
           <label className="block text-slate-600 mb-1 font-bold">الاسم الكامل</label>
@@ -563,14 +651,63 @@ export function EmployeeModal({ open, employee, formState, onChange, onSave, onC
           </p>
         )}
       </div>
+    </ModalShell>
+  );
+}
 
-      <div className="border-t border-slate-100 pt-4 flex justify-end gap-2.5">
-        <button type="button" onClick={onClose} className="px-4 py-2 border border-slate-200 rounded-xl text-xs text-slate-500 hover:bg-slate-50">
-          إلغاء الأمر
-        </button>
-        <button type="button" onClick={onSave} className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs">
-          {employee ? 'حفظ التعديلات' : 'إرسال الدعوة'}
-        </button>
+interface ArchiveCaseModalProps {
+  open: boolean;
+  caseRecord: CaseRecord | null;
+  notes: string;
+  onNotesChange: (value: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}
+
+export function ArchiveCaseModal({ open, caseRecord, notes, onNotesChange, onConfirm, onClose }: ArchiveCaseModalProps) {
+  if (!open || !caseRecord) return null;
+
+  return (
+    <ModalShell
+      title="أرشفة ملف القضية"
+      onClose={onClose}
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs text-slate-500 hover:bg-slate-50"
+          >
+            إلغاء
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-xl bg-amber-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-amber-700"
+          >
+            تأكيد الأرشفة
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-4 text-xs text-right">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="font-bold text-amber-900">{caseRecord.title}</p>
+          <p className="mt-1 text-slate-600">رقم القضية: {caseRecord.caseNo || caseRecord.court_case_number}</p>
+        </div>
+        <p className="text-slate-600 leading-relaxed">
+          سيتم نقل القضية إلى الأرشيف. أضف ملاحظات الأرشفة (سبب الإغلاق، نتيجة الحكم، أو أي تفاصيل مهمة).
+        </p>
+        <div>
+          <label className="mb-1 block font-bold text-slate-600">ملاحظات الأرشيف</label>
+          <textarea
+            value={notes}
+            onChange={(e) => onNotesChange(e.target.value)}
+            rows={4}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-right outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+            placeholder="مثال: انتهت القضية بصلح، أو صدر حكم نهائي، أو طلب الموكل إغلاق الملف..."
+          />
+        </div>
       </div>
     </ModalShell>
   );

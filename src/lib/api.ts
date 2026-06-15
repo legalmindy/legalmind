@@ -12,6 +12,7 @@ import {
 } from './mappers';
 import { sanitizeFileName, validateFile } from './fileValidation';
 import { logError } from './errorLogger';
+import { throwIfSupabaseError } from './supabaseQueryHelpers';
 import type {
   CaseRecord,
   Client,
@@ -223,27 +224,56 @@ export async function createCase(
   payload: Omit<CaseRecord, 'id' | 'clientName' | 'dateStarted' | 'remaining_amount'>
 ): Promise<CaseRecord> {
   const firmId = await getCurrentFirmId();
+
+  const { data: clientRow, error: clientError } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('id', payload.clientId)
+    .eq('firm_id', firmId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  throwIfSupabaseError(clientError);
+  if (!clientRow) {
+    throw new Error('الموكل المختار غير مسجّل في النظام — أضف الموكل من صفحة العملاء أولاً.');
+  }
+
+  const lawyerId = payload.lawyerId?.trim() ? payload.lawyerId.trim() : null;
+  if (lawyerId) {
+    const { data: lawyerRow, error: lawyerError } = await supabase
+      .from('lawyers')
+      .select('id, employees!inner(firm_id, deleted_at, status)')
+      .eq('id', lawyerId)
+      .eq('employees.firm_id', firmId)
+      .is('employees.deleted_at', null)
+      .eq('employees.status', 'active')
+      .maybeSingle();
+    throwIfSupabaseError(lawyerError);
+    if (!lawyerRow) {
+      throw new Error('المحامي المختار غير مسجّل في النظام — اختر محامياً من القائمة أو اترك الحقل فارغاً.');
+    }
+  }
+
   const { data, error } = await supabase
     .from('cases')
     .insert({
       firm_id: firmId,
       client_id: payload.clientId,
-      assigned_lawyer_id: payload.lawyerId || null,
+      assigned_lawyer_id: lawyerId,
       court_case_number: payload.court_case_number || payload.caseNo,
-      title: payload.title,
+      title: payload.title.trim(),
       case_type: payload.case_type,
       case_stage: payload.case_stage,
       category: payload.category,
-      court: payload.court,
-      description: payload.description,
-      total_amount: payload.total_amount,
-      paid_amount: payload.paid_amount,
-      status: payload.status,
-      notes: payload.notes ?? null
+      court: payload.court.trim(),
+      description: payload.description ?? '',
+      total_amount: Number(payload.total_amount) || 0,
+      paid_amount: Number(payload.paid_amount) || 0,
+      status: payload.status || 'active',
+      notes: payload.notes?.trim() || null
     })
     .select(CASE_SELECT)
     .single();
-  if (error) throw error;
+  throwIfSupabaseError(error);
   return mapDbCase(data as DbCase);
 }
 
@@ -277,6 +307,21 @@ export async function restoreCaseRecord(caseId: string): Promise<CaseRecord> {
   const { data, error } = await supabase
     .from('cases')
     .update({ status: 'active', archive_date: null })
+    .eq('id', caseId)
+    .select(CASE_SELECT)
+    .single();
+  if (error) throw error;
+  return mapDbCase(data as DbCase);
+}
+
+export async function archiveCaseRecord(caseId: string, notes?: string): Promise<CaseRecord> {
+  const { data, error } = await supabase
+    .from('cases')
+    .update({
+      status: 'archived',
+      archive_date: new Date().toISOString(),
+      notes: notes?.trim() || null
+    })
     .eq('id', caseId)
     .select(CASE_SELECT)
     .single();
@@ -561,8 +606,11 @@ export async function fetchLawyers(): Promise<Lawyer[]> {
   const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('lawyers')
-    .select('*, employees!inner(*)')
-    .eq('employees.firm_id', firmId);
+    .select('*, employees!inner(full_name, email, phone, role, firm_id, status, deleted_at)')
+    .eq('employees.firm_id', firmId)
+    .eq('employees.role', 'lawyer')
+    .is('employees.deleted_at', null)
+    .eq('employees.status', 'active');
   if (error) throw error;
   return (data as DbLawyer[]).map(mapDbLawyer);
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CaseRecord, Client, DocumentItem, Lawyer, Office, PageId, SessionItem, SubscriptionPlan, User, UserRole } from '../types/app';
-import { Briefcase, Calendar, CheckCircle, Clock, FileText, Lock, MapPin, Plus, Search, Trash2, Edit3, Download, AlertCircle, User as UserIcon, Loader2 } from 'lucide-react';
+import { Briefcase, Calendar, CheckCircle, Clock, FileText, Lock, MapPin, Plus, Search, Trash2, Edit3, Download, AlertCircle, User as UserIcon, Loader2, Archive } from 'lucide-react';
 import { StatCard } from '../components/StatCard';
 import { MfaSettings } from '../components/MfaSettings';
 import { FirmCodeCard } from '../components/FirmCodeCard';
@@ -52,6 +52,7 @@ interface CasesPageProps {
   onCategoryFilterChange: (value: string) => void;
   onCreateCase: () => void;
   onEditCase: (caseRecord: CaseRecord) => void;
+  onArchiveCase: (caseRecord: CaseRecord) => void;
   onDeleteCase: (id: string) => void;
 }
 
@@ -371,7 +372,7 @@ export function ClientsPage({ clients, searchQuery, onSearch, onCreateClient, on
   );
 }
 
-export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, onSearch, onStatusFilterChange, onCategoryFilterChange, onCreateCase, onEditCase, onDeleteCase }: CasesPageProps) {
+export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, onSearch, onStatusFilterChange, onCategoryFilterChange, onCreateCase, onEditCase, onArchiveCase, onDeleteCase }: CasesPageProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-right">
@@ -432,6 +433,14 @@ export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, on
             <div className="border-t border-slate-100 pt-4 flex justify-between items-center text-xs">
               <span className="text-slate-400">بدأت في: {caseRecord.dateStarted}</span>
               <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => onArchiveCase(caseRecord)}
+                  className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 font-bold text-amber-800 transition-all hover:bg-amber-50"
+                >
+                  <Archive className="h-3.5 w-3.5" />
+                  أرشفة
+                </button>
                 <button type="button" onClick={() => onEditCase(caseRecord)} className="px-3 py-1.5 hover:bg-indigo-50 text-indigo-700 rounded-lg font-bold transition-all">تعديل الملف</button>
                 <button type="button" onClick={() => onDeleteCase(caseRecord.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
               </div>

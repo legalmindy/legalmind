@@ -92,6 +92,19 @@ export function ArchivePage({ cases, onRestore, onPermanentArchive }: ArchivePag
               <div className="flex justify-between"><span>صافي المتبقي</span><span className="font-bold">{caseItem.remaining_amount?.toLocaleString()} ر.ي</span></div>
             </div>
 
+            {caseItem.archive_date ? (
+              <p className="text-[11px] text-slate-400">
+                تاريخ الأرشفة: {caseItem.archive_date.split('T')[0] ?? caseItem.archive_date}
+              </p>
+            ) : null}
+
+            {caseItem.notes ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs">
+                <p className="mb-1 font-bold text-amber-900">ملاحظات الأرشيف</p>
+                <p className="whitespace-pre-wrap leading-relaxed text-slate-700">{caseItem.notes}</p>
+              </div>
+            ) : null}
+
             <div className="flex flex-wrap gap-2 justify-end">
               <button type="button" onClick={() => onRestore(caseItem.id)} className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-[11px] font-bold hover:bg-emerald-600 transition-all">
                 استعادة القضية

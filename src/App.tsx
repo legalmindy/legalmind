@@ -7,9 +7,10 @@ import { HeaderBar } from './components/HeaderBar';
 import { SyncStatusBar } from './components/SyncStatusBar';
 import { AlertBanner } from './components/AlertBanner';
 import { PageLoader } from './components/ui/LoadingSpinner';
-import { ClientModal, CaseModal, SessionModal, DocumentModal, EmployeeModal } from './components/Modals';
+import { ClientModal, CaseModal, SessionModal, DocumentModal, EmployeeModal, ArchiveCaseModal } from './components/Modals';
 import { isValidYemeniPhone } from './utils/format';
 import { canManageCases, canManageClients, canManageOffice, checkRoleAccess } from './lib/api';
+import { formatCaseSaveError } from './lib/supabaseQueryHelpers';
 import { MONTHLY_CHART_DATA, SUBSCRIPTION_PLANS } from './constants/sampleData';
 import {
   useArchivedCases,
@@ -129,6 +130,9 @@ export default function App() {
   const [isMobileMenuOpen, , setIsMobileMenuOpen] = useToggle(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [editingCase, setEditingCase] = useState<CaseRecord | null>(null);
+  const [archivingCase, setArchivingCase] = useState<CaseRecord | null>(null);
+  const [archiveNotes, setArchiveNotes] = useState('');
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [editingSession, setEditingSession] = useState<SessionItem | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [newClient, setNewClient] = useState(initialClientForm);
@@ -245,7 +249,7 @@ export default function App() {
       setEditingCase(null);
       setNewCase(initialCaseForm);
     } catch (err) {
-      showAlert(err instanceof Error ? err.message : 'فشل حفظ القضية.', 'error');
+      showAlert(formatCaseSaveError(err), 'error');
     }
   };
 
@@ -258,6 +262,25 @@ export default function App() {
       showAlert('تم حذف القضية.', 'info');
     } catch (err) {
       showAlert(err instanceof Error ? err.message : 'فشل حذف القضية.', 'error');
+    }
+  };
+
+  const openArchiveCase = (caseRecord: CaseRecord) => {
+    setArchivingCase(caseRecord);
+    setArchiveNotes(caseRecord.notes ?? '');
+    setShowArchiveModal(true);
+  };
+
+  const confirmArchiveCase = async () => {
+    if (!archivingCase) return;
+    try {
+      await caseMutations.archiveCase.mutateAsync({ id: archivingCase.id, notes: archiveNotes });
+      showAlert('تمت أرشفة القضية ونقلها إلى الأرشيف.', 'success');
+      setShowArchiveModal(false);
+      setArchivingCase(null);
+      setArchiveNotes('');
+    } catch (err) {
+      showAlert(err instanceof Error ? err.message : 'فشل أرشفة القضية.', 'error');
     }
   };
 
@@ -435,6 +458,7 @@ export default function App() {
             onStatusFilterChange={setStatusFilter} onCategoryFilterChange={setCategoryFilter}
             onCreateCase={() => { setEditingCase(null); setNewCase(initialCaseForm); setShowCaseModal(true); }}
             onEditCase={(cr) => { setEditingCase(cr); setNewCase({ title: cr.title, clientId: cr.clientId, category: cr.category, case_type: cr.case_type, case_stage: cr.case_stage, court_case_number: cr.court_case_number, total_amount: cr.total_amount, paid_amount: cr.paid_amount, remaining_amount: cr.remaining_amount, status: cr.status, court: cr.court, caseNo: cr.caseNo, lawyerId: cr.lawyerId, description: cr.description, notes: cr.notes ?? '' }); setShowCaseModal(true); }}
+            onArchiveCase={openArchiveCase}
             onDeleteCase={(id) => void deleteCase(id)} />
         )}
 
@@ -507,6 +531,14 @@ export default function App() {
         onFileSelect={setDocumentFile} selectedFile={documentFile} />
       <EmployeeModal open={showEmployeeModal} employee={editingEmployee} formState={newEmployee}
         onChange={setNewEmployee} onSave={() => void saveEmployee()} onClose={() => setShowEmployeeModal(false)} />
+      <ArchiveCaseModal
+        open={showArchiveModal}
+        caseRecord={archivingCase}
+        notes={archiveNotes}
+        onNotesChange={setArchiveNotes}
+        onConfirm={() => void confirmArchiveCase()}
+        onClose={() => { setShowArchiveModal(false); setArchivingCase(null); setArchiveNotes(''); }}
+      />
     </div>
   );
 }

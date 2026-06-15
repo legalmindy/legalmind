@@ -10,17 +10,81 @@ import {
   localSessionRepository
 } from '../lib/repositories';
 import {
+  archiveCaseRecord,
   cancelInvitation,
+  createCase,
+  createClient,
+  createEmployee,
+  deleteCaseRecord,
+  deleteEmployeeRecord,
+  fetchAllCases,
+  fetchAllClients,
+  fetchArchivedCases,
+  fetchEmployees,
   fetchInvitations,
+  fetchLawyers,
   fetchOffice,
   inviteOfficeUser,
-  resendInvitation
+  resendInvitation,
+  restoreCaseRecord,
+  softDeleteClient,
+  toggleEmployeeStatusRecord,
+  updateCaseRecord,
+  updateClientRecord,
+  updateEmployeeRecord
 } from '../lib/api';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 import { isOnline } from '../lib/syncEngine';
 import type { PaginationParams } from '../types/database';
-import type { Employee } from '../types/app';
+import type { Employee, CaseRecord, Client } from '../types/app';
 import { getCurrentProfileContext } from '../services/profileService';
+
+async function fetchEmployeesWithFallback(): Promise<Employee[]> {
+  if (isSupabaseConfigured() && isOnline()) {
+    try {
+      return await fetchEmployees();
+    } catch (err) {
+      console.error('[useEmployees] Supabase fetch failed, using local cache:', err);
+    }
+  }
+  return localEmployeeRepository.list();
+}
+
+async function fetchLawyersWithFallback() {
+  if (isSupabaseConfigured() && isOnline()) {
+    return fetchLawyers();
+  }
+  return localPeopleRepository.listLawyers();
+}
+
+async function fetchCasesWithFallback(): Promise<CaseRecord[]> {
+  if (isSupabaseConfigured() && isOnline()) {
+    try {
+      return await fetchAllCases();
+    } catch (err) {
+      console.error('[useCases] Supabase fetch failed, using local cache:', err);
+    }
+  }
+  return localCaseRepository.list();
+}
+
+async function fetchClientsWithFallback(): Promise<Client[]> {
+  if (isSupabaseConfigured() && isOnline()) {
+    return fetchAllClients();
+  }
+  return localClientRepository.list();
+}
+
+async function fetchArchivedCasesWithFallback(): Promise<CaseRecord[]> {
+  if (isSupabaseConfigured() && isOnline()) {
+    try {
+      return await fetchArchivedCases();
+    } catch (err) {
+      console.error('[useArchivedCases] Supabase fetch failed, using local cache:', err);
+    }
+  }
+  return localCaseRepository.listArchived();
+}
 
 export const queryKeys = {
   clients: (params?: PaginationParams) => ['clients', params] as const,
@@ -39,36 +103,40 @@ export const queryKeys = {
 export function useClients(enabled = true, params?: PaginationParams) {
   return useQuery({
     queryKey: queryKeys.clients(params),
-    queryFn: () => localClientRepository.list(),
+    queryFn: fetchClientsWithFallback,
     enabled,
-    staleTime: 60_000
+    staleTime: 30_000,
+    refetchOnWindowFocus: true
   });
 }
 
 export function useCases(enabled = true, params?: PaginationParams) {
   return useQuery({
     queryKey: queryKeys.cases(params),
-    queryFn: () => localCaseRepository.list(),
+    queryFn: fetchCasesWithFallback,
     enabled,
-    staleTime: 60_000
+    staleTime: 30_000,
+    refetchOnWindowFocus: true
   });
 }
 
 export function useArchivedCases(enabled = true) {
   return useQuery({
     queryKey: queryKeys.archivedCases,
-    queryFn: () => localCaseRepository.listArchived(),
+    queryFn: fetchArchivedCasesWithFallback,
     enabled,
-    staleTime: 60_000
+    staleTime: 30_000,
+    refetchOnWindowFocus: true
   });
 }
 
 export function useEmployees(enabled = true) {
   return useQuery({
     queryKey: queryKeys.employees,
-    queryFn: () => localEmployeeRepository.list(),
+    queryFn: fetchEmployeesWithFallback,
     enabled,
-    staleTime: 60_000
+    staleTime: 30_000,
+    refetchOnWindowFocus: true
   });
 }
 
@@ -130,9 +198,10 @@ export function useDocuments(enabled = true) {
 export function useLawyers(enabled = true) {
   return useQuery({
     queryKey: queryKeys.lawyers,
-    queryFn: () => localPeopleRepository.listLawyers(),
+    queryFn: fetchLawyersWithFallback,
     enabled,
-    staleTime: 60_000
+    staleTime: 30_000,
+    refetchOnWindowFocus: true
   });
 }
 
@@ -147,32 +216,77 @@ export function useNotifications(enabled = true) {
 
 export function useClientMutations() {
   const queryClient = useQueryClient();
+  const useRemote = () => isSupabaseConfigured() && isOnline();
+  const invalidate = () => { void queryClient.invalidateQueries({ queryKey: ['clients'] }); };
+
   return {
     addClient: useMutation({
-      mutationFn: localClientRepository.create,
-      onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['clients'] }); }
+      mutationFn: async (payload: Omit<Client, 'id' | 'casesCount' | 'createdAt'>) => {
+        if (useRemote()) return createClient(payload);
+        return localClientRepository.create(payload);
+      },
+      onSuccess: invalidate
     }),
     updateClient: useMutation({
-      mutationFn: localClientRepository.update,
-      onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['clients'] }); }
+      mutationFn: async (payload: Client) => {
+        if (useRemote()) return updateClientRecord(payload);
+        return localClientRepository.update(payload);
+      },
+      onSuccess: invalidate
     }),
     deleteClient: useMutation({
-      mutationFn: localClientRepository.softDelete,
-      onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['clients'] }); }
+      mutationFn: async (id: string) => {
+        if (useRemote()) return softDeleteClient(id);
+        return localClientRepository.softDelete(id);
+      },
+      onSuccess: invalidate
     })
   };
 }
 
 export function useCaseMutations() {
   const queryClient = useQueryClient();
+  const useRemote = () => isSupabaseConfigured() && isOnline();
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['cases'] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.archivedCases });
   };
   return {
-    addCase: useMutation({ mutationFn: localCaseRepository.create, onSuccess: invalidate }),
-    updateCase: useMutation({ mutationFn: localCaseRepository.update, onSuccess: invalidate }),
-    restoreCase: useMutation({ mutationFn: localCaseRepository.restore, onSuccess: invalidate }),
-    deleteCase: useMutation({ mutationFn: localCaseRepository.softDelete, onSuccess: invalidate })
+    addCase: useMutation({
+      mutationFn: async (payload: Omit<CaseRecord, 'id' | 'clientName' | 'dateStarted' | 'remaining_amount'>) => {
+        if (useRemote()) return createCase(payload);
+        return localCaseRepository.create(payload);
+      },
+      onSuccess: invalidate
+    }),
+    updateCase: useMutation({
+      mutationFn: async (payload: CaseRecord) => {
+        if (useRemote()) return updateCaseRecord(payload);
+        return localCaseRepository.update(payload);
+      },
+      onSuccess: invalidate
+    }),
+    restoreCase: useMutation({
+      mutationFn: async (id: string) => {
+        if (useRemote()) return restoreCaseRecord(id);
+        return localCaseRepository.restore(id);
+      },
+      onSuccess: invalidate
+    }),
+    archiveCase: useMutation({
+      mutationFn: async ({ id, notes }: { id: string; notes?: string }) => {
+        if (useRemote()) return archiveCaseRecord(id, notes);
+        return localCaseRepository.archive(id, notes);
+      },
+      onSuccess: invalidate
+    }),
+    deleteCase: useMutation({
+      mutationFn: async (id: string) => {
+        if (useRemote()) return deleteCaseRecord(id);
+        return localCaseRepository.softDelete(id);
+      },
+      onSuccess: invalidate
+    })
   };
 }
 
@@ -221,22 +335,59 @@ export function useEmployeeMutations() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.lawyers });
     void queryClient.invalidateQueries({ queryKey: queryKeys.invitations });
   };
+  const useRemote = () => isSupabaseConfigured() && isOnline();
+
   return {
     addEmployee: useMutation({
-      mutationFn: localEmployeeRepository.create,
+      mutationFn: async (payload: Omit<Employee, 'id' | 'created_at'>) => {
+        if (useRemote()) {
+          try {
+            return await createEmployee(payload);
+          } catch (err) {
+            console.error('[addEmployee] remote failed, using local:', err);
+          }
+        }
+        return localEmployeeRepository.create(payload);
+      },
       onSuccess: invalidatePeople
     }),
     updateEmployee: useMutation({
-      mutationFn: localEmployeeRepository.update,
+      mutationFn: async (payload: Employee) => {
+        if (useRemote()) {
+          try {
+            return await updateEmployeeRecord(payload);
+          } catch (err) {
+            console.error('[updateEmployee] remote failed, using local:', err);
+          }
+        }
+        return localEmployeeRepository.update(payload);
+      },
       onSuccess: invalidatePeople
     }),
     toggleEmployeeStatus: useMutation({
-      mutationFn: ({ id, status }: { id: string; status: Employee['status'] }) =>
-        localEmployeeRepository.toggleStatus(id, status),
+      mutationFn: async ({ id, status }: { id: string; status: Employee['status'] }) => {
+        if (useRemote()) {
+          try {
+            return await toggleEmployeeStatusRecord(id, status);
+          } catch (err) {
+            console.error('[toggleEmployeeStatus] remote failed, using local:', err);
+          }
+        }
+        return localEmployeeRepository.toggleStatus(id, status);
+      },
       onSuccess: invalidatePeople
     }),
     deleteEmployee: useMutation({
-      mutationFn: localEmployeeRepository.softDelete,
+      mutationFn: async (id: string) => {
+        if (useRemote()) {
+          try {
+            return await deleteEmployeeRecord(id);
+          } catch (err) {
+            console.error('[deleteEmployee] remote failed, using local:', err);
+          }
+        }
+        return localEmployeeRepository.softDelete(id);
+      },
       onSuccess: invalidatePeople
     }),
     inviteEmployee: useMutation({
