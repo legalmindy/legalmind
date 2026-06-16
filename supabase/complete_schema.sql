@@ -575,9 +575,11 @@ begin
 end;
 $$ language plpgsql security definer;
 
+drop function if exists public.create_lawyer_profile(uuid, text, text, text);
+
 create or replace function create_lawyer_profile(
   auth_user_id uuid,
-  firm_code_input text,
+  office_code_input text,
   lawyer_name text,
   lawyer_email text
 )
@@ -588,7 +590,7 @@ declare
 begin
   select * into target_firm
   from firms
-  where upper(firm_code) = upper(trim(firm_code_input)) and deleted_at is null;
+  where upper(firm_code) = upper(trim(office_code_input)) and deleted_at is null;
 
   if not found then
     raise exception 'Firm code does not exist';

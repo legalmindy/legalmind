@@ -13,6 +13,26 @@ export function buildClientReportMessage(clientName: string): string {
   return `السلام عليكم ${clientName}،\n\nنرسل لكم تقريراً مختصراً عن آخر مستجدات قضيتكم من مكتبكم القانوني عبر LegalMind Yemen.\n\nللاستفسار يرجى التواصل مع المكتب.`;
 }
 
+export function buildPaymentReminderMessage(params: {
+  clientName: string;
+  officeName: string;
+  caseTitle: string;
+  remainingAmount: number;
+  caseNo?: string;
+}): string {
+  const amount = params.remainingAmount.toLocaleString('ar-YE');
+  const caseRef = params.caseNo ? ` (رقم ${params.caseNo})` : '';
+  return (
+    `السلام عليكم ورحمة الله وبركاته،\n\n` +
+    `الأخ/الأخت الكريم ${params.clientName}،\n\n` +
+    `نُحيطكم علماً بأن مكتب *${params.officeName}* يُذكّركم بوجود مبلغ أتعاب محاماة مستحق بذمتكم:\n\n` +
+    `📋 القضية: ${params.caseTitle}${caseRef}\n` +
+    `💰 المبلغ المستحق: *${amount} ر.ي*\n\n` +
+    `يُرجى التكرم بتسوية هذا المبلغ في أقرب وقت ممكن، مع خالص الشكر والتقدير.\n\n` +
+    `للاستفسار أو التنسيق يرجى التواصل مع المكتب مباشرةً.`
+  );
+}
+
 export function openClientReportChannel(phone: string, channel: ClientReportChannel, message: string): void {
   const normalized = normalizeYemenPhone(phone);
   const encoded = encodeURIComponent(message);

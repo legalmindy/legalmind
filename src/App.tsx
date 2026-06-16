@@ -56,6 +56,7 @@ import { updateUserProfile, uploadProfileAvatar } from './lib/profileImage';
 import { SubscriptionGuard } from './components/SubscriptionGuard';
 import { ClientReportModal } from './components/ClientReportModal';
 import { InvitationLinkModal } from './components/InvitationLinkModal';
+import { PaymentReminderModal } from './components/PaymentReminderModal';
 import { QueryErrorBanner, toArabicQueryError } from './components/QueryErrorBanner';
 import { usePlatformOperator } from './hooks/usePlatformOperator';
 
@@ -180,6 +181,7 @@ export default function App() {
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [reportClient, setReportClient] = useState<Client | null>(null);
   const [pendingInvitationShare, setPendingInvitationShare] = useState<Invitation | null>(null);
+  const [paymentReminderCase, setPaymentReminderCase] = useState<CaseRecord | null>(null);
   const alertTimeout = useRef<number | null>(null);
 
   const queryClient = useQueryClient();
@@ -564,7 +566,9 @@ export default function App() {
             onCreateCase={() => { setEditingCase(null); setNewCase(initialCaseForm); setShowCaseModal(true); }}
             onEditCase={(cr) => { setEditingCase(cr); setNewCase({ title: cr.title, clientId: cr.clientId, category: cr.category, case_type: cr.case_type, case_stage: cr.case_stage, court_case_number: cr.court_case_number, total_amount: cr.total_amount, paid_amount: cr.paid_amount, remaining_amount: cr.remaining_amount, status: cr.status, court: cr.court, caseNo: cr.caseNo, lawyerId: cr.lawyerId, description: cr.description, notes: cr.notes ?? '' }); setShowCaseModal(true); }}
             onArchiveCase={openArchiveCase}
-            onDeleteCase={(id) => void deleteCase(id)} />
+            onDeleteCase={(id) => void deleteCase(id)}
+            canSendPaymentReminder={whatsappReportsEnabled}
+            onSendPaymentReminder={(cr) => setPaymentReminderCase(cr)} />
         )}
 
         {currentPage === 'archive' && user && !dataLoading && (
@@ -696,6 +700,15 @@ export default function App() {
         firmName={firmName}
         onClose={() => setPendingInvitationShare(null)}
         onCopied={(message) => showAlert(message, 'success')}
+      />
+      <PaymentReminderModal
+        open={Boolean(paymentReminderCase)}
+        caseRecord={paymentReminderCase}
+        client={paymentReminderCase ? (clients.find((c) => c.id === paymentReminderCase.clientId) ?? null) : null}
+        officeName={firmName ?? 'المكتب القانوني'}
+        whatsappEnabled={whatsappReportsEnabled}
+        onClose={() => setPaymentReminderCase(null)}
+        onSent={(message, type = 'success') => showAlert(message, type)}
       />
     </div>
   );
