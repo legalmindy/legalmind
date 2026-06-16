@@ -35,6 +35,8 @@ export function formatInvitationError(error: PostgrestError | Error | unknown): 
   ) {
     return 'خطأ في إعداد قاعدة البيانات (pgcrypto). شغّل migration 031 و 032 في Supabase SQL Editor.';
   }
+
+  if (lower.includes('only firm admins') || lower.includes('unauthorized') || lower.includes('not_authorized')) {
     return 'ليس لديك صلاحية إرسال دعوات. يجب أن تكون مدير المكتب.';
   }
 

@@ -100,11 +100,13 @@ begin
 end;
 $$;
 
+drop function if exists public.get_invitation_by_token(text);
+
 create or replace function public.get_invitation_by_token(raw_token text)
 returns table (
   id uuid,
   firm_id uuid,
-  firm_name text,
+  office_name text,
   email text,
   role text,
   status text,
@@ -118,7 +120,7 @@ as $$
   select
     i.id,
     i.firm_id,
-    f.name as firm_name,
+    f.name as office_name,
     i.email,
     i.role::text,
     i.status,
