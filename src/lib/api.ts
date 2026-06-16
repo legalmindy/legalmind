@@ -839,11 +839,15 @@ export async function createExpense(payload: {
 }
 
 export async function deleteExpense(id: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('office_expenses')
     .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   throwIfSupabaseError(error);
+  if (!data || data.length === 0) {
+    throw new Error('لم يتم حذف المصروف — تأكد من صلاحياتك أو تطبيق migration 037 في Supabase.');
+  }
 }
 
 export function canManageOffice(userRole: UserRole): boolean {
