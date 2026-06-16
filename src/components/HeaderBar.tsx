@@ -7,6 +7,7 @@ import {
   Calendar,
   CreditCard,
   FileText,
+  Gavel,
   LogOut,
   Menu,
   Settings,
@@ -44,6 +45,7 @@ interface HeaderBarProps {
 const navItems: Array<{ id: PageId; label: string; shortLabel?: string; icon: typeof Briefcase; roles: UserRole[] }> = [
   { id: 'dashboard', label: 'الرئيسية', shortLabel: 'الرئيسية', icon: BarChart3, roles: ['super_admin', 'admin', 'firm_manager', 'lawyer', 'assistant'] },
   { id: 'clients', label: 'العملاء', icon: Users, roles: ['super_admin', 'admin', 'firm_manager', 'assistant'] },
+  { id: 'execution', label: 'طلبات التنفيذ', shortLabel: 'تنفيذ', icon: Gavel, roles: ['super_admin', 'admin', 'firm_manager', 'assistant', 'lawyer'] },
   { id: 'cases', label: 'القضايا', icon: Briefcase, roles: ['super_admin', 'admin', 'firm_manager', 'lawyer', 'assistant'] },
   { id: 'archive', label: 'الأرشيف', icon: Archive, roles: ['super_admin', 'admin', 'firm_manager', 'lawyer'] },
   { id: 'employees', label: 'الموظفون', shortLabel: 'موظفون', icon: User, roles: ['super_admin', 'admin', 'firm_manager'] },

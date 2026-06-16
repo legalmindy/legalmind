@@ -168,7 +168,11 @@ export function mapDbFirm(row: DbFirm): Office {
     subscriptionStatus: (row.subscription_status as Office['subscriptionStatus']) ?? undefined,
     subscriptionPlan: (row.subscription_plan as Office['subscriptionPlan']) ?? undefined,
     subscriptionExpiresAt: row.subscription_expires_at ?? undefined,
-    isLocked: row.is_locked ?? undefined
+    isLocked: row.is_locked ?? undefined,
+    remindersEnabled: row.reminders_enabled !== false,
+    whatsappReportsEnabled: row.whatsapp_reports_enabled !== false,
+    smsReportsEnabled: Boolean(row.sms_reports_enabled),
+    hideFinancialsFromTrainees: row.hide_financials_from_trainees !== false
   };
 }
 

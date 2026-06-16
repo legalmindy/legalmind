@@ -22,6 +22,10 @@ export interface DbFirm {
   subscription_plan?: string;
   subscription_expires_at?: string | null;
   is_locked?: boolean;
+  reminders_enabled?: boolean;
+  whatsapp_reports_enabled?: boolean;
+  sms_reports_enabled?: boolean;
+  hide_financials_from_trainees?: boolean;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;

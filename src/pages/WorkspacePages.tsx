@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { CaseRecord, Client, DocumentItem, Lawyer, Office, PageId, SessionItem, SubscriptionPlan, User, UserRole } from '../types/app';
-import { Briefcase, Calendar, CheckCircle, Clock, FileText, Lock, MapPin, Plus, Search, Trash2, Edit3, Download, AlertCircle, User as UserIcon, Loader2, Archive } from 'lucide-react';
+import { Briefcase, Calendar, CheckCircle, Clock, FileText, Lock, MapPin, Plus, Search, Trash2, Edit3, Download, AlertCircle, User as UserIcon, Loader2, Archive, Send } from 'lucide-react';
 import { StatCard } from '../components/StatCard';
 import { MfaSettings } from '../components/MfaSettings';
 import { FirmCodeCard } from '../components/FirmCodeCard';
 import { ProfileAvatarUpload } from '../components/ProfileAvatarUpload';
 import { SubscriptionUpgradeModal } from '../components/SubscriptionUpgradeModal';
+import { SettingsToggleRow } from '../components/SettingsToggleRow';
 import { useFirmProfile } from '../hooks/useSupabaseQueries';
+import { useFirmSettings, useFirmSettingsMutations } from '../hooks/useFirmSettings';
 import { subscriptionQueryKeys, useFirmSubscription, useSubscriptionRequests } from '../hooks/useSubscription';
 import { SUBSCRIPTION_PLANS, getPlanLabel } from '../constants/subscription';
 import { submitSubscriptionRequest } from '../lib/subscription';
@@ -50,6 +52,8 @@ interface ClientsPageProps {
   onCreateClient: () => void;
   onEditClient: (client: Client) => void;
   onDeleteClient: (id: string) => void;
+  onSendReport?: (client: Client) => void;
+  canSendReport?: boolean;
 }
 
 interface CasesPageProps {
@@ -326,7 +330,7 @@ export function DashboardPage({
   );
 }
 
-export function ClientsPage({ clients, searchQuery, onSearch, onCreateClient, onEditClient, onDeleteClient }: ClientsPageProps) {
+export function ClientsPage({ clients, searchQuery, onSearch, onCreateClient, onEditClient, onDeleteClient, onSendReport, canSendReport }: ClientsPageProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
@@ -377,6 +381,11 @@ export function ClientsPage({ clients, searchQuery, onSearch, onCreateClient, on
                   <td className="py-3.5 px-4 text-center font-bold text-indigo-700 font-mono text-sm">{client.casesCount}</td>
                   <td className="py-3.5 px-4">
                     <div className="flex items-center justify-center gap-1.5">
+                      {canSendReport && onSendReport ? (
+                        <button type="button" onClick={() => onSendReport(client)} className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="إرسال تقرير">
+                          <Send className="w-4.5 h-4.5" />
+                        </button>
+                      ) : null}
                       <button type="button" onClick={() => onEditClient(client)} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="تعديل العميل"><Edit3 className="w-4.5 h-4.5" /></button>
                       <button type="button" onClick={() => onDeleteClient(client.id)} className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors" title="حذف العميل"><Trash2 className="w-4.5 h-4.5" /></button>
                     </div>
@@ -855,6 +864,8 @@ export function ProfilePage({ user, onSave, onUploadAvatar }: ProfilePageProps) 
 export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied }: SettingsPageProps) {
   const isAdmin = user.role === 'admin' || user.role === 'firm_manager' || user.role === 'super_admin';
   const { data: firmProfile } = useFirmProfile(isAdmin);
+  const { data: firmSettings, isLoading: settingsLoading } = useFirmSettings(isAdmin);
+  const { updateSettings } = useFirmSettingsMutations();
   const firmCode = office?.firmCode ?? firmProfile?.officeCode;
   const firmName = office?.name ?? firmProfile?.officeName ?? user.company;
 
@@ -865,9 +876,38 @@ export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied }: S
     plan: user.plan
   });
 
+  const [settingsForm, setSettingsForm] = useState({
+    remindersEnabled: true,
+    whatsappReportsEnabled: true,
+    smsReportsEnabled: false,
+    hideFinancialsFromTrainees: true
+  });
+
   useEffect(() => {
     if (office) setOfficeForm(office);
   }, [office]);
+
+  useEffect(() => {
+    if (firmSettings) {
+      setSettingsForm({
+        remindersEnabled: firmSettings.remindersEnabled,
+        whatsappReportsEnabled: firmSettings.whatsappReportsEnabled,
+        smsReportsEnabled: firmSettings.smsReportsEnabled,
+        hideFinancialsFromTrainees: firmSettings.hideFinancialsFromTrainees
+      });
+    } else if (office) {
+      setSettingsForm({
+        remindersEnabled: office.remindersEnabled ?? true,
+        whatsappReportsEnabled: office.whatsappReportsEnabled ?? true,
+        smsReportsEnabled: office.smsReportsEnabled ?? false,
+        hideFinancialsFromTrainees: office.hideFinancialsFromTrainees ?? true
+      });
+    }
+  }, [firmSettings, office]);
+
+  const saveSettings = () => {
+    void updateSettings.mutateAsync(settingsForm).then(() => onFirmCodeCopied?.('تم حفظ إعدادات النظام.')).catch((err) => onFirmCodeCopied?.(err instanceof Error ? err.message : 'فشل حفظ الإعدادات.'));
+  };
 
   return (
     <div className="max-w-3xl mx-auto mt-6 px-4 space-y-6 text-right">
@@ -903,23 +943,46 @@ export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied }: S
         <div className="p-4 bg-slate-50 rounded-xl">
           <MfaSettings />
         </div>
-        <div className="space-y-4 text-xs">
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
-            <div>
-              <h4 className="font-bold text-slate-800 text-sm">تفعيل إشعارات الواتساب للموكلين</h4>
-              <p className="text-slate-400 mt-0.5">إرسال تفاصيل الجلسة والطلبات لهاتف الموكل تلقائياً.</p>
-            </div>
-            <input type="checkbox" defaultChecked className="w-4.5 h-4.5 text-indigo-600" />
+        {isAdmin ? (
+          <div className="rounded-xl border border-slate-100 px-4 bg-white">
+            <h3 className="font-black text-slate-900 text-sm pt-4 pb-2">إعدادات الإشعارات والتقارير</h3>
+            {settingsLoading ? (
+              <p className="text-xs text-slate-400 py-4">جاري تحميل الإعدادات...</p>
+            ) : (
+              <>
+                <SettingsToggleRow
+                  title="التذكيرات"
+                  description="تفعيل تذكيرات الجلسات والمواعيد للموكلين والفريق."
+                  checked={settingsForm.remindersEnabled}
+                  onChange={(remindersEnabled) => setSettingsForm((s) => ({ ...s, remindersEnabled }))}
+                />
+                <SettingsToggleRow
+                  title="إرسال التقارير للعملاء عبر WhatsApp"
+                  description="السماح بإرسال تقارير مختصرة للموكلين عبر واتساب."
+                  checked={settingsForm.whatsappReportsEnabled}
+                  onChange={(whatsappReportsEnabled) => setSettingsForm((s) => ({ ...s, whatsappReportsEnabled }))}
+                />
+                <SettingsToggleRow
+                  title="إرسال التقارير للعملاء عبر رسائل SMS"
+                  description="السماح بإرسال تقارير مختصرة للموكلين عبر رسائل نصية."
+                  checked={settingsForm.smsReportsEnabled}
+                  onChange={(smsReportsEnabled) => setSettingsForm((s) => ({ ...s, smsReportsEnabled }))}
+                />
+                <SettingsToggleRow
+                  title="حظر رؤية المتدربين للمبالغ المالية"
+                  description="تأمين حجب المذكرات المالية عن حسابات المتدربين."
+                  checked={settingsForm.hideFinancialsFromTrainees}
+                  onChange={(hideFinancialsFromTrainees) => setSettingsForm((s) => ({ ...s, hideFinancialsFromTrainees }))}
+                />
+              </>
+            )}
           </div>
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
-            <div>
-              <h4 className="font-bold text-slate-800 text-sm">حظر رؤية المتدربين للمبالغ المالية</h4>
-              <p className="text-slate-400 mt-0.5">تأمين حجب المذكرات المالية عن حسابات المتدربين.</p>
-            </div>
-            <input type="checkbox" defaultChecked className="w-4.5 h-4.5 text-indigo-600" />
-          </div>
-        </div>
-        <button type="button" className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-2.5 rounded-xl text-xs">تحديث إعدادات الأمان</button>
+        ) : null}
+        {isAdmin ? (
+          <button type="button" onClick={saveSettings} disabled={updateSettings.isPending || settingsLoading} className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold px-6 py-2.5 rounded-xl text-xs">
+            {updateSettings.isPending ? 'جاري الحفظ...' : 'تحديث إعدادات الأمان'}
+          </button>
+        ) : null}
       </div>
     </div>
   );

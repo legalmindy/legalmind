@@ -19,6 +19,7 @@ export type PageId =
   | 'profile'
   | 'settings'
   | 'reports'
+  | 'execution'
   | 'help'
   | 'notifications';
 
@@ -54,7 +55,30 @@ export interface Office {
   subscriptionPlan?: SubscriptionPlanId;
   subscriptionExpiresAt?: string | null;
   isLocked?: boolean;
+  remindersEnabled?: boolean;
+  whatsappReportsEnabled?: boolean;
+  smsReportsEnabled?: boolean;
+  hideFinancialsFromTrainees?: boolean;
 }
+
+export type ExecutionRequestStatus = 'pending' | 'in_progress' | 'completed' | 'rejected';
+
+export interface ExecutionRequest {
+  id: string;
+  clientId?: string;
+  clientName?: string;
+  caseId?: string;
+  caseTitle?: string;
+  title: string;
+  court: string;
+  requestNumber: string;
+  status: ExecutionRequestStatus;
+  notes?: string;
+  dueDate?: string;
+  createdAt: string;
+}
+
+export type ClientReportChannel = 'whatsapp' | 'sms';
 
 export interface Client {
   id: string;

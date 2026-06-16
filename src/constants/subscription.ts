@@ -1,4 +1,5 @@
 import type { SubscriptionPlan, SubscriptionPlanId } from '../types/app';
+import { SUBSCRIPTION_PLAN_FEATURES } from './planFeatures';
 
 export const KARIMI_BANK = {
   bankName: 'بنك الكريمي للتمويل الأصغر الإسلامي',
@@ -8,14 +9,8 @@ export const KARIMI_BANK = {
   note: 'يرجى كتابة اسم المكتب في خانة الملاحظات عند التحويل.'
 } as const;
 
-/** Shared features for all paid durations — one product, different billing periods. */
-const PAID_FEATURES = [
-  'قضايا وعملاء غير محدودين',
-  'إدارة المحامين والموظفين',
-  'أرشيف القضايا والمستندات',
-  'مزامنة سحابية ونسخ احتياطي',
-  'دعم فني وتحديثات مستمرة'
-];
+/** Shared features for all paid durations. */
+const PAID_FEATURES = [...SUBSCRIPTION_PLAN_FEATURES];
 
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {

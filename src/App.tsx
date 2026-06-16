@@ -52,6 +52,7 @@ import type {
 import { testSupabaseConnection } from './lib/testSupabaseConnection';
 import { updateUserProfile, uploadProfileAvatar } from './lib/profileImage';
 import { SubscriptionGuard } from './components/SubscriptionGuard';
+import { ClientReportModal } from './components/ClientReportModal';
 
 const LandingPage = lazy(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
 const AuthPages = lazy(() => import('./pages/AuthPages').then((m) => ({ default: m.AuthPages })));
@@ -67,6 +68,7 @@ const ReportsPage = lazy(() => import('./pages/WorkspacePages').then((m) => ({ d
 const SubscriptionPage = lazy(() => import('./pages/WorkspacePages').then((m) => ({ default: m.SubscriptionPage })));
 const ProfilePage = lazy(() => import('./pages/WorkspacePages').then((m) => ({ default: m.ProfilePage })));
 const SettingsPage = lazy(() => import('./pages/WorkspacePages').then((m) => ({ default: m.SettingsPage })));
+const ExecutionRequestsPage = lazy(() => import('./pages/ExecutionRequestsPage').then((m) => ({ default: m.ExecutionRequestsPage })));
 
 const initialClientForm: Omit<Client, 'id' | 'casesCount' | 'createdAt'> = {
   name: '', phone: '', email: '', address: '', type: 'فرد'
@@ -129,6 +131,9 @@ export default function App() {
   const { data: firmProfile } = useFirmProfile(isAuth && canShowFirmCode);
   const firmCode = office?.firmCode ?? firmProfile?.officeCode;
   const firmName = office?.name ?? firmProfile?.officeName ?? auth.user?.company;
+  const whatsappReportsEnabled = office?.whatsappReportsEnabled !== false;
+  const smsReportsEnabled = Boolean(office?.smsReportsEnabled);
+  const canSendClientReport = whatsappReportsEnabled || smsReportsEnabled;
 
   const clientMutations = useClientMutations();
   const caseMutations = useCaseMutations();
@@ -166,6 +171,7 @@ export default function App() {
   const [newEmployee, setNewEmployee] = useState(initialEmployeeForm);
   const [alertMsg, setAlertMsg] = useState<AlertState | null>(null);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [reportClient, setReportClient] = useState<Client | null>(null);
   const alertTimeout = useRef<number | null>(null);
 
   const queryClient = useQueryClient();
@@ -490,7 +496,17 @@ export default function App() {
           <ClientsPage clients={filteredClients} searchQuery={searchQuery} onSearch={setSearchQuery}
             onCreateClient={() => { setEditingClient(null); setNewClient(initialClientForm); setShowClientModal(true); }}
             onEditClient={(c) => { setEditingClient(c); setNewClient({ name: c.name, phone: c.phone, email: c.email, address: c.address, type: c.type }); setShowClientModal(true); }}
-            onDeleteClient={(id) => void deleteClient(id)} />
+            onDeleteClient={(id) => void deleteClient(id)}
+            canSendReport={canSendClientReport}
+            onSendReport={(c) => setReportClient(c)} />
+        )}
+
+        {currentPage === 'execution' && user && !dataLoading && (
+          <ExecutionRequestsPage
+            clients={clients}
+            cases={cases}
+            onNotify={(message, type = 'info') => showAlert(message, type)}
+          />
         )}
 
         {currentPage === 'cases' && user && !dataLoading && (
@@ -582,6 +598,14 @@ export default function App() {
         onNotesChange={setArchiveNotes}
         onConfirm={() => void confirmArchiveCase()}
         onClose={() => { setShowArchiveModal(false); setArchivingCase(null); setArchiveNotes(''); }}
+      />
+      <ClientReportModal
+        client={reportClient}
+        open={Boolean(reportClient)}
+        whatsappEnabled={whatsappReportsEnabled}
+        smsEnabled={smsReportsEnabled}
+        onClose={() => setReportClient(null)}
+        onSent={(message) => showAlert(message, message.includes('فشل') || message.includes('لا يوجد') ? 'error' : 'success')}
       />
     </div>
   );
