@@ -1,10 +1,18 @@
 -- =============================================================================
 -- LegalMind Yemen — Complete Supabase PostgreSQL Schema
--- Run this ONCE in: Supabase Dashboard → SQL Editor → New query → Run
--- For existing databases with partial migrations, prefer: supabase db push
+-- ⚠️  This file is a REFERENCE only. For production use, always run
+--     migrations 001 → 034 in order via Supabase SQL Editor.
+--     Last synced with migrations: 034_performance_and_hardening.sql
 -- =============================================================================
 
-create extension if not exists "pgcrypto";
+-- Extensions
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
+create extension if not exists pg_trgm with schema extensions;
+grant usage on schema extensions to authenticated, anon, service_role;
+
+-- Legacy alias so older functions that call gen_random_bytes() without schema still work
+create extension if not exists pgcrypto;  -- in public for legacy
 
 -- ─── ENUM types ───────────────────────────────────────────────────────────────
 do $$ begin
@@ -1007,6 +1015,11 @@ create policy "sync_events_select_office" on sync_events for select
 create policy "sync_events_insert_office" on sync_events for insert
   with check (firm_id = get_current_firm_id() and auth.role() = 'authenticated');
 
+-- ─── New tables (023+) — subscriptions, execution requests ───────────────────
+-- subscription_requests, execution_requests, client_report_logs are created in
+-- migrations 023 and 028 respectively. They are NOT included in the original
+-- complete_schema.sql. Apply migrations 023–034 for full coverage.
+
 -- ─── Storage bucket ───────────────────────────────────────────────────────────
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
@@ -1056,6 +1069,22 @@ grant execute on function cancel_office_invitation(uuid) to authenticated;
 grant execute on function resend_office_invitation(uuid, text) to authenticated;
 grant execute on function sync_pull_table(text, text) to authenticated;
 grant execute on function sync_apply_event(text, text, uuid, uuid, text, jsonb) to authenticated;
+
+-- =============================================================================
+-- ─── Migration 034 additions ─────────────────────────────────────────────────
+-- Apply these after the above schema if running from scratch:
+--
+-- 1. pg_trgm GIN indexes (client/case/employee fuzzy search)
+-- 2. Missing FK indexes (invitations.invited_by, sessions.scheduled_by, etc.)
+-- 3. Partial/composite indexes for sync, calendar, and dashboard queries
+-- 4. firm_id column on sessions with back-fill trigger
+-- 5. Unique partial index: one pending subscription_request per firm
+-- 6. Cross-tenant validation trigger for execution_requests
+-- 7. Consolidated subscription_requests_select RLS policy (no duplicate permissive)
+-- 8. Retention/TTL helper functions (purge_old_audit_logs, purge_old_error_logs, purge_old_invitations)
+--
+-- Run: supabase/migrations/034_performance_and_hardening.sql
+-- =============================================================================
 
 -- =============================================================================
 -- Done. Verify with:
