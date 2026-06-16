@@ -686,14 +686,9 @@ export default function App() {
           <DocumentsPage
             documents={documents}
             onCreateDocument={() => setShowDocumentModal(true)}
-            onDownload={async (docId) => {
-              try {
-                const { getDocumentDownloadUrl } = await import('./lib/api');
-                const url = await getDocumentDownloadUrl(docId);
-                window.open(url, '_blank');
-              } catch {
-                showAlert('تعذر تحميل المستند.', 'error');
-              }
+            onGetUrl={async (docId) => {
+              const { getDocumentDownloadUrl } = await import('./lib/api');
+              return await getDocumentDownloadUrl(docId);
             }}
           />
         )}

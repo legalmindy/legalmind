@@ -85,7 +85,7 @@ interface SessionsPageProps {
 interface DocumentsPageProps {
   documents: DocumentItem[];
   onCreateDocument: () => void;
-  onDownload?: (docId: string) => Promise<void>;
+  onGetUrl?: (docId: string) => Promise<string>;
 }
 
 interface LawyersPageProps {
@@ -669,33 +669,71 @@ function DocTypeIcon({ category }: { category: string }) {
   );
 }
 
-function DocCard({ doc, onDownload }: { doc: DocumentItem; onDownload?: (id: string) => Promise<void> }) {
+function DocCard({ doc, onGetUrl }: { doc: DocumentItem; onGetUrl?: (id: string) => Promise<string> }) {
   const [loading, setLoading] = useState(false);
+  const [printLoading, setPrintLoading] = useState(false);
   const isImg = isImageDoc(doc);
+
+  const fetchFreshUrl = async (): Promise<string> => {
+    if (onGetUrl) return await onGetUrl(doc.id);
+    return doc.url;
+  };
 
   const handleDownload = async () => {
     setLoading(true);
     try {
-      if (onDownload) {
-        await onDownload(doc.id);
-      } else if (doc.url) {
-        window.open(doc.url, '_blank');
-      }
+      const url = await fetchFreshUrl();
+      // Use fetch to get the blob, then create object URL for forced download
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('فشل التحميل');
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = doc.title;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
+    } catch {
+      // Fallback: open in new tab
+      const url = await fetchFreshUrl().catch(() => doc.url);
+      window.open(url, '_blank');
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePrint = () => {
-    const url = doc.url;
-    if (!url) return;
-    // For images: open in new tab and trigger print; for PDFs: same approach
-    const win = window.open(url, '_blank');
-    if (win) {
-      win.addEventListener('load', () => {
-        win.focus();
-        win.print();
-      });
+  const handlePrint = async () => {
+    setPrintLoading(true);
+    try {
+      const url = await fetchFreshUrl();
+      if (isImg) {
+        // Open a same-origin window, inject HTML with the image, then print
+        const win = window.open('', '_blank', 'width=900,height=700');
+        if (win) {
+          win.document.write(
+            `<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"/><title>${doc.title}</title>` +
+            `<style>*{margin:0;padding:0;box-sizing:border-box}` +
+            `body{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#fff;font-family:sans-serif;gap:12px}` +
+            `h2{font-size:14px;color:#333;padding:8px}` +
+            `img{max-width:100%;max-height:90vh;object-fit:contain;box-shadow:0 2px 12px rgba(0,0,0,.15)}` +
+            `@media print{h2{display:none}}` +
+            `</style></head><body>` +
+            `<h2>${doc.title}</h2>` +
+            `<img src="${url}" onload="setTimeout(function(){window.print();},400)" onerror="document.body.innerHTML='<p>تعذر تحميل الصورة</p>'" />` +
+            `</body></html>`
+          );
+          win.document.close();
+        }
+      } else {
+        // PDF / DOCX: open in new tab — browser PDF viewer has built-in print button
+        window.open(url, '_blank');
+      }
+    } catch {
+      window.open(doc.url, '_blank');
+    } finally {
+      setPrintLoading(false);
     }
   };
 
@@ -749,11 +787,16 @@ function DocCard({ doc, onDownload }: { doc: DocumentItem; onDownload?: (id: str
         </button>
         <button
           type="button"
-          onClick={handlePrint}
+          onClick={() => void handlePrint()}
+          disabled={printLoading}
           title="طباعة المستند"
-          className="flex items-center justify-center gap-1 border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold px-3 py-2 rounded-xl text-[11px] transition-colors"
+          className="flex items-center justify-center gap-1 border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-600 font-bold px-3 py-2 rounded-xl text-[11px] transition-colors"
         >
-          <Printer className="w-3.5 h-3.5" />
+          {printLoading ? (
+            <span className="w-3 h-3 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+          ) : (
+            <Printer className="w-3.5 h-3.5" />
+          )}
           طباعة
         </button>
       </div>
@@ -761,7 +804,7 @@ function DocCard({ doc, onDownload }: { doc: DocumentItem; onDownload?: (id: str
   );
 }
 
-export function DocumentsPage({ documents, onCreateDocument, onDownload }: DocumentsPageProps) {
+export function DocumentsPage({ documents, onCreateDocument, onGetUrl }: DocumentsPageProps) {
   // Group documents by case
   const grouped = useMemo(() => {
     const map = new Map<string, { caseTitle: string; docs: DocumentItem[] }>();
@@ -816,7 +859,7 @@ export function DocumentsPage({ documents, onCreateDocument, onDownload }: Docum
           {/* Documents grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {group.docs.map((doc) => (
-              <DocCard key={doc.id} doc={doc} onDownload={onDownload} />
+              <DocCard key={doc.id} doc={doc} onGetUrl={onGetUrl} />
             ))}
           </div>
         </div>
