@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
 import {
   getLocalSyncStatus,
+  isTauriRuntime,
   listOutboxEvents,
   markOutboxEventSynced,
   recordSyncConflict,
@@ -128,20 +129,21 @@ export async function pullRemoteChanges(tableName: RemoteSyncTable): Promise<num
 }
 
 export async function runSyncCycle(): Promise<SyncResult> {
-  if (syncInFlight) {
-    const status = await getLocalSyncStatus();
-    return { ...status, pushed: 0, pulled: 0, skipped: true };
+  const status = await getLocalSyncStatus();
+
+  // In a browser (non-Tauri) environment the app talks to Supabase directly
+  // via TanStack Query — no local DB, no outbox, no pull needed.
+  if (!isTauriRuntime()) {
+    return { ...status, pendingEvents: 0, pushed: 0, pulled: 0, skipped: true };
   }
+
+  if (syncInFlight) return { ...status, pushed: 0, pulled: 0, skipped: true };
   if (!isOnline() || isSyncTemporarilyDisabled()) {
-    const status = await getLocalSyncStatus();
     return { ...status, pushed: 0, pulled: 0, skipped: true };
   }
 
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    const status = await getLocalSyncStatus();
-    return { ...status, pushed: 0, pulled: 0, skipped: true };
-  }
+  if (!session) return { ...status, pushed: 0, pulled: 0, skipped: true };
 
   syncInFlight = true;
   try {
@@ -166,8 +168,8 @@ export async function runSyncCycle(): Promise<SyncResult> {
       await sleep(TABLE_PULL_DELAY_MS);
     }
 
-    const status = await getLocalSyncStatus();
-    return { ...status, pushed, pulled };
+    const nextStatus = await getLocalSyncStatus();
+    return { ...nextStatus, pushed, pulled };
   } finally {
     syncInFlight = false;
   }

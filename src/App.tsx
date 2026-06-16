@@ -537,7 +537,7 @@ export default function App() {
             onFirmCodeCopied={(msg) => showAlert(msg, 'success')}
             isPlatformOperator={isPlatformOperator}
           />
-          <SyncStatusBar {...syncState} onSyncNow={() => void syncState.syncNow()} />
+          {/* SyncStatusBar is rendered as floating pill at the bottom — see below */}
         </>
       )}
 
@@ -766,6 +766,11 @@ export default function App() {
         onClose={() => setPaymentReminderCase(null)}
         onSent={(message, type = 'success') => showAlert(message, type)}
       />
+
+      {/* Floating sync pill — only visible when there is a problem or activity */}
+      {isAuth && (
+        <SyncStatusBar {...syncState} onSyncNow={() => void syncState.syncNow()} />
+      )}
     </div>
   );
 }
