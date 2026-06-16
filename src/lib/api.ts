@@ -774,6 +774,66 @@ export function checkRoleAccess(userRole: UserRole, allowedRoles: UserRole[]): b
   return allowedRoles.includes(userRole);
 }
 
+// ─── Office Expenses ──────────────────────────────────────────────────────────
+
+import type { Expense } from '../types/app';
+
+function mapDbExpense(row: Record<string, unknown>): Expense {
+  return {
+    id: row.id as string,
+    title: row.title as string,
+    amount: Number(row.amount),
+    category: (row.category as string) ?? 'عام',
+    expense_date: row.expense_date as string,
+    notes: (row.notes as string | null) ?? undefined,
+    createdAt: String(row.created_at ?? '').split('T')[0] ?? ''
+  };
+}
+
+export async function fetchExpenses(): Promise<Expense[]> {
+  const firmId = await getCurrentFirmId();
+  const { data, error } = await supabase
+    .from('office_expenses')
+    .select('id, title, amount, category, expense_date, notes, created_at')
+    .eq('firm_id', firmId)
+    .is('deleted_at', null)
+    .order('expense_date', { ascending: false });
+  throwIfSupabaseError(error);
+  return (data as Record<string, unknown>[]).map(mapDbExpense);
+}
+
+export async function createExpense(payload: {
+  title: string;
+  amount: number;
+  category: string;
+  expense_date: string;
+  notes?: string;
+}): Promise<Expense> {
+  const firmId = await getCurrentFirmId();
+  const { data, error } = await supabase
+    .from('office_expenses')
+    .insert({
+      firm_id: firmId,
+      title: cleanText(payload.title),
+      amount: payload.amount,
+      category: payload.category,
+      expense_date: payload.expense_date,
+      notes: payload.notes?.trim() || null
+    })
+    .select('id, title, amount, category, expense_date, notes, created_at')
+    .single();
+  throwIfSupabaseError(error);
+  return mapDbExpense(data as Record<string, unknown>);
+}
+
+export async function deleteExpense(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('office_expenses')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id);
+  throwIfSupabaseError(error);
+}
+
 export function canManageOffice(userRole: UserRole): boolean {
   return isOfficeAdminRole(userRole);
 }

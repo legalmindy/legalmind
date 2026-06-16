@@ -1,4 +1,4 @@
-import type { CaseRecord, ChartPoint, Client, DocumentItem, SessionItem } from '../types/app';
+import type { CaseRecord, ChartPoint, Client, DocumentItem, Expense, SessionItem } from '../types/app';
 
 const ARABIC_MONTHS = [
   'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
@@ -25,6 +25,39 @@ export interface DashboardFinancials {
   totalPaidFees: number;
   totalPendingFees: number;
   topPendingCase?: CaseRecord;
+}
+
+// ─── Extended analytics types ────────────────────────────────────────────────
+
+export interface ClientPendingFees {
+  clientId: string;
+  clientName: string;
+  totalPending: number;
+  totalContract: number;
+  caseCount: number;
+  cases: Array<{ id: string; title: string; caseNo: string; remaining: number; paid: number; total: number }>;
+}
+
+export interface MonthlyFinancial {
+  month: string;
+  monthIndex: number;
+  year: number;
+  collected: number;
+  contracts: number;
+  expenses: number;
+  netProfit: number;
+  caseCount: number;
+}
+
+export interface FinancialReport {
+  totalContracted: number;
+  totalCollected: number;
+  totalPending: number;
+  totalExpenses: number;
+  netProfit: number;
+  collectionRate: number;
+  clientBreakdown: ClientPendingFees[];
+  monthlyData: MonthlyFinancial[];
 }
 
 export interface DashboardStatHints {
@@ -166,4 +199,105 @@ export function formatYer(amount: number): string {
 
 export function formatPercent(value: number): string {
   return `${value.toLocaleString('ar-YE', { maximumFractionDigits: 1 })}%`;
+}
+
+// ─── Full Financial Report Builder ───────────────────────────────────────────
+
+export function buildClientPendingBreakdown(
+  cases: CaseRecord[],
+  archivedCases: CaseRecord[] = []
+): ClientPendingFees[] {
+  const all = [...cases, ...archivedCases];
+  const map = new Map<string, ClientPendingFees>();
+
+  for (const c of all) {
+    const remaining = c.remaining_amount ?? 0;
+    if (remaining <= 0) continue;
+    const key = c.clientId;
+    if (!map.has(key)) {
+      map.set(key, {
+        clientId: c.clientId,
+        clientName: c.clientName,
+        totalPending: 0,
+        totalContract: 0,
+        caseCount: 0,
+        cases: []
+      });
+    }
+    const entry = map.get(key)!;
+    entry.totalPending += remaining;
+    entry.totalContract += c.total_amount ?? 0;
+    entry.caseCount += 1;
+    entry.cases.push({ id: c.id, title: c.title, caseNo: c.caseNo, remaining, paid: c.paid_amount ?? 0, total: c.total_amount ?? 0 });
+  }
+
+  return Array.from(map.values()).sort((a, b) => b.totalPending - a.totalPending);
+}
+
+export function buildMonthlyFinancials(
+  cases: CaseRecord[],
+  archivedCases: CaseRecord[] = [],
+  expenses: Expense[] = [],
+  year = new Date().getFullYear()
+): MonthlyFinancial[] {
+  const all = [...cases, ...archivedCases];
+  const buckets: MonthlyFinancial[] = ARABIC_MONTHS.map((month, i) => ({
+    month,
+    monthIndex: i,
+    year,
+    collected: 0,
+    contracts: 0,
+    expenses: 0,
+    netProfit: 0,
+    caseCount: 0
+  }));
+
+  for (const c of all) {
+    const d = parseCaseDate(c.dateStarted);
+    if (!d || d.getFullYear() !== year) continue;
+    const b = buckets[d.getMonth()];
+    if (!b) continue;
+    b.collected += c.paid_amount ?? 0;
+    b.contracts += c.total_amount ?? 0;
+    b.caseCount += 1;
+  }
+
+  for (const e of expenses) {
+    const d = new Date(e.expense_date);
+    if (Number.isNaN(d.getTime()) || d.getFullYear() !== year) continue;
+    const b = buckets[d.getMonth()];
+    if (b) b.expenses += e.amount;
+  }
+
+  for (const b of buckets) {
+    b.netProfit = b.collected - b.expenses;
+  }
+
+  return buckets;
+}
+
+export function buildFinancialReport(
+  cases: CaseRecord[],
+  archivedCases: CaseRecord[] = [],
+  expenses: Expense[] = [],
+  year = new Date().getFullYear()
+): FinancialReport {
+  const all = [...cases, ...archivedCases];
+  const totalContracted = all.reduce((s, c) => s + (c.total_amount ?? 0), 0);
+  const totalCollected = all.reduce((s, c) => s + (c.paid_amount ?? 0), 0);
+  const totalPending = all.reduce((s, c) => s + (c.remaining_amount ?? 0), 0);
+  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+  const netProfit = totalCollected - totalExpenses;
+  const collectionRate = totalContracted > 0 ? Math.round((totalCollected / totalContracted) * 100) : 0;
+
+  return {
+    totalContracted,
+    totalCollected,
+    totalPending,
+    totalExpenses,
+    netProfit,
+    collectionRate,
+    clientBreakdown: buildClientPendingBreakdown(cases, archivedCases),
+    monthlyData: buildMonthlyFinancials(cases, archivedCases, expenses, year)
+  };
 }

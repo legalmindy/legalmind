@@ -654,7 +654,7 @@ export default function App() {
 
         {currentPage === 'lawyers' && user && !dataLoading && <LawyersPage lawyers={lawyers} />}
         {currentPage === 'reports' && user && (
-          <ReportsPage role={user.role} performance={dashboardPerformance} financials={dashboardFinancials} />
+          <ReportsPage role={user.role} performance={dashboardPerformance} financials={dashboardFinancials} cases={cases} />
         )}
         {currentPage === 'subscription' && user && <SubscriptionPage />}
         {currentPage === 'admin-billing' && user && isPlatformOperator && (

@@ -81,6 +81,22 @@ export interface ExecutionRequest {
 
 export type ClientReportChannel = 'whatsapp' | 'sms';
 
+export const EXPENSE_CATEGORIES = [
+  'إيجار', 'رواتب', 'قرطاسية ومستلزمات مكتبية', 'اتصالات وإنترنت',
+  'رسوم قضائية', 'تسويق وإعلان', 'صيانة وتجهيزات', 'مواصلات', 'أخرى'
+] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number] | string;
+
+export interface Expense {
+  id: string;
+  title: string;
+  amount: number;
+  category: ExpenseCategory;
+  expense_date: string;
+  notes?: string;
+  createdAt: string;
+}
+
 export interface Client {
   id: string;
   name: string;

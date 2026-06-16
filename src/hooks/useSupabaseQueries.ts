@@ -16,13 +16,16 @@ import {
   createClient,
   createEmployee,
   createSession,
+  createExpense,
   deleteCaseRecord,
   deleteEmployeeRecord,
+  deleteExpense,
   deleteSessionRecord,
   fetchAllCases,
   fetchAllClients,
   fetchArchivedCases,
   fetchEmployees,
+  fetchExpenses,
   fetchInvitations,
   fetchLawyers,
   fetchOffice,
@@ -40,7 +43,7 @@ import {
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 import { isOnline } from '../lib/syncEngine';
 import type { PaginationParams } from '../types/database';
-import type { Employee, CaseRecord, Client, Invitation, SessionItem } from '../types/app';
+import type { Employee, CaseRecord, Client, Expense, Invitation, SessionItem } from '../types/app';
 import { getCurrentProfileContext } from '../services/profileService';
 
 async function fetchEmployeesWithFallback(): Promise<Employee[]> {
@@ -101,7 +104,8 @@ export const queryKeys = {
   sessions: ['sessions'] as const,
   documents: ['documents'] as const,
   lawyers: ['lawyers'] as const,
-  notifications: ['notifications'] as const
+  notifications: ['notifications'] as const,
+  expenses: ['expenses'] as const
 };
 
 export function useClients(enabled = true, params?: PaginationParams) {
@@ -465,4 +469,47 @@ export function useNotificationMutations() {
 
 export function useRealtimeNotifications(onNewNotification: () => void) {
   void onNewNotification;
+}
+
+// ─── Expenses ─────────────────────────────────────────────────────────────────
+
+export function useExpenses(enabled = true) {
+  return useQuery<Expense[]>({
+    queryKey: queryKeys.expenses,
+    queryFn: async () => {
+      if (isSupabaseConfigured() && isOnline()) {
+        try {
+          return await fetchExpenses();
+        } catch (err) {
+          console.error('[useExpenses] remote failed:', err);
+        }
+      }
+      return [];
+    },
+    enabled,
+    staleTime: 60_000
+  });
+}
+
+export function useExpenseMutations() {
+  const queryClient = useQueryClient();
+  const invalidate = () => { void queryClient.invalidateQueries({ queryKey: queryKeys.expenses }); };
+
+  return {
+    addExpense: useMutation({
+      mutationFn: createExpense,
+      onSuccess: invalidate
+    }),
+    removeExpense: useMutation({
+      mutationFn: deleteExpense,
+      onMutate: async (id: string) => {
+        await queryClient.cancelQueries({ queryKey: queryKeys.expenses });
+        const prev = queryClient.getQueryData<Expense[]>(queryKeys.expenses);
+        queryClient.setQueryData(queryKeys.expenses, (cur: Expense[] | undefined) => cur?.filter((e) => e.id !== id) ?? []);
+        return { prev };
+      },
+      onError: (_err, _id, ctx) => { if (ctx?.prev) queryClient.setQueryData(queryKeys.expenses, ctx.prev); },
+      onSettled: invalidate
+    })
+  };
 }
