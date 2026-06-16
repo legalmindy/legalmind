@@ -8,6 +8,7 @@ import type {
   Lawyer,
   SessionItem
 } from '../types/app';
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 
 interface ClientModalProps {
@@ -210,7 +211,43 @@ export function ClientModal({ open, client, formState, onChange, onSave, onClose
 }
 
 export function CaseModal({ open, caseRecord, formState, clients, lawyers, onChange, onSave, onClose }: CaseModalProps) {
+  const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
+
   if (!open) return null;
+
+  const validate = (): boolean => {
+    const next: Partial<Record<string, string>> = {};
+    if (!formState.title.trim())   next.title    = 'موضوع القضية مطلوب';
+    if (!formState.clientId)       next.clientId = 'يجب اختيار الموكل';
+    if (!formState.court.trim())   next.court    = 'اسم المحكمة مطلوب';
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleSave = () => {
+    if (validate()) onSave();
+  };
+
+  const fieldCls = (key: string) =>
+    `w-full px-3 py-2 rounded-lg border outline-none text-right text-xs transition-colors ${
+      errors[key]
+        ? 'border-rose-400 bg-rose-50 focus:border-rose-500'
+        : 'border-slate-200 focus:border-indigo-400'
+    }`;
+
+  const selectCls = (key: string) =>
+    `w-full px-3 py-2 rounded-lg border outline-none bg-white text-right text-xs transition-colors ${
+      errors[key]
+        ? 'border-rose-400 bg-rose-50'
+        : 'border-slate-200'
+    }`;
+
+  const ErrMsg = ({ field }: { field: string }) =>
+    errors[field] ? (
+      <p className="mt-1 text-[11px] text-rose-600 font-medium flex items-center gap-1">
+        <span>⚠</span> {errors[field]}
+      </p>
+    ) : null;
 
   return (
     <ModalShell
@@ -220,7 +257,7 @@ export function CaseModal({ open, caseRecord, formState, clients, lawyers, onCha
       footer={
         <ModalFooter
           onClose={onClose}
-          onSave={onSave}
+          onSave={handleSave}
           cancelLabel="إلغاء الأمر"
           saveLabel="حفظ ملف القضية"
         />
@@ -228,36 +265,42 @@ export function CaseModal({ open, caseRecord, formState, clients, lawyers, onCha
     >
       <div className="space-y-3 text-xs">
         <div>
-          <label className="block text-slate-600 mb-1 font-bold">موضوع القضية الرئيسي</label>
+          <label className="block text-slate-600 mb-1 font-bold">
+            موضوع القضية الرئيسي <span className="text-rose-500">*</span>
+          </label>
           <input
             type="text"
             value={formState.title}
-            onChange={(e) => onChange({ ...formState, title: e.target.value })}
-            className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none text-right"
+            onChange={(e) => { onChange({ ...formState, title: e.target.value }); setErrors((p) => ({ ...p, title: '' })); }}
+            className={fieldCls('title')}
             placeholder="عنوان القضية في سجلات المحكمة"
           />
+          <ErrMsg field="title" />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-slate-600 mb-1 font-bold">الموكل</label>
+            <label className="block text-slate-600 mb-1 font-bold">
+              الموكل <span className="text-rose-500">*</span>
+            </label>
             <select
               value={formState.clientId}
-              onChange={(e) => onChange({ ...formState, clientId: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none bg-white text-right"
+              onChange={(e) => { onChange({ ...formState, clientId: e.target.value }); setErrors((p) => ({ ...p, clientId: '' })); }}
+              className={selectCls('clientId')}
             >
               <option value="">اختر العميل الموكل...</option>
               {clients.map((client) => (
                 <option key={client.id} value={client.id}>{client.name}</option>
               ))}
             </select>
+            <ErrMsg field="clientId" />
           </div>
           <div>
             <label className="block text-slate-600 mb-1 font-bold">تصنيف الدعوى</label>
             <select
               value={formState.category}
               onChange={(e) => onChange({ ...formState, category: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none bg-white text-right"
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none bg-white text-right text-xs"
             >
               <option value="تجاري">تجاري</option>
               <option value="مدني">مدني</option>
@@ -269,14 +312,17 @@ export function CaseModal({ open, caseRecord, formState, clients, lawyers, onCha
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-slate-600 mb-1 font-bold">المحكمة المختصة</label>
+            <label className="block text-slate-600 mb-1 font-bold">
+              المحكمة المختصة <span className="text-rose-500">*</span>
+            </label>
             <input
               type="text"
               value={formState.court}
-              onChange={(e) => onChange({ ...formState, court: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none text-right"
+              onChange={(e) => { onChange({ ...formState, court: e.target.value }); setErrors((p) => ({ ...p, court: '' })); }}
+              className={fieldCls('court')}
               placeholder="اسم المحكمة والدائرة"
             />
+            <ErrMsg field="court" />
           </div>
           <div>
             <label className="block text-slate-600 mb-1 font-bold">رقم القضية في المحكمة</label>
@@ -284,7 +330,7 @@ export function CaseModal({ open, caseRecord, formState, clients, lawyers, onCha
               type="text"
               value={formState.caseNo}
               onChange={(e) => onChange({ ...formState, caseNo: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none text-right font-mono"
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none text-right text-xs font-mono"
               placeholder="مثال: ١٤٥/ب/٢٠٢٦"
             />
           </div>
@@ -295,7 +341,7 @@ export function CaseModal({ open, caseRecord, formState, clients, lawyers, onCha
           <select
             value={formState.lawyerId}
             onChange={(e) => onChange({ ...formState, lawyerId: e.target.value })}
-            className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none bg-white text-right"
+            className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none bg-white text-right text-xs"
           >
             <option value="">اختر المحامي المسؤول...</option>
             {lawyers.map((lawyer) => (
