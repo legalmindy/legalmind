@@ -43,6 +43,7 @@ export function AuthPages({
   const [firmPreviewName, setFirmPreviewName] = useState('');
   const [firmCodeInput, setFirmCodeInput] = useState('');
   const [firmCodeStatus, setFirmCodeStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
+  const [firmCodeError, setFirmCodeError] = useState('');
   const inviteToken = useMemo(() => {
     const pathToken = window.location.pathname.startsWith('/invite/') ? window.location.pathname.split('/invite/')[1] : '';
     return decodeURIComponent(pathToken || new URLSearchParams(window.location.search).get('token') || '');
@@ -64,11 +65,13 @@ export function AuthPages({
     if (!normalized) {
       setFirmCodeStatus('idle');
       setFirmPreviewName('');
+      setFirmCodeError('');
       return;
     }
     if (!isValidFirmCodeFormat(normalized)) {
       setFirmCodeStatus('invalid');
       setFirmPreviewName('');
+      setFirmCodeError(`الصيغة غير صحيحة. الكود يجب أن يكون بشكل: ABC-1234 (القيمة الحالية: ${normalized})`);
       return;
     }
 
@@ -79,14 +82,17 @@ export function AuthPages({
           if (result.valid) {
             setFirmCodeStatus('valid');
             setFirmPreviewName(result.firmName ?? '');
+            setFirmCodeError('');
           } else {
             setFirmCodeStatus('invalid');
             setFirmPreviewName('');
+            setFirmCodeError(result.error ?? 'الكود غير موجود. تأكد من نسخه بدقة من إعدادات المكتب.');
           }
         })
         .catch(() => {
           setFirmCodeStatus('invalid');
           setFirmPreviewName('');
+          setFirmCodeError('تعذر التحقق من الكود. تحقق من الاتصال بالإنترنت.');
         });
     }, 400);
 
@@ -380,7 +386,9 @@ export function AuthPages({
                 </p>
               )}
               {firmCodeStatus === 'invalid' && firmCodeInput.trim() && (
-                <p className="text-[11px] text-rose-600 mt-1 text-right font-bold">كود غير صالح أو غير موجود.</p>
+                <p className="text-[11px] text-rose-600 mt-1 text-right font-bold">
+                  {firmCodeError || 'كود غير صالح أو غير موجود.'}
+                </p>
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

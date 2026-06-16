@@ -13,7 +13,12 @@ const ARABIC_PREFIX_HINTS: Array<{ pattern: RegExp; prefix: string }> = [
 ];
 
 export function normalizeFirmCode(value: string): string {
-  return value.trim().toUpperCase().replace(/\s+/g, '');
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')      // strip all whitespace
+    .replace(/-+/g, '-')      // collapse multiple dashes to one
+    .replace(/[^\w-]/g, '');  // strip any non-word non-dash chars (e.g. unicode dashes)
 }
 
 export function isValidFirmCodeFormat(value: string): boolean {
