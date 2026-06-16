@@ -21,7 +21,8 @@ export type PageId =
   | 'reports'
   | 'execution'
   | 'help'
-  | 'notifications';
+  | 'notifications'
+  | 'admin-billing';
 
 export type UserRole = 'super_admin' | 'admin' | 'lawyer' | 'assistant' | 'firm_manager';
 export type CustomerType = 'شركة تجارية' | 'فرد';

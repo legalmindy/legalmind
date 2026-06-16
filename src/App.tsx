@@ -53,6 +53,8 @@ import { testSupabaseConnection } from './lib/testSupabaseConnection';
 import { updateUserProfile, uploadProfileAvatar } from './lib/profileImage';
 import { SubscriptionGuard } from './components/SubscriptionGuard';
 import { ClientReportModal } from './components/ClientReportModal';
+import { QueryErrorBanner, toArabicQueryError } from './components/QueryErrorBanner';
+import { usePlatformOperator } from './hooks/usePlatformOperator';
 
 const LandingPage = lazy(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
 const AuthPages = lazy(() => import('./pages/AuthPages').then((m) => ({ default: m.AuthPages })));
@@ -69,6 +71,7 @@ const SubscriptionPage = lazy(() => import('./pages/WorkspacePages').then((m) =>
 const ProfilePage = lazy(() => import('./pages/WorkspacePages').then((m) => ({ default: m.ProfilePage })));
 const SettingsPage = lazy(() => import('./pages/WorkspacePages').then((m) => ({ default: m.SettingsPage })));
 const ExecutionRequestsPage = lazy(() => import('./pages/ExecutionRequestsPage').then((m) => ({ default: m.ExecutionRequestsPage })));
+const AdminSubscriptionPage = lazy(() => import('./pages/AdminSubscriptionPage').then((m) => ({ default: m.AdminSubscriptionPage })));
 
 const initialClientForm: Omit<Client, 'id' | 'casesCount' | 'createdAt'> = {
   name: '', phone: '', email: '', address: '', type: 'فرد'
@@ -117,18 +120,19 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [isAuth]);
 
-  const { data: clients = [], isLoading: clientsLoading } = useClients(isAuth);
-  const { data: cases = [], isLoading: casesLoading } = useCases(isAuth);
+  const { data: clients = [], isLoading: clientsLoading, isError: clientsError, error: clientsQueryError } = useClients(isAuth);
+  const { data: cases = [], isLoading: casesLoading, isError: casesError, error: casesQueryError } = useCases(isAuth);
+  const { data: employees = [], isLoading: employeesLoading, isError: employeesError } = useEmployees(isAuth);
+  const { data: sessions = [], isLoading: sessionsLoading, isError: sessionsError } = useSessions(isAuth);
+  const { data: documents = [], isLoading: documentsLoading, isError: documentsError } = useDocuments(isAuth);
+  const { data: lawyers = [], isLoading: lawyersLoading, isError: lawyersError } = useLawyers(isAuth);
   const { data: archivedCases = [] } = useArchivedCases(isAuth);
-  const { data: sessions = [] } = useSessions(isAuth);
-  const { data: documents = [] } = useDocuments(isAuth);
-  const { data: lawyers = [] } = useLawyers(isAuth);
-  const { data: employees = [] } = useEmployees(isAuth);
   const { data: invitations = [] } = useInvitations(isAuth);
   const { data: office } = useOffice(isAuth);
   const { data: notifications = [] } = useNotifications(isAuth);
   const canShowFirmCode = Boolean(auth.user && canManageOffice(auth.user.role));
   const { data: firmProfile } = useFirmProfile(isAuth && canShowFirmCode);
+  const { data: isPlatformOperator = false } = usePlatformOperator(isAuth);
   const firmCode = office?.firmCode ?? firmProfile?.officeCode;
   const firmName = office?.name ?? firmProfile?.officeName ?? auth.user?.company;
   const whatsappReportsEnabled = office?.whatsappReportsEnabled !== false;
@@ -420,8 +424,22 @@ export default function App() {
 
   if (auth.isLoading) return <PageLoader />;
 
-  const dataLoading = isAuth && (clientsLoading || casesLoading);
+  const dataLoading =
+    isAuth &&
+    (clientsLoading || casesLoading || employeesLoading || sessionsLoading || documentsLoading || lawyersLoading);
+  const hasQueryError =
+    isAuth &&
+    (clientsError || casesError || employeesError || sessionsError || documentsError || lawyersError);
   const showAppChrome = Boolean(user) && !PUBLIC_PAGES.includes(currentPage);
+
+  const refetchWorkspaceData = () => {
+    void queryClient.invalidateQueries({ queryKey: ['clients'] });
+    void queryClient.invalidateQueries({ queryKey: ['cases'] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.employees });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.sessions });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.lawyers });
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-amber-500 selection:text-white">
@@ -447,10 +465,18 @@ export default function App() {
             handleLogout={() => void handleLogout()}
             firmCode={canShowFirmCode ? firmCode : undefined}
             onFirmCodeCopied={(msg) => showAlert(msg, 'success')}
+            isPlatformOperator={isPlatformOperator}
           />
           <SyncStatusBar {...syncState} onSyncNow={() => void syncState.syncNow()} />
         </>
       )}
+
+      {hasQueryError ? (
+        <QueryErrorBanner
+          message={toArabicQueryError(clientsQueryError ?? casesQueryError)}
+          onRetry={refetchWorkspaceData}
+        />
+      ) : null}
 
       <SubscriptionGuard
         isAuthenticated={isAuth}
@@ -559,6 +585,9 @@ export default function App() {
           <ReportsPage role={user.role} performance={dashboardPerformance} financials={dashboardFinancials} />
         )}
         {currentPage === 'subscription' && user && <SubscriptionPage />}
+        {currentPage === 'admin-billing' && user && isPlatformOperator && (
+          <AdminSubscriptionPage onNotify={(message, type = 'info') => showAlert(message, type)} />
+        )}
         {currentPage === 'profile' && user && (
           <ProfilePage
             user={user}

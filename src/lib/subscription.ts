@@ -3,6 +3,26 @@ import { getCurrentFirmId } from './api';
 import { throwIfSupabaseError } from './supabaseQueryHelpers';
 import type { FirmSubscription, SubscriptionPlanId, SubscriptionRequest } from '../types/app';
 
+const SUBSCRIPTION_CACHE_KEY = 'legalmind_firm_subscription_v1';
+
+export function cacheFirmSubscription(subscription: FirmSubscription): void {
+  try {
+    localStorage.setItem(SUBSCRIPTION_CACHE_KEY, JSON.stringify(subscription));
+  } catch {
+    /* ignore quota errors */
+  }
+}
+
+export function readCachedFirmSubscription(): FirmSubscription | null {
+  try {
+    const raw = localStorage.getItem(SUBSCRIPTION_CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as FirmSubscription;
+  } catch {
+    return null;
+  }
+}
+
 const RECEIPT_MAX_SIZE = 5 * 1024 * 1024;
 const RECEIPT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 
@@ -55,6 +75,18 @@ export async function fetchFirmSubscription(): Promise<FirmSubscription> {
     isActive: !isLocked && ['trial', 'active'].includes(row.subscription_status) && !expiredByDate,
     legacyPlan: row.plan
   };
+}
+
+export async function fetchFirmSubscriptionWithCache(): Promise<FirmSubscription> {
+  try {
+    const subscription = await fetchFirmSubscription();
+    cacheFirmSubscription(subscription);
+    return subscription;
+  } catch (err) {
+    const cached = readCachedFirmSubscription();
+    if (cached) return cached;
+    throw err;
+  }
 }
 
 export async function fetchSubscriptionRequests(): Promise<SubscriptionRequest[]> {
@@ -115,6 +147,45 @@ export async function submitSubscriptionRequest(input: {
     .single();
   throwIfSupabaseError(error);
   return mapDbSubscriptionRequest(data);
+}
+
+export interface AdminSubscriptionRequest extends SubscriptionRequest {
+  firmName?: string;
+}
+
+export async function fetchPendingSubscriptionRequestsAdmin(): Promise<AdminSubscriptionRequest[]> {
+  const { data, error } = await supabase
+    .from('subscription_requests')
+    .select('*, firms(name)')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+  throwIfSupabaseError(error);
+
+  return (data ?? []).map((row) => {
+    const firms = row.firms as { name?: string } | null;
+    const mapped = mapDbSubscriptionRequest(row as Record<string, unknown>);
+    return { ...mapped, firmName: firms?.name };
+  });
+}
+
+export async function getSubscriptionReceiptSignedUrl(path: string): Promise<string> {
+  const { data, error } = await supabase.storage.from('subscription-receipts').createSignedUrl(path, 3600);
+  if (error) throw error;
+  if (!data?.signedUrl) throw new Error('تعذر فتح إشعار التحويل.');
+  return data.signedUrl;
+}
+
+export async function reviewSubscriptionRequest(input: {
+  requestId: string;
+  action: 'approve' | 'reject';
+  adminNotes?: string;
+}): Promise<void> {
+  const { error } = await supabase.rpc('review_subscription_request', {
+    p_request_id: input.requestId,
+    p_action: input.action,
+    p_admin_notes: input.adminNotes ?? null
+  });
+  if (error) throw error;
 }
 
 function mapDbSubscriptionRequest(row: Record<string, unknown>): SubscriptionRequest {

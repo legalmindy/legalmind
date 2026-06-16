@@ -636,8 +636,8 @@ export function ReportsPage({ role, performance, financials }: ReportsPageProps)
 
 export function SubscriptionPage() {
   const queryClient = useQueryClient();
-  const { data: subscription } = useFirmSubscription();
-  const { data: requests = [] } = useSubscriptionRequests();
+  const { data: subscription, isLoading: subscriptionLoading, isError: subscriptionError } = useFirmSubscription();
+  const { data: requests = [], isLoading: requestsLoading } = useSubscriptionRequests();
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState('');
@@ -657,10 +657,20 @@ export function SubscriptionPage() {
       setFeedback('تم إرسال طلب التجديد. سيتم مراجعته وتفعيل حسابك قريباً.');
       void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.requests });
       setSelectedPlan(null);
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : 'فشل إرسال طلب التجديد.');
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (subscriptionLoading || requestsLoading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 mt-10 flex justify-center text-slate-400">
+        <Loader2 className="w-6 h-6 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-8 text-right">
@@ -696,7 +706,12 @@ export function SubscriptionPage() {
             طلب تجديد قيد المراجعة (رقم الحوالة: {pending.transferReference})
           </p>
         ) : null}
-        {feedback ? <p className="text-xs text-emerald-200 font-bold">{feedback}</p> : null}
+        {feedback ? (
+          <p className={`text-xs font-bold ${feedback.includes('فشل') ? 'text-rose-700' : 'text-emerald-200'}`}>{feedback}</p>
+        ) : null}
+        {subscriptionError ? (
+          <p className="text-xs text-rose-200 font-bold">تعذر تحميل حالة الاشتراك. تحقق من الاتصال بالإنترنت.</p>
+        ) : null}
         <p className="text-[10px] text-slate-400">التحويل عبر بنك الكريمي — جميع الباقات تشمل المميزات الأساسية الكاملة.</p>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 items-stretch">

@@ -17,10 +17,10 @@ export function LoadingSpinner({ size = 'md', label = 'جاري التحميل..
   );
 }
 
-export function PageLoader() {
+export function PageLoader({ label = 'جاري تحميل البيانات...' }: { label?: string }) {
   return (
     <div className="min-h-[60vh] flex items-center justify-center">
-      <LoadingSpinner size="lg" label="جاري تحميل البيانات..." />
+      <LoadingSpinner size="lg" label={label} />
     </div>
   );
 }

@@ -115,26 +115,33 @@ export function ModalFooter({
   onClose,
   onSave,
   cancelLabel,
-  saveLabel
+  saveLabel,
+  saving = false,
+  disabled = false
 }: {
   onClose: () => void;
   onSave: () => void;
   cancelLabel: string;
   saveLabel: string;
+  saving?: boolean;
+  disabled?: boolean;
 }) {
+  const isDisabled = disabled || saving;
   return (
     <>
       <button
         type="button"
         onClick={onClose}
-        className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs text-slate-500 hover:bg-slate-50"
+        disabled={saving}
+        className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs text-slate-500 hover:bg-slate-50 disabled:opacity-50"
       >
         {cancelLabel}
       </button>
       <button
         type="button"
         onClick={onSave}
-        className="rounded-xl bg-amber-500 px-5 py-2.5 text-xs font-bold text-slate-950 hover:bg-amber-600"
+        disabled={isDisabled}
+        className="rounded-xl bg-amber-500 px-5 py-2.5 text-xs font-bold text-slate-950 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {saveLabel}
       </button>

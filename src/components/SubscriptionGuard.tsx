@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
 import type { PageId } from '../types/app';
+import { PageLoader } from './ui/LoadingSpinner';
 import { SubscriptionLockScreen } from './SubscriptionLockScreen';
 import { isSubscriptionBlocked, useFirmSubscription } from '../hooks/useSubscription';
+import { readCachedFirmSubscription } from '../lib/subscription';
 
-const UNLOCKED_PAGES: PageId[] = ['subscription', 'profile'];
+const UNLOCKED_PAGES: PageId[] = ['subscription', 'profile', 'admin-billing'];
 
 interface SubscriptionGuardProps {
   isAuthenticated: boolean;
@@ -21,7 +23,12 @@ export function SubscriptionGuard({
   children
 }: SubscriptionGuardProps) {
   const { data: subscription, isLoading } = useFirmSubscription(isAuthenticated);
-  const blocked = isAuthenticated && !isLoading && isSubscriptionBlocked(subscription);
+  const effectiveSubscription = subscription ?? readCachedFirmSubscription() ?? undefined;
+  const blocked = isAuthenticated && !isLoading && isSubscriptionBlocked(effectiveSubscription);
+
+  if (isAuthenticated && isLoading && !effectiveSubscription) {
+    return <PageLoader label="جاري التحقق من الاشتراك..." />;
+  }
 
   if (!blocked) return <>{children}</>;
 
@@ -29,7 +36,7 @@ export function SubscriptionGuard({
 
   return (
     <SubscriptionLockScreen
-      expiresAt={subscription?.expiresAt}
+      expiresAt={effectiveSubscription?.expiresAt}
       onRenew={() => onNavigate('subscription')}
       onLogout={onLogout}
     />

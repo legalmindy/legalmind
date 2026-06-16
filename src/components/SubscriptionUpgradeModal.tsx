@@ -62,6 +62,8 @@ export function SubscriptionUpgradeModal({
           onSave={() => void handleSave()}
           cancelLabel="إلغاء"
           saveLabel={submitting ? 'جاري الإرسال...' : 'إرسال طلب التفعيل'}
+          saving={submitting}
+          disabled={submitting}
         />
       }
     >
