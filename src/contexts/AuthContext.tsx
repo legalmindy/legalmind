@@ -64,40 +64,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let mounted = true;
-    
+    // Flag: true once the initial fetchCurrentUser() completes.
+    // onAuthStateChange must NOT touch isLoading before this point to
+    // prevent the "flash to landing on refresh" race condition.
+    let initialLoadDone = false;
+
+    // ── 1. Primary init ──────────────────────────────────────────────────
+    // fetchCurrentUser() calls supabase.auth.getUser() which validates the
+    // stored token against the server. This is the single source of truth
+    // for the first load; it sets isLoading → false exactly once.
     fetchCurrentUser()
       .then((u) => {
-        if (mounted) {
-          setUser(u);
-          setIsLoading(false);
-        }
+        if (!mounted) return;
+        setUser(u);
       })
       .catch((err) => {
-        console.error('Error fetching current user:', err);
+        console.error('[AUTH] Initial user fetch failed:', err);
+      })
+      .finally(() => {
         if (mounted) {
           setIsLoading(false);
+          initialLoadDone = true;
         }
       });
 
+    // ── 2. Subsequent change listener ────────────────────────────────────
+    // We only allow this to mutate `user` AFTER the initial load finishes.
+    // This prevents the Supabase SDK from emitting a transient null event
+    // (that can arrive before INITIAL_SESSION) from flipping the user out.
+    let subscription: { unsubscribe: () => void } | null = null;
     try {
-      const { data: { subscription } } = onAuthStateChange((u) => {
-        if (mounted) {
-          setUser(u);
-          setIsLoading(false);
-        }
+      const { data } = onAuthStateChange((u) => {
+        if (!mounted) return;
+        if (!initialLoadDone) return; // ignore events during initial load
+        setUser(u);
       });
-
-      return () => { 
-        subscription.unsubscribe(); 
-        mounted = false;
-      };
+      subscription = data.subscription;
     } catch (err) {
-      console.error('Error setting up auth state change listener:', err);
-      if (mounted) {
-        setIsLoading(false);
-      }
-      return () => { mounted = false; };
+      console.error('[AUTH] onAuthStateChange setup failed:', err);
     }
+
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
   }, [isConfigured]);
 
   const login = useCallback(async (email: string, password: string) => {

@@ -204,11 +204,16 @@ export default function App() {
     if (window.location.pathname.startsWith('/invite/')) setCurrentPage('invite');
   }, []);
 
+  // Redirect authenticated users away from all public pages (including
+  // 'landing' which is the default after a hard refresh).
+  // We wait for isLoading=false so we never redirect based on a transient
+  // null user that arrives before the real session resolves.
   useEffect(() => {
-    if (auth.isAuthenticated && (currentPage === 'login' || currentPage === 'register' || currentPage === 'register-office' || currentPage === 'register-lawyer' || currentPage === 'invite' || currentPage === 'forgot' || currentPage === 'accept-invite')) {
+    if (auth.isLoading) return;
+    if (auth.isAuthenticated && PUBLIC_PAGES.includes(currentPage)) {
       setCurrentPage('dashboard');
     }
-  }, [auth.isAuthenticated, currentPage]);
+  }, [auth.isLoading, auth.isAuthenticated, currentPage]);
 
   useEffect(() => () => {
     if (alertTimeout.current) window.clearTimeout(alertTimeout.current);
@@ -475,6 +480,19 @@ export default function App() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.documents });
     void queryClient.invalidateQueries({ queryKey: queryKeys.lawyers });
   };
+
+  // Show a full-screen spinner while Supabase resolves the stored session.
+  // Without this guard the landing page flashes before the redirect kicks in.
+  if (auth.isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center" dir="rtl">
+        <div className="flex flex-col items-center gap-4 text-slate-400">
+          <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+          <span className="text-sm font-bold">جاري التحقق من الجلسة…</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-amber-500 selection:text-white">
