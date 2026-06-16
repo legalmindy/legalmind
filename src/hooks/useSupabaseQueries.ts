@@ -30,6 +30,8 @@ import {
   fetchInvitations,
   fetchLawyers,
   fetchNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
   fetchOffice,
   fetchSessions,
   inviteOfficeUser,
@@ -482,18 +484,27 @@ export function useEmployeeMutations() {
 
 export function useNotificationMutations() {
   const queryClient = useQueryClient();
+  const useRemote = () => isSupabaseConfigured() && isOnline();
+  const invalidate = () => { void queryClient.invalidateQueries({ queryKey: queryKeys.notifications }); };
+
   return {
     createNotification: useMutation({
-      mutationFn: localNotificationRepository.create,
-      onSuccess: () => { void queryClient.invalidateQueries({ queryKey: queryKeys.notifications }); }
+      mutationFn: localNotificationRepository.create, // notifications created locally then synced
+      onSuccess: invalidate
     }),
     markNotificationRead: useMutation({
-      mutationFn: localNotificationRepository.markRead,
-      onSuccess: () => { void queryClient.invalidateQueries({ queryKey: queryKeys.notifications }); }
+      mutationFn: async (id: string) => {
+        if (useRemote()) return markNotificationRead(id);
+        return localNotificationRepository.markRead(id);
+      },
+      onSuccess: invalidate
     }),
     markAllNotificationsRead: useMutation({
-      mutationFn: localNotificationRepository.markAllRead,
-      onSuccess: () => { void queryClient.invalidateQueries({ queryKey: queryKeys.notifications }); }
+      mutationFn: async () => {
+        if (useRemote()) return markAllNotificationsRead();
+        return localNotificationRepository.markAllRead();
+      },
+      onSuccess: invalidate
     })
   };
 }

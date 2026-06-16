@@ -54,9 +54,21 @@ const ADMIN_ROLES: UserRole[] = ['super_admin', 'admin', 'firm_manager'];
 /** lawyers.employee_id → employees.id (not lawyers.updated_by → employees.id) */
 const LAWYERS_EMPLOYEE_FK = 'lawyers_employee_id_fkey';
 
+// ─── Firm ID cache ─────────────────────────────────────────────────────────
+// Caches firm_id per auth user-id to avoid 2+ DB round-trips on every API call.
+// Cleared on sign-out via clearFirmIdCache() (called from auth.ts).
+const firmIdCache = new Map<string, string>();
+
+export function clearFirmIdCache(): void {
+  firmIdCache.clear();
+}
+
 export async function getCurrentFirmId(): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('غير مصرح');
+
+  const cached = firmIdCache.get(user.id);
+  if (cached) return cached;
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
@@ -65,7 +77,10 @@ export async function getCurrentFirmId(): Promise<string> {
     .is('deleted_at', null)
     .maybeSingle();
 
-  if (!profileError && profile?.firm_id) return profile.firm_id as string;
+  if (!profileError && profile?.firm_id) {
+    firmIdCache.set(user.id, profile.firm_id as string);
+    return profile.firm_id as string;
+  }
 
   const { data: employee, error: employeeError } = await supabase
     .from('employees')
@@ -74,7 +89,10 @@ export async function getCurrentFirmId(): Promise<string> {
     .is('deleted_at', null)
     .maybeSingle();
 
-  if (!employeeError && employee?.firm_id) return employee.firm_id as string;
+  if (!employeeError && employee?.firm_id) {
+    firmIdCache.set(user.id, employee.firm_id as string);
+    return employee.firm_id as string;
+  }
 
   throw new Error('لم يتم العثور على المكتب');
 }
@@ -160,6 +178,7 @@ export async function createClient(payload: Omit<Client, 'id' | 'casesCount' | '
 }
 
 export async function updateClientRecord(payload: Client): Promise<Client> {
+  const firmId = await getCurrentFirmId();
   const { id, casesCount: _cc, createdAt: _ca, ...fields } = payload;
   const { data, error } = await supabase
     .from('clients')
@@ -171,6 +190,7 @@ export async function updateClientRecord(payload: Client): Promise<Client> {
       type: fields.type
     })
     .eq('id', id)
+    .eq('firm_id', firmId)
     .select()
     .single();
   if (error) throw error;
@@ -178,10 +198,12 @@ export async function updateClientRecord(payload: Client): Promise<Client> {
 }
 
 export async function softDeleteClient(clientId: string): Promise<void> {
+  const firmId = await getCurrentFirmId();
   const { error } = await supabase
     .from('clients')
     .update({ deleted_at: new Date().toISOString() })
-    .eq('id', clientId);
+    .eq('id', clientId)
+    .eq('firm_id', firmId);
   if (error) throw error;
 }
 
@@ -283,6 +305,7 @@ export async function createCase(
 }
 
 export async function updateCaseRecord(payload: CaseRecord): Promise<CaseRecord> {
+  const firmId = await getCurrentFirmId();
   const { id, clientName: _cn, dateStarted: _ds, remaining_amount: _ra, caseNo: _cno, lawyerId, ...fields } = payload;
   const { data, error } = await supabase
     .from('cases')
@@ -302,6 +325,7 @@ export async function updateCaseRecord(payload: CaseRecord): Promise<CaseRecord>
       notes: maybeCleanText(fields.notes, 1000)
     })
     .eq('id', id)
+    .eq('firm_id', firmId)
     .select(CASE_SELECT)
     .single();
   if (error) throw error;
@@ -309,10 +333,12 @@ export async function updateCaseRecord(payload: CaseRecord): Promise<CaseRecord>
 }
 
 export async function restoreCaseRecord(caseId: string): Promise<CaseRecord> {
+  const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('cases')
     .update({ status: 'active', archive_date: null })
     .eq('id', caseId)
+    .eq('firm_id', firmId)
     .select(CASE_SELECT)
     .single();
   if (error) throw error;
@@ -320,6 +346,7 @@ export async function restoreCaseRecord(caseId: string): Promise<CaseRecord> {
 }
 
 export async function archiveCaseRecord(caseId: string, notes?: string): Promise<CaseRecord> {
+  const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('cases')
     .update({
@@ -328,6 +355,7 @@ export async function archiveCaseRecord(caseId: string, notes?: string): Promise
       notes: notes?.trim() || null
     })
     .eq('id', caseId)
+    .eq('firm_id', firmId)
     .select(CASE_SELECT)
     .single();
   if (error) throw error;
@@ -349,17 +377,13 @@ export async function deleteCaseRecord(caseId: string): Promise<{ id: string }> 
 const SESSION_SELECT = '*, cases(title)';
 
 export async function fetchSessions(): Promise<SessionItem[]> {
-  const { data: caseIds } = await supabase
-    .from('cases')
-    .select('id');
-
-  if (!caseIds?.length) return [];
-
-  const ids = caseIds.map((c: { id: string }) => c.id);
+  // Single query using firm_id column (added in migration 034)
+  // instead of a two-hop case-id harvest + large IN() list.
+  const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('sessions')
     .select(SESSION_SELECT)
-    .in('case_id', ids)
+    .eq('firm_id', firmId)
     .is('deleted_at', null)
     .order('session_date', { ascending: true });
   if (error) throw error;
@@ -385,6 +409,7 @@ export async function createSession(payload: Omit<SessionItem, 'id' | 'caseTitle
 }
 
 export async function updateSessionRecord(payload: SessionItem): Promise<SessionItem> {
+  const firmId = await getCurrentFirmId();
   const { id, caseTitle: _ct, ...fields } = payload;
   const { data, error } = await supabase
     .from('sessions')
@@ -398,6 +423,7 @@ export async function updateSessionRecord(payload: SessionItem): Promise<Session
       notes: maybeCleanText(fields.notes, 1000)
     })
     .eq('id', id)
+    .eq('firm_id', firmId)
     .select(SESSION_SELECT)
     .single();
   if (error) throw error;
@@ -405,10 +431,12 @@ export async function updateSessionRecord(payload: SessionItem): Promise<Session
 }
 
 export async function deleteSessionRecord(sessionId: string): Promise<{ id: string }> {
+  const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('sessions')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', sessionId)
+    .eq('firm_id', firmId)
     .select('id')
     .single();
   if (error) throw error;
@@ -419,14 +447,13 @@ export async function deleteSessionRecord(sessionId: string): Promise<{ id: stri
 const DOC_SELECT = '*, cases(title)';
 
 export async function fetchDocuments(): Promise<DocumentItem[]> {
-  const { data: caseIds } = await supabase.from('cases').select('id');
-  if (!caseIds?.length) return [];
-
-  const ids = caseIds.map((c: { id: string }) => c.id);
+  // Direct firm_id query via the cases join to avoid the two-hop
+  // case-id harvest + large IN() list that breaks at scale.
+  const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('documents')
     .select(DOC_SELECT)
-    .in('case_id', ids)
+    .eq('cases.firm_id', firmId)
     .is('deleted_at', null)
     .order('uploaded_at', { ascending: false });
   if (error) throw error;
@@ -587,8 +614,15 @@ export async function resendInvitation(invitationId: string): Promise<Invitation
 export const revokeInvitation = cancelInvitation;
 
 export async function updateEmployeeRecord(payload: Employee): Promise<Employee> {
+  const firmId = await getCurrentFirmId();
   const { id, created_at: _ca, ...changes } = payload;
-  const { data, error } = await supabase.from('employees').update(changes).eq('id', id).select().single();
+  const { data, error } = await supabase
+    .from('employees')
+    .update(changes)
+    .eq('id', id)
+    .eq('firm_id', firmId)
+    .select()
+    .single();
   if (error) throw error;
   return mapDbEmployee(data as DbEmployee);
 }
@@ -597,10 +631,12 @@ export async function toggleEmployeeStatusRecord(
   employeeId: string,
   nextStatus: Employee['status']
 ): Promise<Employee> {
+  const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('employees')
     .update({ status: nextStatus })
     .eq('id', employeeId)
+    .eq('firm_id', firmId)
     .select()
     .single();
   if (error) throw error;
@@ -608,10 +644,12 @@ export async function toggleEmployeeStatusRecord(
 }
 
 export async function deleteEmployeeRecord(employeeId: string): Promise<{ id: string }> {
+  const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('employees')
     .update({ deleted_at: new Date().toISOString(), status: 'disabled' })
     .eq('id', employeeId)
+    .eq('firm_id', firmId)
     .select('id')
     .single();
   if (error) throw error;
@@ -763,10 +801,12 @@ export async function createNotification(
 }
 
 export async function markNotificationRead(id: string): Promise<NotificationItem> {
+  const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('notifications')
     .update({ read: true })
     .eq('id', id)
+    .eq('firm_id', firmId)
     .select()
     .single();
   if (error) throw error;

@@ -21,7 +21,7 @@ import {
   type OfficeRegistrationData,
   type SignUpData
 } from '../lib/auth';
-import { isSupabaseConfigured } from '../lib/supabaseClient';
+import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 
 interface AuthContextValue {
   user: User | null;
@@ -74,8 +74,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // stored token against the server. This is the single source of truth
     // for the first load; it sets isLoading → false exactly once.
     fetchCurrentUser()
-      .then((u) => {
+      .then(async (u) => {
         if (!mounted) return;
+        if (u === null) {
+          // JWT present but profile missing — sign out to clear the orphan session
+          // so the user is redirected cleanly to the login page instead of
+          // seeing a blank authenticated shell with no data.
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            console.warn('[AUTH] Active JWT but no profile found — signing out orphan session.');
+            await signOut();
+          }
+        }
         setUser(u);
       })
       .catch((err) => {

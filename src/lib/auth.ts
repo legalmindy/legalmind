@@ -5,6 +5,7 @@ import type { DbEmployee, DbInvitationPreview } from '../types/database';
 import { mapEmployeeToUser } from './mappers';
 import { logError } from './errorLogger';
 import { isValidFirmCodeFormat, normalizeFirmCode, isEmailAvailableForRegistration } from './firmCode';
+import { clearFirmIdCache } from './api';
 
 export interface AuthResult {
   success: boolean;
@@ -285,6 +286,7 @@ export async function acceptInvitation(token: string): Promise<AuthResult> {
 }
 
 export async function signOut(): Promise<void> {
+  clearFirmIdCache();
   const { error } = await supabase.auth.signOut();
   if (error) void logError(error.message, { context: 'signOut' });
 }
