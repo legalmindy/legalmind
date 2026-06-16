@@ -730,9 +730,22 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
   const [expenseForm, setExpenseForm] = useState<AddExpenseFormState>(EMPTY_EXPENSE_FORM);
   const [expenseError, setExpenseError] = useState('');
 
+  const [deleteError, setDeleteError] = useState('');
+
   const { data: archivedCases = [] } = useArchivedCases(true);
   const { data: expenses = [], isLoading: expLoading } = useExpenses(true);
   const expMutations = useExpenseMutations();
+
+  const handleDeleteExpense = async (id: string) => {
+    if (!window.confirm('حذف هذا المصروف؟')) return;
+    setDeleteError('');
+    try {
+      await expMutations.removeExpense.mutateAsync(id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'فشل حذف المصروف';
+      setDeleteError(msg);
+    }
+  };
 
   const report = useMemo(
     () => buildFinancialReport(cases, archivedCases, expenses, selectedYear),
@@ -977,6 +990,13 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
           </div>
         </div>
 
+        {deleteError && (
+          <div className="mx-6 mt-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-right">
+            <p className="text-xs font-bold text-rose-700">{deleteError}</p>
+            <button type="button" onClick={() => setDeleteError('')} className="text-[11px] text-rose-500 underline mt-1">إغلاق</button>
+          </div>
+        )}
+
         {showAddExpense && (
           <div className="p-6 border-b border-slate-100 bg-slate-50 space-y-3">
             <h4 className="font-bold text-slate-700 text-xs">بيانات المصروف الجديد</h4>
@@ -1086,7 +1106,7 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
                     <td className="px-4 py-3">
                       <button
                         type="button"
-                        onClick={() => { if (window.confirm('حذف هذا المصروف؟')) void expMutations.removeExpense.mutateAsync(exp.id); }}
+                        onClick={() => void handleDeleteExpense(exp.id)}
                         className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-rose-50 text-rose-400 hover:text-rose-600 transition-all"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

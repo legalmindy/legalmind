@@ -879,14 +879,17 @@ export async function createExpense(payload: {
 }
 
 export async function deleteExpense(id: string): Promise<void> {
-  const { data, error } = await supabase
-    .from('office_expenses')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id)
-    .select('id');
-  throwIfSupabaseError(error);
-  if (!data || data.length === 0) {
-    throw new Error('لم يتم حذف المصروف — تأكد من صلاحياتك أو تطبيق migration 037 في Supabase.');
+  // Use SECURITY DEFINER RPC to bypass the RLS WITH CHECK restriction
+  // that would otherwise reject the soft-delete (migration 040).
+  const { error } = await supabase.rpc('delete_office_expense', { expense_id: id });
+  if (error) {
+    if (error.message.includes('NOT_FOUND') || error.message.includes('P0002')) {
+      throw new Error('المصروف غير موجود أو تم حذفه مسبقاً.');
+    }
+    if (error.message.includes('FORBIDDEN')) {
+      throw new Error('ليس لديك صلاحية حذف المصاريف.');
+    }
+    throw error;
   }
 }
 
