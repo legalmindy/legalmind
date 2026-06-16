@@ -9,8 +9,34 @@ interface FirmCodeCardProps {
   variant?: 'default' | 'hero' | 'compact' | 'navbar';
 }
 
+function buildFirmCodeShareMessage(displayCode: string, firmName?: string) {
+  const registerUrl = `${window.location.origin}/register-lawyer`;
+  const title = firmName
+    ? `دعوة للانضمام إلى ${firmName}`
+    : 'دعوة للانضمام — LegalMind Yemen';
+
+  const text = firmName
+    ? `مرحباً،
+
+للانضمام إلى مكتب «${firmName}» على منصة LegalMind Yemen، استخدم كود المكتب:
+
+${displayCode}
+
+سجّل حسابك من الرابط:
+${registerUrl}`
+    : `للانضمام إلى المكتب على منصة LegalMind Yemen، استخدم كود المكتب:
+
+${displayCode}
+
+سجّل حسابك من الرابط:
+${registerUrl}`;
+
+  return { title, text, url: registerUrl };
+}
+
 export function FirmCodeCard({ firmCode, firmName, onCopied, variant = 'default' }: FirmCodeCardProps) {
   const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const displayCode = normalizeFirmCode(firmCode);
   const [prefix, suffix] = displayCode.includes('-') ? displayCode.split('-') : [displayCode.slice(0, 3), displayCode.slice(3)];
 
@@ -24,6 +50,30 @@ export function FirmCodeCard({ firmCode, firmName, onCopied, variant = 'default'
       onCopied?.('تعذر نسخ الكود. حاول يدوياً.');
     }
   }, [displayCode, onCopied]);
+
+  const handleShare = useCallback(async () => {
+    const { title, text, url } = buildFirmCodeShareMessage(displayCode, firmName);
+    setSharing(true);
+    try {
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ title, text, url });
+        onCopied?.('تم فتح خيارات المشاركة.');
+        return;
+      }
+      await navigator.clipboard.writeText(text);
+      onCopied?.('تم نسخ رسالة الدعوة — الصقها في واتساب أو البريد أو أي تطبيق.');
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      try {
+        await navigator.clipboard.writeText(text);
+        onCopied?.('تم نسخ رسالة الدعوة — الصقها في واتساب أو البريد.');
+      } catch {
+        onCopied?.('تعذر المشاركة. حاول نسخ الكود يدوياً.');
+      }
+    } finally {
+      setSharing(false);
+    }
+  }, [displayCode, firmName, onCopied]);
 
   if (variant === 'compact') {
     return (
@@ -82,7 +132,16 @@ export function FirmCodeCard({ firmCode, firmName, onCopied, variant = 'default'
                 <p className="text-xs font-bold text-white">كود انضمام المكتب</p>
               </div>
             </div>
-            <Share2 className="w-4 h-4 text-indigo-200/60" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={() => void handleShare()}
+              disabled={sharing}
+              className="rounded-lg p-2 text-indigo-200/80 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50"
+              aria-label="مشاركة كود المكتب"
+              title="مشاركة الكود"
+            >
+              <Share2 className={`w-4 h-4 ${sharing ? 'animate-pulse' : ''}`} />
+            </button>
           </div>
 
           <div className="rounded-xl border border-white/20 bg-slate-950/40 px-4 py-3 text-center">
@@ -152,18 +211,29 @@ export function FirmCodeCard({ firmCode, firmName, onCopied, variant = 'default'
               <span className="text-2xl">{suffix}</span>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void handleCopy()}
-            className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-5 py-4 text-sm font-bold transition-all ${
-              copied
-                ? 'bg-emerald-600 text-white'
-                : 'bg-indigo-900 hover:bg-indigo-800 text-white shadow-md'
-            }`}
-          >
-            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            {copied ? 'تم النسخ' : 'نسخ الكود'}
-          </button>
+          <div className="flex shrink-0 flex-col sm:flex-row gap-2">
+            <button
+              type="button"
+              onClick={() => void handleShare()}
+              disabled={sharing}
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-4 text-sm font-bold bg-white border border-indigo-200 text-indigo-900 hover:bg-indigo-50 transition-all disabled:opacity-50"
+            >
+              <Share2 className={`w-4 h-4 ${sharing ? 'animate-pulse' : ''}`} />
+              مشاركة
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCopy()}
+              className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-5 py-4 text-sm font-bold transition-all ${
+                copied
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-indigo-900 hover:bg-indigo-800 text-white shadow-md'
+              }`}
+            >
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              {copied ? 'تم النسخ' : 'نسخ الكود'}
+            </button>
+          </div>
         </div>
       </div>
     </section>
