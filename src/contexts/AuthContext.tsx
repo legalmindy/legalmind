@@ -149,10 +149,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const registerInvitedAccount = useCallback(async (data: InvitedUserRegistrationData) => registerInvitedUser(data), []);
 
   const logout = useCallback(async () => {
-    console.log('[AUTH CONTEXT] Logout attempt');
+    if (import.meta.env.DEV) console.log('[AUTH CONTEXT] Logout attempt');
     await signOut();
     setUser(null);
-    console.log('[AUTH CONTEXT] Logout complete');
+    if (import.meta.env.DEV) console.log('[AUTH CONTEXT] Logout complete');
   }, []);
 
   const forgotPassword = useCallback(async (email: string) => resetPassword(email), []);

@@ -10,7 +10,7 @@ import { PageLoader } from './components/ui/LoadingSpinner';
 import { ClientModal, CaseModal, SessionModal, DocumentModal, EmployeeModal, ArchiveCaseModal } from './components/Modals';
 import { isValidYemeniPhone } from './utils/format';
 import { isValidEmail } from './lib/sanitize';
-import { canManageCases, canManageClients, canManageOffice, checkRoleAccess } from './lib/api';
+import { canManageCases, canManageClients, canManageOffice, checkRoleAccess, getDocumentDownloadUrl } from './lib/api';
 import { formatCaseSaveError } from './lib/supabaseQueryHelpers';
 import {
   buildFinancialSummary,
@@ -223,6 +223,10 @@ export default function App() {
     if (auth.isLoading) return;
     if (auth.isAuthenticated && PUBLIC_PAGES.includes(currentPage)) {
       setCurrentPage('dashboard');
+      return;
+    }
+    if (!auth.isAuthenticated && !PUBLIC_PAGES.includes(currentPage)) {
+      setCurrentPage('login');
     }
   }, [auth.isLoading, auth.isAuthenticated, currentPage]);
 
@@ -478,8 +482,6 @@ export default function App() {
     [cases, clients, sessions, documents]
   );
 
-  if (auth.isLoading) return <PageLoader />;
-
   const dataLoading =
     isAuth &&
     (clientsLoading || casesLoading || employeesLoading || sessionsLoading || documentsLoading || lawyersLoading);
@@ -686,10 +688,7 @@ export default function App() {
           <DocumentsPage
             documents={documents}
             onCreateDocument={() => setShowDocumentModal(true)}
-            onGetUrl={async (docId) => {
-              const { getDocumentDownloadUrl } = await import('./lib/api');
-              return await getDocumentDownloadUrl(docId);
-            }}
+            onGetUrl={(docId) => getDocumentDownloadUrl(docId)}
           />
         )}
 

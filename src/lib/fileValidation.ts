@@ -19,6 +19,16 @@ export interface FileValidationResult {
   documentType?: DocumentType;
 }
 
+const EXT_TO_TYPE: Record<string, DocumentType> = {
+  '.pdf': 'pdf',
+  '.docx': 'docx',
+  '.xlsx': 'xlsx',
+  '.jpg': 'jpg',
+  '.jpeg': 'jpg',
+  '.png': 'png',
+  '.webp': 'webp'
+};
+
 export function validateFile(file: File): FileValidationResult {
   if (file.size === 0) {
     return { valid: false, error: 'الملف فارغ.' };
@@ -33,7 +43,7 @@ export function validateFile(file: File): FileValidationResult {
     return { valid: false, error: 'نوع الملف غير مدعوم. الأنواع المسموحة: PDF, DOCX, XLSX, JPG, PNG, WEBP.' };
   }
 
-  const docType = MIME_TO_TYPE[file.type];
+  const docType = MIME_TO_TYPE[file.type] ?? EXT_TO_TYPE[ext];
   if (!docType) {
     return { valid: false, error: 'نوع MIME للملف غير مسموح.' };
   }

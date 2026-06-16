@@ -13,7 +13,12 @@ export interface ProfileUpdateInput {
 export function validateAvatarFile(file: File): { valid: boolean; error?: string } {
   if (file.size === 0) return { valid: false, error: 'الملف فارغ.' };
   if (file.size > AVATAR_MAX_SIZE) return { valid: false, error: 'حجم الصورة يتجاوز 2 ميجابايت.' };
-  if (!AVATAR_MIME_TYPES.has(file.type)) {
+
+  const ext = (file.name.split('.').pop()?.toLowerCase() ?? '');
+  const extOk = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+  const mimeOk = !file.type || AVATAR_MIME_TYPES.has(file.type);
+
+  if (!mimeOk && !extOk) {
     return { valid: false, error: 'نوع الصورة غير مدعوم. استخدم JPG أو PNG أو WEBP.' };
   }
   return { valid: true };
@@ -22,6 +27,9 @@ export function validateAvatarFile(file: File): { valid: boolean; error?: string
 function avatarExtension(file: File): string {
   if (file.type === 'image/png') return 'png';
   if (file.type === 'image/webp') return 'webp';
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  if (ext === 'png') return 'png';
+  if (ext === 'webp') return 'webp';
   return 'jpg';
 }
 
@@ -34,7 +42,11 @@ export async function uploadProfileAvatar(file: File, userId: string): Promise<s
 
   const { error: storageError } = await supabase.storage
     .from('avatars')
-    .upload(path, file, { cacheControl: '3600', upsert: true, contentType: file.type });
+    .upload(path, file, {
+      cacheControl: '3600',
+      upsert: true,
+      contentType: file.type || `image/${ext === 'jpg' ? 'jpeg' : ext}`
+    });
 
   if (storageError) throw storageError;
 
