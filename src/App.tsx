@@ -139,6 +139,7 @@ export default function App() {
   const { data: isPlatformOperator = false } = usePlatformOperator(isAuth);
   const firmCode = office?.firmCode ?? firmProfile?.officeCode;
   const firmName = office?.name ?? firmProfile?.officeName ?? auth.user?.company;
+
   const whatsappReportsEnabled = office?.whatsappReportsEnabled !== false;
   const smsReportsEnabled = Boolean(office?.smsReportsEnabled);
   const canSendClientReport = whatsappReportsEnabled || smsReportsEnabled;
@@ -221,6 +222,12 @@ export default function App() {
   const user = auth.user;
   const checkAccess = (allowedRoles: UserRole[]) =>
     user !== null && checkRoleAccess(user.role, allowedRoles);
+
+  // For lawyers: find their own lawyers.id by matching email so we can pre-fill case forms
+  const currentUserLawyerId = useMemo(() => {
+    if (!user || user.role !== 'lawyer') return '';
+    return lawyers.find((l) => l.email === user.email)?.id ?? '';
+  }, [user, lawyers]);
 
   useEffect(() => {
     if (!user) return;
@@ -536,7 +543,8 @@ export default function App() {
             stats={stats} monthlyData={monthlyData} performance={dashboardPerformance}
             financials={dashboardFinancials} statHints={dashboardStatHints}
             setCurrentPage={setCurrentPage}
-            setShowClientModal={setShowClientModal} setShowCaseModal={setShowCaseModal}
+            setShowClientModal={setShowClientModal}
+            setShowCaseModal={(v) => { if (v) { setEditingCase(null); setNewCase({ ...initialCaseForm, lawyerId: currentUserLawyerId }); } setShowCaseModal(v); }}
             setShowSessionModal={setShowSessionModal}
             office={office}
             onFirmCodeCopied={(msg) => showAlert(msg, 'success')} />
@@ -563,7 +571,7 @@ export default function App() {
           <CasesPage cases={filteredCases} searchQuery={searchQuery} statusFilter={statusFilter}
             categoryFilter={categoryFilter} onSearch={setSearchQuery}
             onStatusFilterChange={setStatusFilter} onCategoryFilterChange={setCategoryFilter}
-            onCreateCase={() => { setEditingCase(null); setNewCase(initialCaseForm); setShowCaseModal(true); }}
+            onCreateCase={() => { setEditingCase(null); setNewCase({ ...initialCaseForm, lawyerId: currentUserLawyerId }); setShowCaseModal(true); }}
             onEditCase={(cr) => { setEditingCase(cr); setNewCase({ title: cr.title, clientId: cr.clientId, category: cr.category, case_type: cr.case_type, case_stage: cr.case_stage, court_case_number: cr.court_case_number, total_amount: cr.total_amount, paid_amount: cr.paid_amount, remaining_amount: cr.remaining_amount, status: cr.status, court: cr.court, caseNo: cr.caseNo, lawyerId: cr.lawyerId, description: cr.description, notes: cr.notes ?? '' }); setShowCaseModal(true); }}
             onArchiveCase={openArchiveCase}
             onDeleteCase={(id) => void deleteCase(id)}
