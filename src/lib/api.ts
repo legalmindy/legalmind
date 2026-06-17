@@ -390,6 +390,23 @@ export async function fetchSessions(): Promise<SessionItem[]> {
   return (data as DbSession[]).map(mapDbSession);
 }
 
+export async function fetchUpcomingSessions(limit = 8): Promise<SessionItem[]> {
+  const firmId = await getCurrentFirmId();
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('sessions')
+    .select(SESSION_SELECT)
+    .eq('firm_id', firmId)
+    .eq('status', 'مجدولة')
+    .gte('session_date', today)
+    .is('deleted_at', null)
+    .order('session_date', { ascending: true })
+    .order('session_time', { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+  return (data as DbSession[]).map(mapDbSession);
+}
+
 export async function createSession(payload: Omit<SessionItem, 'id' | 'caseTitle'>): Promise<SessionItem> {
   const { data, error } = await supabase
     .from('sessions')

@@ -35,6 +35,7 @@ import {
   markAllNotificationsRead,
   fetchOffice,
   fetchSessions,
+  fetchUpcomingSessions,
   inviteOfficeUser,
   resendInvitation,
   restoreCaseRecord,
@@ -52,6 +53,7 @@ import { useEffect, useRef } from 'react';
 import type { PaginationParams } from '../types/database';
 import type { Employee, CaseRecord, Client, Expense, Invitation, SessionItem } from '../types/app';
 import { getCurrentProfileContext } from '../services/profileService';
+import { filterUpcomingSessions } from '../lib/sessionAlerts';
 
 async function fetchEmployeesWithFallback(): Promise<Employee[]> {
   if (isSupabaseConfigured() && isOnline()) {
@@ -109,6 +111,7 @@ export const queryKeys = {
   office: ['office'] as const,
   firmProfile: ['firm-profile'] as const,
   sessions: ['sessions'] as const,
+  upcomingSessions: ['upcoming-sessions'] as const,
   documents: ['documents'] as const,
   lawyers: ['lawyers'] as const,
   notifications: ['notifications'] as const,
@@ -207,6 +210,27 @@ export function useSessions(enabled = true) {
     },
     enabled,
     staleTime: 60_000
+  });
+}
+
+export function useUpcomingSessions(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.upcomingSessions,
+    queryFn: async () => {
+      if (isSupabaseConfigured() && isOnline()) {
+        try {
+          return await fetchUpcomingSessions();
+        } catch (err) {
+          console.error('[useUpcomingSessions] remote failed, using local:', err);
+        }
+      }
+      const local = await localSessionRepository.list();
+      return filterUpcomingSessions(local);
+    },
+    enabled,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+    refetchOnWindowFocus: true
   });
 }
 
@@ -354,7 +378,10 @@ export function useOfficeMutations() {
 export function useSessionMutations() {
   const queryClient = useQueryClient();
   const useRemote = () => isSupabaseConfigured() && isOnline();
-  const invalidate = () => { void queryClient.invalidateQueries({ queryKey: queryKeys.sessions }); };
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.sessions });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.upcomingSessions });
+  };
 
   return {
     createSession: useMutation({

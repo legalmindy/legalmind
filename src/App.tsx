@@ -39,8 +39,10 @@ import {
   useRealtimeNotifications,
   useSessionMutations,
   useSessions,
+  useUpcomingSessions,
   queryKeys
 } from './hooks/useSupabaseQueries';
+import { useNotificationPermission, useSessionReminders } from './hooks/useSessionReminders';
 import type {
   AlertState,
   CaseRecord,
@@ -133,11 +135,28 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [isAuth]);
 
-  // Core data — always needed (dashboard stats / header / modals)
-  const { data: clients = [], isLoading: clientsLoading, isError: clientsError, error: clientsQueryError } = useClients(isAuth);
-  const { data: cases = [], isLoading: casesLoading, isError: casesError, error: casesQueryError } = useCases(isAuth);
+  // Page-scoped data — avoid loading heavy lists on subscription/profile pages
+  const needsClients =
+    isAuth &&
+    (currentPage === 'clients' ||
+      currentPage === 'dashboard' ||
+      currentPage === 'execution' ||
+      currentPage === 'cases');
+  const needsCases =
+    isAuth &&
+    (currentPage === 'dashboard' ||
+      currentPage === 'execution' ||
+      currentPage === 'cases' ||
+      currentPage === 'archive' ||
+      currentPage === 'reports' ||
+      currentPage === 'sessions');
 
-  // Page-scoped: only fetch when the user navigates to the relevant section
+  const { data: clients = [], isLoading: clientsLoading, isError: clientsError, error: clientsQueryError } =
+    useClients(needsClients);
+  const { data: cases = [], isLoading: casesLoading, isError: casesError, error: casesQueryError } =
+    useCases(needsCases);
+
+  const needsHeaderAlerts = isAuth && !PUBLIC_PAGES.includes(currentPage);
   const needsEmployees = isAuth && (currentPage === 'employees' || currentPage === 'settings' || currentPage === 'dashboard');
   const needsSessions  = isAuth && (currentPage === 'sessions'  || currentPage === 'dashboard' || currentPage === 'cases');
   const needsDocuments = isAuth && currentPage === 'documents';
@@ -152,11 +171,13 @@ export default function App() {
   const { data: archivedCases = [] } = useArchivedCases(needsArchive);
   const { data: invitations = [] } = useInvitations(needsInvites);
   const { data: office } = useOffice(isAuth);
-  const { data: notifications = [] } = useNotifications(isAuth);
+  const { data: notifications = [] } = useNotifications(needsHeaderAlerts);
+  const { data: upcomingSessions = [], isLoading: upcomingSessionsLoading } = useUpcomingSessions(needsHeaderAlerts);
   const canShowFirmCode = Boolean(auth.user && canManageOffice(auth.user.role));
-  const { data: firmProfile } = useFirmProfile(isAuth);
+  const { data: firmProfile } = useFirmProfile(isAuth && canShowFirmCode);
   const isSuperAdmin = Boolean(auth.user && isSuperAdminRole(auth.user.role));
-  const { data: isBillingAdminDb = false, isLoading: isBillingAdminLoading } = useBillingAdmin(isAuth);
+  const needsBillingAdminCheck = isAuth && (currentPage === 'admin-billing' || isSuperAdmin);
+  const { data: isBillingAdminDb = false, isLoading: isBillingAdminLoading } = useBillingAdmin(needsBillingAdminCheck);
   const isBillingAdmin = isBillingAdminDb || Boolean(auth.user && isSuperAdminRole(auth.user.role));
   const firmCode = office?.firmCode ?? firmProfile?.officeCode;
   const firmName = office?.name ?? firmProfile?.officeName ?? auth.user?.company;
@@ -257,6 +278,9 @@ export default function App() {
     if (alertTimeout.current) window.clearTimeout(alertTimeout.current);
     alertTimeout.current = window.setTimeout(() => setAlertMsg(null), 4000);
   }, []);
+
+  useNotificationPermission(needsHeaderAlerts);
+  useSessionReminders(upcomingSessions, needsHeaderAlerts, showAlert);
 
   const user = auth.user;
   const checkAccess = useCallback((allowedRoles: UserRole[]) =>
@@ -508,9 +532,50 @@ export default function App() {
     [cases, clients, sessions, documents]
   );
 
-  const dataLoading =
-    isAuth &&
-    (clientsLoading || casesLoading || employeesLoading || sessionsLoading || documentsLoading || lawyersLoading);
+  const pageLoading = useMemo(() => {
+    if (!isAuth) return false;
+    switch (currentPage) {
+      case 'dashboard':
+        return (
+          clientsLoading ||
+          casesLoading ||
+          employeesLoading ||
+          sessionsLoading ||
+          documentsLoading ||
+          lawyersLoading
+        );
+      case 'clients':
+        return clientsLoading;
+      case 'execution':
+        return clientsLoading || casesLoading;
+      case 'cases':
+        return casesLoading;
+      case 'archive':
+        return casesLoading;
+      case 'employees':
+        return employeesLoading;
+      case 'sessions':
+        return sessionsLoading;
+      case 'documents':
+        return documentsLoading;
+      case 'lawyers':
+        return lawyersLoading;
+      case 'reports':
+        return casesLoading;
+      default:
+        return false;
+    }
+  }, [
+    isAuth,
+    currentPage,
+    clientsLoading,
+    casesLoading,
+    employeesLoading,
+    sessionsLoading,
+    documentsLoading,
+    lawyersLoading
+  ]);
+
   const hasQueryError =
     isAuth &&
     (clientsError || casesError || employeesError || sessionsError || documentsError || lawyersError);
@@ -549,8 +614,10 @@ export default function App() {
             currentPage={currentPage}
             role={user.role}
             onChangePage={navigateToPage}
-            notificationCount={notifications.filter((n) => !n.read).length}
+            notificationCount={notifications.filter((n) => !n.read).length + upcomingSessions.length}
             notifications={notifications}
+            upcomingSessions={upcomingSessions}
+            sessionsLoading={upcomingSessionsLoading}
             showNotificationDropdown={showNotificationDropdown}
             showUserDropdown={showUserDropdown}
             isMobileMenuOpen={isMobileMenuOpen}
@@ -602,9 +669,9 @@ export default function App() {
           />
         )}
 
-        {dataLoading && isAuth && currentPage !== 'landing' && currentPage !== 'login' && <PageLoader />}
+        {pageLoading && isAuth && currentPage !== 'landing' && currentPage !== 'login' && <PageLoader />}
 
-        {currentPage === 'dashboard' && user && !dataLoading && (
+        {currentPage === 'dashboard' && user && !pageLoading && (
           <DashboardPage user={user} sessions={sessions} documents={documents}
             activeChartTab={activeChartTab} hoveredDataPoint={hoveredDataPoint}
             setActiveChartTab={setActiveChartTab} setHoveredDataPoint={setHoveredDataPoint}
@@ -619,7 +686,7 @@ export default function App() {
             onFirmCodeCopied={(msg) => showAlert(msg, 'success')} />
         )}
 
-        {currentPage === 'clients' && user && !dataLoading && (
+        {currentPage === 'clients' && user && !pageLoading && (
           <ClientsPage clients={filteredClients} searchQuery={searchQuery} onSearch={setSearchQuery}
             onCreateClient={() => { setEditingClient(null); setNewClient(initialClientForm); setShowClientModal(true); }}
             onEditClient={(c) => { setEditingClient(c); setNewClient({ name: c.name, phone: c.phone, email: c.email, address: c.address, type: c.type }); setShowClientModal(true); }}
@@ -628,7 +695,7 @@ export default function App() {
             onSendReport={(c) => setReportClient(c)} />
         )}
 
-        {currentPage === 'execution' && user && !dataLoading && (
+        {currentPage === 'execution' && user && !pageLoading && (
           <ExecutionRequestsPage
             clients={clients}
             cases={cases}
@@ -636,7 +703,7 @@ export default function App() {
           />
         )}
 
-        {currentPage === 'cases' && user && !dataLoading && (
+        {currentPage === 'cases' && user && !pageLoading && (
           <CasesPage cases={filteredCases} searchQuery={searchQuery} statusFilter={statusFilter}
             categoryFilter={categoryFilter} onSearch={setSearchQuery}
             onStatusFilterChange={setStatusFilter} onCategoryFilterChange={setCategoryFilter}
@@ -648,13 +715,13 @@ export default function App() {
             onSendPaymentReminder={(cr) => setPaymentReminderCase(cr)} />
         )}
 
-        {currentPage === 'archive' && user && !dataLoading && (
+        {currentPage === 'archive' && user && !pageLoading && (
           <ArchivePage cases={archivedCases}
             onRestore={(id) => void caseMutations.restoreCase.mutateAsync(id).then(() => showAlert('تمت استعادة القضية.', 'success'))}
             onPermanentArchive={(id) => void deleteCase(id)} />
         )}
 
-        {currentPage === 'employees' && user && !dataLoading && (
+        {currentPage === 'employees' && user && !pageLoading && (
           <EmployeesPage employees={employees} invitations={invitations}
             onInvite={() => { setEditingEmployee(null); setNewEmployee(initialEmployeeForm); setShowEmployeeModal(true); }}
             onDelete={async (id) => {
@@ -704,14 +771,14 @@ export default function App() {
           />
         )}
 
-        {currentPage === 'sessions' && user && !dataLoading && (
+        {currentPage === 'sessions' && user && !pageLoading && (
           <SessionsPage sessions={sessions}
             onCreateSession={() => { setEditingSession(null); setNewSession(initialSessionForm); setShowSessionModal(true); }}
             onEditSession={(s) => { setEditingSession(s); setNewSession({ caseId: s.caseId, court: s.court, date: s.date, time: s.time, status: s.status, type: s.type, notes: s.notes }); setShowSessionModal(true); }}
             onDeleteSession={(id) => void deleteSession(id)} />
         )}
 
-        {currentPage === 'documents' && user && !dataLoading && (
+        {currentPage === 'documents' && user && !pageLoading && (
           <DocumentsPage
             documents={documents}
             onCreateDocument={() => setShowDocumentModal(true)}
@@ -719,7 +786,7 @@ export default function App() {
           />
         )}
 
-        {currentPage === 'lawyers' && user && !dataLoading && <LawyersPage lawyers={lawyers} />}
+        {currentPage === 'lawyers' && user && !pageLoading && <LawyersPage lawyers={lawyers} />}
         {currentPage === 'reports' && user && (
           <ReportsPage role={user.role} performance={dashboardPerformance} financials={dashboardFinancials} cases={cases} />
         )}

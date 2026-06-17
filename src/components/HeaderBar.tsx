@@ -19,8 +19,9 @@ import {
 } from 'lucide-react';
 import { AppLogo } from './AppLogo';
 import { FirmCodeCard } from './FirmCodeCard';
+import { NotificationPanel } from './NotificationPanel';
 import { UserAvatar } from './ui/UserAvatar';
-import type { NotificationItem, PageId, User as UserType, UserRole } from '../types/app';
+import type { NotificationItem, PageId, SessionItem, User as UserType, UserRole } from '../types/app';
 
 interface HeaderBarProps {
   user: UserType;
@@ -29,6 +30,8 @@ interface HeaderBarProps {
   onChangePage: (page: PageId) => void;
   notificationCount: number;
   notifications: NotificationItem[];
+  upcomingSessions: SessionItem[];
+  sessionsLoading?: boolean;
   showNotificationDropdown: boolean;
   showUserDropdown: boolean;
   isMobileMenuOpen: boolean;
@@ -65,6 +68,8 @@ export const HeaderBar = memo(function HeaderBar({
   onChangePage,
   notificationCount: _notificationCount,
   notifications,
+  upcomingSessions,
+  sessionsLoading = false,
   showNotificationDropdown,
   showUserDropdown,
   isMobileMenuOpen,
@@ -81,6 +86,10 @@ export const HeaderBar = memo(function HeaderBar({
   isBillingAdmin = false
 }: HeaderBarProps) {
   const unreadCount = useMemo(() => notifications.filter((item) => !item.read).length, [notifications]);
+  const alertCount = useMemo(
+    () => unreadCount + upcomingSessions.length,
+    [unreadCount, upcomingSessions.length]
+  );
   const visibleNavItems = useMemo(() => navItems.filter((item) => item.roles.includes(role)), [role]);
   const officeLabel = firmName?.trim() || user.company?.trim() || 'مكتب محاماة';
 
@@ -151,44 +160,21 @@ export const HeaderBar = memo(function HeaderBar({
               aria-label="التنبيهات"
             >
               <Bell className="h-5 w-5" />
-              {unreadCount > 0 && (
+              {alertCount > 0 && (
                 <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 animate-pulse rounded-full bg-[#DC2626] ring-2 ring-[#7A1F2B]" />
               )}
             </button>
 
             {showNotificationDropdown && (
-              <div className="absolute left-0 z-50 mt-2 w-80 rounded-xl border border-slate-100 bg-white py-2 text-slate-900 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-2">
-                  <span className="text-xs font-bold text-slate-700">تنبيهات النظام الذكية</span>
-                  <button
-                    type="button"
-                    onClick={markAllNotificationsRead}
-                    className="text-[11px] font-bold text-indigo-700 hover:underline"
-                  >
-                    تعيين الكل كمقروء
-                  </button>
-                </div>
-                <div className="max-h-64 overflow-y-auto">
-                  {notifications.map((notif) => (
-                    <button
-                      key={notif.id}
-                      type="button"
-                      onClick={() => {
-                        markNotificationRead(notif.id);
-                        onChangePage('notifications');
-                        setShowNotificationDropdown(false);
-                      }}
-                      className={`w-full border-b border-slate-50 p-3 text-right transition-colors hover:bg-slate-50 ${notif.read ? '' : 'bg-amber-50/40'}`}
-                    >
-                      <div className="flex items-start justify-between gap-1">
-                        <span className="text-xs font-bold text-slate-800">{notif.title}</span>
-                        <span className="whitespace-nowrap text-[10px] text-slate-400">{notif.time}</span>
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-[11px] text-slate-600">{notif.message}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <NotificationPanel
+                notifications={notifications}
+                upcomingSessions={upcomingSessions}
+                sessionsLoading={sessionsLoading}
+                onNavigate={onChangePage}
+                onClose={() => setShowNotificationDropdown(false)}
+                markAllNotificationsRead={markAllNotificationsRead}
+                markNotificationRead={markNotificationRead}
+              />
             )}
           </div>
 

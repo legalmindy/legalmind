@@ -70,6 +70,10 @@ function mapAuthError(error: AuthError): string {
     otp_expired: 'انتهت صلاحية رمز التحقق. يرجى طلب رمز جديد.'
   };
 
+  if (/invalid login credentials/i.test(raw)) {
+    return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
+  }
+
   if (/database error saving new user/i.test(raw)) {
     console.error('[AUTH] Supabase signup provisioning error:', raw);
     return 'تعذر إنشاء الحساب في قاعدة البيانات. تحقق من صحة رقم الهاتف (9 أرقام تبدأ بـ 77 أو 73 أو 71 أو 70)، وأن البريد غير مستخدم مسبقاً، ثم أعد المحاولة.';
@@ -114,32 +118,30 @@ export async function signIn(email: string, password: string): Promise<AuthResul
     return { success: false, error: 'يرجى إدخال البريد الإلكتروني وكلمة المرور.' };
   }
 
-  console.log('[AUTH] Attempting sign in for email:', normalizedEmail);
-
   const { data, error } = await supabase.auth.signInWithPassword({
     email: normalizedEmail,
     password: normalizedPassword
   });
   
   if (error) {
-    console.error('[AUTH] Sign in failed:', error.message);
+    if (import.meta.env.DEV && !/invalid login credentials|invalid_credentials/i.test(error.message ?? '')) {
+      console.error('[AUTH] Sign in failed:', error.message);
+    }
     return { success: false, error: mapAuthError(error) };
   }
 
-  console.log('[AUTH] Sign in successful, user ID:', data.user?.id);
-
   if (data.user && !data.user.email_confirmed_at) {
-    console.warn('[AUTH] Email not confirmed for user:', data.user.id);
+    if (import.meta.env.DEV) {
+      console.warn('[AUTH] Email not confirmed for user:', data.user.id);
+    }
     return { success: false, needsEmailVerification: true, error: 'يرجى تأكيد بريدك الإلكتروني.' };
   }
 
   const mfaCheck = await checkMfaRequired();
   if (mfaCheck.needsMfa && mfaCheck.factorId) {
-    console.log('[AUTH] MFA required for user:', data.user?.id);
     return { success: false, needsMfa: true, factorId: mfaCheck.factorId };
   }
 
-  console.log('[AUTH] Sign in complete, no MFA required');
   return { success: true };
 }
 
