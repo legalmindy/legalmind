@@ -464,6 +464,9 @@ export async function reviewPayment(input: {
     if (/not_authorized/i.test(reqError.message)) {
       throw new Error('ليس لديك صلاحية مراجعة الاشتراكات. فعّل صلاحيات الأدمن من صفحة الفوترة.');
     }
+    if (/subscription_fields_protected/i.test(reqError.message)) {
+      throw new Error('تعذر تفعيل الاشتراك — طبّق migration 058 في Supabase SQL Editor.');
+    }
     throw toSupabaseQueryError(reqError);
   }
 
@@ -472,6 +475,9 @@ export async function reviewPayment(input: {
   }
   if (/not_authorized/i.test(error.message)) {
     throw new Error('ليس لديك صلاحية مراجعة الاشتراكات. فعّل صلاحيات الأدمن من صفحة الفوترة.');
+  }
+  if (/subscription_fields_protected/i.test(error.message)) {
+    throw new Error('تعذر تفعيل الاشتراك — طبّق migration 058 في Supabase SQL Editor.');
   }
   throw toSupabaseQueryError(error);
 }
