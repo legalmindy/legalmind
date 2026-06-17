@@ -365,9 +365,15 @@ export async function fetchCurrentUserWithRepairDetails(): Promise<{
   let user = await fetchCurrentUser();
   if (user) return { user, repair: { ok: true, action: 'existing' } };
 
+  user = await loadUserFromProfileContext();
+  if (user) return { user, repair: { ok: true, action: 'context_rpc' } };
+
   const repair = await ensureAuthProfileReady();
   if (repair.ok) {
     user = await fetchCurrentUser();
+    if (!user) {
+      user = await loadUserFromProfileContext();
+    }
   }
   return { user, repair };
 }
@@ -384,7 +390,7 @@ async function repairAuthProfileIfNeeded(): Promise<AuthRepairResult> {
     if (/repair_current_user_profile|42883|does not exist/i.test(error.message)) {
       return {
         ok: false,
-        error: 'نظام ربط الحساب غير مفعّل. طبّق migrations 049–053 في Supabase SQL Editor.'
+        error: 'نظام ربط الحساب غير مفعّل. طبّق migrations 054–056 في Supabase SQL Editor.'
       };
     }
     if (/email_linked_to_another_account/i.test(error.message)) {
@@ -398,6 +404,12 @@ async function repairAuthProfileIfNeeded(): Promise<AuthRepairResult> {
         ok: false,
         error: 'تعذر ربط حسابك بمكتب موجود. تواصل مع الدعم مع ذكر بريدك الإلكتروني.'
       };
+    }
+    if (/duplicate key|unique constraint|check_violation/i.test(error.message)) {
+      const retryUser = await loadUserFromProfileContext();
+      if (retryUser) {
+        return { ok: true, action: 'linked_after_conflict' };
+      }
     }
     return { ok: false, error: error.message };
   }
@@ -466,6 +478,39 @@ function resolveAppUserRole(employeeRole?: UserRole | null, profileRole?: string
   return 'firm_manager';
 }
 
+async function loadUserFromProfileContext(): Promise<User | null> {
+  const { data: { user: authUser } } = await supabase.auth.getUser();
+  if (!authUser) return null;
+
+  const { data: contextRows, error: contextError } = await supabase.rpc('get_current_profile_context');
+  if (contextError || !contextRows) return null;
+
+  const ctx = (Array.isArray(contextRows) ? contextRows[0] : contextRows) as {
+    profile_id: string;
+    full_name: string;
+    email: string;
+    role: string;
+    firm_name: string;
+  } | undefined;
+
+  if (!ctx?.profile_id) return null;
+
+  const employee = await loadEmployeeForAuthUser(authUser.id, {
+    email: ctx.email ?? authUser.email ?? null
+  });
+
+  return {
+    id: ctx.profile_id,
+    name: ctx.full_name ?? authUser.email ?? '',
+    email: ctx.email ?? authUser.email ?? '',
+    role: resolveAppUserRole(employee?.role, ctx.role),
+    plan: 'free',
+    company: ctx.firm_name ?? 'مكتب محاماة',
+    phone: '',
+    licenseNo: ''
+  };
+}
+
 async function mapProfileRowToUser(
   authUser: SupabaseUser,
   profile: Record<string, unknown>
@@ -507,6 +552,9 @@ async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
   }
 
   if (!profile) {
+    const contextUser = await loadUserFromProfileContext();
+    if (contextUser) return contextUser;
+
     const repaired = await repairAuthProfileIfNeeded();
     if (repaired.ok) {
       ({ profile, profileError } = await loadProfile());
@@ -517,31 +565,8 @@ async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
     return mapProfileRowToUser(authUser, profile as Record<string, unknown>);
   }
 
-  const { data: contextRows, error: contextError } = await supabase.rpc('get_current_profile_context');
-  if (!contextError && contextRows) {
-    const ctx = (Array.isArray(contextRows) ? contextRows[0] : contextRows) as {
-      profile_id: string;
-      full_name: string;
-      email: string;
-      role: string;
-      firm_name: string;
-    } | undefined;
-    if (ctx?.profile_id) {
-      const employee = await loadEmployeeForAuthUser(authUser.id, {
-        email: ctx.email ?? authUser.email ?? null
-      });
-      return {
-        id: ctx.profile_id,
-        name: ctx.full_name ?? authUser.email ?? '',
-        email: ctx.email ?? authUser.email ?? '',
-        role: resolveAppUserRole(employee?.role, ctx.role),
-        plan: 'free',
-        company: ctx.firm_name ?? 'مكتب محاماة',
-        phone: '',
-        licenseNo: ''
-      };
-    }
-  }
+  const contextUser = await loadUserFromProfileContext();
+  if (contextUser) return contextUser;
 
   const { data: employee, error: employeeError } = await supabase
     .from('employees')
@@ -590,7 +615,6 @@ async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
   void logError('User profile missing after auth sign-in', {
     authUid: authUser.id,
     profileError: profileError?.message,
-    contextError: contextError?.message,
     employeeError: employeeError?.message
   });
   return null;

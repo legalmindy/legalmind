@@ -433,21 +433,39 @@ export async function reviewPayment(input: {
   paymentId: string;
   action: 'approve' | 'reject';
   rejectionReason?: string;
+  requestId?: string;
 }): Promise<void> {
   const { error } = await supabase.rpc('review_payment', {
     p_payment_id: input.paymentId,
     p_action: input.action,
     p_rejection_reason: input.rejectionReason ?? null
   });
-  if (error) {
-    if (/rejection_reason_required/i.test(error.message)) {
+  if (!error) return;
+
+  const fallbackRequestId = input.requestId ?? input.paymentId;
+  if (/request_not_found|payment_not_found/i.test(error.message) && fallbackRequestId) {
+    const { error: reqError } = await supabase.rpc('review_subscription_request', {
+      p_request_id: fallbackRequestId,
+      p_action: input.action,
+      p_admin_notes: input.rejectionReason ?? null
+    });
+    if (!reqError) return;
+    if (/rejection_reason_required/i.test(reqError.message)) {
       throw new Error('سبب الرفض مطلوب.');
     }
-    if (/not_authorized/i.test(error.message)) {
+    if (/not_authorized/i.test(reqError.message)) {
       throw new Error('ليس لديك صلاحية مراجعة الاشتراكات. فعّل صلاحيات الأدمن من صفحة الفوترة.');
     }
-    throw toSupabaseQueryError(error);
+    throw toSupabaseQueryError(reqError);
   }
+
+  if (/rejection_reason_required/i.test(error.message)) {
+    throw new Error('سبب الرفض مطلوب.');
+  }
+  if (/not_authorized/i.test(error.message)) {
+    throw new Error('ليس لديك صلاحية مراجعة الاشتراكات. فعّل صلاحيات الأدمن من صفحة الفوترة.');
+  }
+  throw toSupabaseQueryError(error);
 }
 
 export async function reviewSubscriptionRequest(input: {

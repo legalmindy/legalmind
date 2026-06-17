@@ -132,7 +132,11 @@ export function AdminSubscriptionPage({ onNotify }: AdminSubscriptionPageProps) 
 
   const handleApprove = async (payment: PaymentRecord) => {
     try {
-      await review.mutateAsync({ paymentId: payment.id, action: 'approve' });
+      await review.mutateAsync({
+        paymentId: payment.id,
+        action: 'approve',
+        requestId: payment.requestId
+      });
       onNotify('تمت الموافقة وتفعيل الاشتراك.', 'success');
     } catch (err) {
       onNotify(formatQueryErrorMessage(err, 'فشلت الموافقة.'), 'error');
@@ -144,7 +148,8 @@ export function AdminSubscriptionPage({ onNotify }: AdminSubscriptionPageProps) 
     await review.mutateAsync({
       paymentId: rejectTarget.id,
       action: 'reject',
-      rejectionReason: reason
+      rejectionReason: reason,
+      requestId: rejectTarget.requestId
     });
     onNotify('تم رفض الطلب.', 'info');
   };
@@ -228,7 +233,7 @@ export function AdminSubscriptionPage({ onNotify }: AdminSubscriptionPageProps) 
               <p className="text-[11px] text-amber-700 font-bold max-w-lg mx-auto">
                 في Supabase → SQL Editor: الصق محتوى الملف
                 {' '}
-                <span className="font-mono">048_billing_admin_final_fix.sql</span>
+                <span className="font-mono">056_login_and_payment_approval_fix.sql</span>
                 {' '}
                 (بعد 044–047 إن لم تكن مطبّقة) واضغط Run.
               </p>
