@@ -201,56 +201,139 @@ export async function fetchPendingPaymentsAdmin(): Promise<PaymentRecord[]> {
   const { data: rpcData, error: rpcError } = await supabase.rpc('list_pending_subscription_requests_admin');
 
   if (!rpcError && Array.isArray(rpcData)) {
-    return rpcData.map((row) => {
-      const r = row as Record<string, unknown>;
-      const plan = r.plan as SubscriptionPlanId;
-      const planType = (r.plan_type as SaasPlanType) ?? mapPlanIdToSaasPlanType(plan);
-      return {
-        id: r.payment_id as string,
-        firmId: r.firm_id as string,
-        subscriptionId: (r.subscription_id as string) ?? '',
-        amount: Number(r.amount_yer),
-        paymentMethod: 'bank_transfer',
-        receiptUrl: (r.receipt_url as string | null) ?? undefined,
-        proofOfPaymentUrl: (r.proof_of_payment_url as string | null) ?? undefined,
-        status: 'pending' as const,
-        createdAt: r.created_at as string,
-        firmName: r.firm_name as string,
-        planType,
-        planLabel: getPlanLabel(plan),
-        transferReference: r.transfer_reference as string,
-        receiptPath: r.receipt_path as string,
-        requestId: r.request_id as string
-      };
-    });
+    return mapAdminPendingRpcRows(rpcData);
   }
 
-  if (rpcError && !/list_pending_subscription_requests_admin|42883|does not exist/i.test(rpcError.message)) {
+  const rpcRecoverable =
+    !rpcError ||
+    /list_pending_subscription_requests_admin|42883|does not exist|could not find|map_plan_to_plan_type|relation.*payments|relation.*subscriptions/i.test(
+      rpcError.message
+    );
+
+  if (rpcError && !rpcRecoverable) {
     throw rpcError;
   }
 
-  const { data, error } = await supabase
+  const extendedSelect = `
+    id,
+    firm_id,
+    plan,
+    amount_yer,
+    transfer_reference,
+    receipt_path,
+    receipt_url,
+    created_at,
+    payment_id,
+    subscription_id,
+    firms(name)
+  `;
+
+  let data: Record<string, unknown>[] | null = null;
+  let error: Parameters<typeof throwIfSupabaseError>[0] = null;
+
+  const extendedResult = await supabase
     .from('subscription_requests')
-    .select(`
-      id,
-      firm_id,
-      plan,
-      amount_yer,
-      transfer_reference,
-      receipt_path,
-      receipt_url,
-      created_at,
-      payment_id,
-      subscription_id,
-      firms(name)
-    `)
+    .select(extendedSelect)
     .eq('status', 'pending')
     .order('created_at', { ascending: true });
+  data = (extendedResult.data ?? null) as Record<string, unknown>[] | null;
+  error = extendedResult.error;
+
+  if (error && /payment_id|subscription_id|column|does not exist/i.test(error.message)) {
+    const basicResult = await supabase
+      .from('subscription_requests')
+      .select(`
+        id,
+        firm_id,
+        plan,
+        amount_yer,
+        transfer_reference,
+        receipt_path,
+        receipt_url,
+        created_at,
+        firms(name)
+      `)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true });
+    data = (basicResult.data ?? null) as Record<string, unknown>[] | null;
+    error = basicResult.error;
+  }
+
+  if (error && /firms|relationship|schema cache/i.test(error.message)) {
+    const minimalResult = await supabase
+      .from('subscription_requests')
+      .select(`
+        id,
+        firm_id,
+        plan,
+        amount_yer,
+        transfer_reference,
+        receipt_path,
+        receipt_url,
+        created_at
+      `)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true });
+    data = (minimalResult.data ?? null) as Record<string, unknown>[] | null;
+    error = minimalResult.error;
+  }
+
   throwIfSupabaseError(error);
 
-  return (data ?? []).map((row) => ({
+  const firmNames = await fetchFirmNamesForIds(
+    [...new Set((data ?? []).map((row) => row.firm_id as string).filter(Boolean))]
+  );
+
+  return (data ?? []).map((row) => mapAdminPendingRequestRow(row, firmNames));
+}
+
+function mapAdminPendingRpcRows(rows: unknown[]): PaymentRecord[] {
+  return rows.map((row) => {
+    const r = row as Record<string, unknown>;
+    const plan = r.plan as SubscriptionPlanId;
+    const planType = (r.plan_type as SaasPlanType) ?? mapPlanIdToSaasPlanType(plan);
+    return {
+      id: r.payment_id as string,
+      firmId: r.firm_id as string,
+      subscriptionId: (r.subscription_id as string) ?? '',
+      amount: Number(r.amount_yer),
+      paymentMethod: 'bank_transfer',
+      receiptUrl: (r.receipt_url as string | null) ?? undefined,
+      proofOfPaymentUrl: (r.proof_of_payment_url as string | null) ?? undefined,
+      status: 'pending' as const,
+      createdAt: r.created_at as string,
+      firmName: r.firm_name as string,
+      planType,
+      planLabel: getPlanLabel(plan),
+      transferReference: r.transfer_reference as string,
+      receiptPath: r.receipt_path as string,
+      requestId: r.request_id as string
+    };
+  });
+}
+
+async function fetchFirmNamesForIds(firmIds: string[]): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  if (firmIds.length === 0) return names;
+
+  const { data, error } = await supabase.from('firms').select('id, name').in('id', firmIds);
+  if (error) return names;
+
+  for (const row of data ?? []) {
+    names.set(row.id as string, row.name as string);
+  }
+  return names;
+}
+
+function mapAdminPendingRequestRow(
+  row: Record<string, unknown>,
+  firmNames: Map<string, string>
+): PaymentRecord {
+  const firms = row.firms as { name?: string } | null;
+  const firmId = row.firm_id as string;
+  return {
     id: (row.payment_id as string) ?? (row.id as string),
-    firmId: row.firm_id as string,
+    firmId,
     subscriptionId: (row.subscription_id as string) ?? '',
     amount: Number(row.amount_yer),
     paymentMethod: 'bank_transfer',
@@ -258,13 +341,31 @@ export async function fetchPendingPaymentsAdmin(): Promise<PaymentRecord[]> {
     proofOfPaymentUrl: (row.receipt_url as string | null) ?? undefined,
     status: 'pending' as const,
     createdAt: row.created_at as string,
-    firmName: (row.firms as { name?: string } | null)?.name,
+    firmName: firms?.name ?? firmNames.get(firmId),
     planType: mapPlanIdToSaasPlanType(row.plan as SubscriptionPlanId),
     planLabel: getPlanLabel(row.plan as SubscriptionPlanId),
     transferReference: row.transfer_reference as string,
     receiptPath: row.receipt_path as string,
     requestId: row.id as string
-  }));
+  };
+}
+
+export async function fetchBillingAdminDiagnostics(): Promise<{
+  isBillingAdmin: boolean;
+  isPlatformOperator: boolean;
+  isSubscriptionSuperAdmin: boolean;
+}> {
+  const [billing, platform, superAdmin] = await Promise.all([
+    supabase.rpc('is_billing_admin'),
+    supabase.rpc('is_platform_operator'),
+    supabase.rpc('is_subscription_super_admin')
+  ]);
+
+  return {
+    isBillingAdmin: Boolean(billing.data),
+    isPlatformOperator: Boolean(platform.data),
+    isSubscriptionSuperAdmin: Boolean(superAdmin.data)
+  };
 }
 
 /** @deprecated Use fetchPendingPaymentsAdmin */

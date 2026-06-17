@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, ExternalLink, ImageIcon, Loader2, XCircle } from 'lucide-react';
 import { getPlanLabel } from '../constants/subscription';
 import { RejectPaymentModal } from '../components/RejectPaymentModal';
 import type { PaymentRecord, SaasPlanType } from '../types/app';
 import { useAdminPendingPayments, usePaymentReviewMutations } from '../hooks/useSubscription';
-import { getSubscriptionReceiptSignedUrl } from '../lib/subscription';
+import { fetchBillingAdminDiagnostics, getSubscriptionReceiptSignedUrl } from '../lib/subscription';
 
 interface AdminSubscriptionPageProps {
   onNotify: (message: string, type?: 'success' | 'error' | 'info') => void;
@@ -76,6 +77,12 @@ function ReceiptThumbnail({
 
 export function AdminSubscriptionPage({ onNotify }: AdminSubscriptionPageProps) {
   const { data: payments = [], isLoading, isError, error, refetch } = useAdminPendingPayments(true);
+  const { data: diagnostics } = useQuery({
+    queryKey: ['billing-admin-diagnostics'],
+    queryFn: fetchBillingAdminDiagnostics,
+    enabled: isError,
+    staleTime: 30_000
+  });
   const review = usePaymentReviewMutations();
   const [openingReceipt, setOpeningReceipt] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<PaymentRecord | null>(null);
@@ -149,8 +156,22 @@ export function AdminSubscriptionPage({ onNotify }: AdminSubscriptionPageProps) 
               {error instanceof Error ? error.message : 'خطأ غير معروف'}
             </p>
             <p className="text-[11px] text-slate-400">
-              تأكد من تطبيق migrations 044–046 في Supabase، وأن دورك في جدول employees هو super_admin.
+              تأكد من تطبيق migrations 044–047 في Supabase SQL Editor.
             </p>
+            {diagnostics ? (
+              <div className="text-[10px] text-slate-500 space-y-1 max-w-lg mx-auto">
+                <p>صلاحية billing admin: {diagnostics.isBillingAdmin ? 'نعم ✓' : 'لا ✗'}</p>
+                <p>super_admin في DB: {diagnostics.isSubscriptionSuperAdmin ? 'نعم ✓' : 'لا ✗'}</p>
+                <p>platform operator: {diagnostics.isPlatformOperator ? 'نعم ✓' : 'لا ✗'}</p>
+                {!diagnostics.isBillingAdmin ? (
+                  <p className="text-amber-700 font-bold pt-1">
+                    نفّذ: update employees set role = &apos;super_admin&apos; where auth_uid = auth.uid();
+                    <br />
+                    أو: insert into private.platform_operators (auth_uid) values (&apos;YOUR_USER_ID&apos;);
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ) : payments.length === 0 ? (
           <p className="p-8 text-center text-slate-400 text-sm">لا توجد طلبات اشتراك قيد المراجعة.</p>

@@ -42,3 +42,7 @@ export function syncLocationForPage(page: PageId): void {
 export function isSuperAdminRole(role: string): boolean {
   return role === 'super_admin';
 }
+
+export function isBillingAdminAccess(role: string, isPlatformOperator: boolean): boolean {
+  return isSuperAdminRole(role) || isPlatformOperator;
+}

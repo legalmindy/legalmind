@@ -58,7 +58,8 @@ import { ClientReportModal } from './components/ClientReportModal';
 import { InvitationLinkModal } from './components/InvitationLinkModal';
 import { PaymentReminderModal } from './components/PaymentReminderModal';
 import { QueryErrorBanner, toArabicQueryError } from './components/QueryErrorBanner';
-import { isSuperAdminRole, resolvePageFromLocation, syncLocationForPage } from './lib/appRoutes';
+import { isBillingAdminAccess, isSuperAdminRole, resolvePageFromLocation, syncLocationForPage } from './lib/appRoutes';
+import { usePlatformOperator } from './hooks/usePlatformOperator';
 
 const LandingPage = lazy(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
 const AuthPages = lazy(() => import('./pages/AuthPages').then((m) => ({ default: m.AuthPages })));
@@ -155,6 +156,8 @@ export default function App() {
   const canShowFirmCode = Boolean(auth.user && canManageOffice(auth.user.role));
   const { data: firmProfile } = useFirmProfile(isAuth);
   const isSuperAdmin = Boolean(auth.user && isSuperAdminRole(auth.user.role));
+  const { data: isPlatformOperator = false } = usePlatformOperator(isAuth);
+  const isBillingAdmin = Boolean(auth.user && isBillingAdminAccess(auth.user.role, isPlatformOperator));
   const firmCode = office?.firmCode ?? firmProfile?.officeCode;
   const firmName = office?.name ?? firmProfile?.officeName ?? auth.user?.company;
 
@@ -267,11 +270,11 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    if (currentPage === 'admin-billing' && !isSuperAdminRole(user.role)) {
+    if (currentPage === 'admin-billing' && !isBillingAdminAccess(user.role, isPlatformOperator)) {
       setCurrentPage('dashboard');
-      showAlert('صفحة إدارة الاشتراكات متاحة لسوبر أدمن فقط.', 'error');
+      showAlert('صفحة إدارة الاشتراكات متاحة لسوبر أدمن أو مشغّل المنصة فقط.', 'error');
     }
-  }, [currentPage, showAlert, user]);
+  }, [currentPage, isPlatformOperator, showAlert, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -561,6 +564,7 @@ export default function App() {
             firmName={firmName}
             onFirmCodeCopied={(msg) => showAlert(msg, 'success')}
             isSuperAdmin={isSuperAdmin}
+            isBillingAdmin={isBillingAdmin}
           />
           {/* SyncStatusBar is rendered as floating pill at the bottom — see below */}
         </>
@@ -720,7 +724,7 @@ export default function App() {
           <ReportsPage role={user.role} performance={dashboardPerformance} financials={dashboardFinancials} cases={cases} />
         )}
         {currentPage === 'subscription' && user && <SubscriptionPage />}
-        {currentPage === 'admin-billing' && user && isSuperAdmin && (
+        {currentPage === 'admin-billing' && user && isBillingAdmin && (
           <AdminSubscriptionPage onNotify={(message, type = 'info') => showAlert(message, type)} />
         )}
         {currentPage === 'profile' && user && (
