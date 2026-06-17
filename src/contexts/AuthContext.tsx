@@ -128,9 +128,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { user: u, repair } = await fetchCurrentUserWithRepairDetails();
     if (!u) {
       await signOut();
+      const repairHint =
+        repair.error ??
+        (repair.ok
+          ? 'تم ربط الحساب لكن تعذّر تحميل الملف. أعد المحاولة أو طبّق migration 054 في Supabase.'
+          : 'تعذر إكمال تسجيل الدخول — حسابك غير مربوط بمكتب. جرّب «تسجيل مكتب» أو تواصل مع الدعم.');
       return {
         success: false,
-        error: repair.error ?? 'تعذر إكمال تسجيل الدخول — حسابك غير مربوط بمكتب. جرّب «تسجيل مكتب» أو تواصل مع الدعم.'
+        error: repairHint
       };
     }
 
