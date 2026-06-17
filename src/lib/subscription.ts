@@ -2,7 +2,14 @@ import { createUuid } from './uuid';
 import { supabase } from './supabaseClient';
 import { getCurrentFirmId } from './api';
 import { throwIfSupabaseError } from './supabaseQueryHelpers';
-import type { FirmSubscription, SubscriptionPlanId, SubscriptionRequest } from '../types/app';
+import type {
+  FirmSubscription,
+  PaymentRecord,
+  SaasPlanType,
+  SaasSubscription,
+  SubscriptionPlanId,
+  SubscriptionRequest
+} from '../types/app';
 
 const SUBSCRIPTION_CACHE_KEY = 'legalmind_firm_subscription_v1';
 
@@ -41,6 +48,12 @@ function receiptExtension(file: File): string {
   if (file.type === 'image/png') return 'png';
   if (file.type === 'image/webp') return 'webp';
   return 'jpg';
+}
+
+export function mapPlanIdToSaasPlanType(plan: SubscriptionPlanId): SaasPlanType {
+  if (plan === 'annual') return 'yearly';
+  if (plan === 'quarterly') return 'quarterly';
+  return 'monthly';
 }
 
 export async function fetchFirmSubscription(): Promise<FirmSubscription> {
@@ -90,6 +103,30 @@ export async function fetchFirmSubscriptionWithCache(): Promise<FirmSubscription
   }
 }
 
+export async function fetchFirmSaasSubscriptions(): Promise<SaasSubscription[]> {
+  const firmId = await getCurrentFirmId();
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('*')
+    .eq('firm_id', firmId)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  throwIfSupabaseError(error);
+  return (data ?? []).map(mapDbSaasSubscription);
+}
+
+export async function fetchFirmPayments(): Promise<PaymentRecord[]> {
+  const firmId = await getCurrentFirmId();
+  const { data, error } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('firm_id', firmId)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  throwIfSupabaseError(error);
+  return (data ?? []).map(mapDbPayment);
+}
+
 export async function fetchSubscriptionRequests(): Promise<SubscriptionRequest[]> {
   const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
@@ -131,20 +168,25 @@ export async function submitSubscriptionRequest(input: {
 
   const { data: urlData } = supabase.storage.from('subscription-receipts').getPublicUrl(path);
 
+  const { error: rpcError } = await supabase.rpc('submit_subscription_request', {
+    p_plan: input.plan,
+    p_amount_yer: input.amountYer,
+    p_transfer_reference: input.transferReference.trim(),
+    p_receipt_path: path,
+    p_receipt_url: urlData.publicUrl,
+    p_request_id: requestId
+  });
+  if (rpcError) {
+    if (/pending_request_exists/i.test(rpcError.message)) {
+      throw new Error('يوجد طلب تجديد قيد المراجعة بالفعل.');
+    }
+    throw rpcError;
+  }
+
   const { data, error } = await supabase
     .from('subscription_requests')
-    .insert({
-      id: requestId,
-      firm_id: firmId,
-      submitted_by: authData.user.id,
-      plan: input.plan,
-      amount_yer: input.amountYer,
-      transfer_reference: input.transferReference.trim(),
-      receipt_path: path,
-      receipt_url: urlData.publicUrl,
-      status: 'pending'
-    })
     .select('*')
+    .eq('id', requestId)
     .single();
   throwIfSupabaseError(error);
   return mapDbSubscriptionRequest(data);
@@ -154,19 +196,75 @@ export interface AdminSubscriptionRequest extends SubscriptionRequest {
   firmName?: string;
 }
 
-export async function fetchPendingSubscriptionRequestsAdmin(): Promise<AdminSubscriptionRequest[]> {
+export async function fetchPendingPaymentsAdmin(): Promise<PaymentRecord[]> {
   const { data, error } = await supabase
     .from('subscription_requests')
-    .select('*, firms(name)')
+    .select(`
+      id,
+      firm_id,
+      plan,
+      amount_yer,
+      transfer_reference,
+      receipt_path,
+      receipt_url,
+      created_at,
+      payment_id,
+      subscription_id,
+      firms(name),
+      payments(*),
+      subscriptions(plan_type)
+    `)
     .eq('status', 'pending')
     .order('created_at', { ascending: true });
   throwIfSupabaseError(error);
 
   return (data ?? []).map((row) => {
     const firms = row.firms as { name?: string } | null;
-    const mapped = mapDbSubscriptionRequest(row as Record<string, unknown>);
-    return { ...mapped, firmName: firms?.name };
+    const paymentRaw = row.payments as Record<string, unknown> | Record<string, unknown>[] | null;
+    const paymentRow = Array.isArray(paymentRaw) ? paymentRaw[0] : paymentRaw;
+    const subscriptionRaw = row.subscriptions as { plan_type?: SaasPlanType } | { plan_type?: SaasPlanType }[] | null;
+    const subscriptionRow = Array.isArray(subscriptionRaw) ? subscriptionRaw[0] : subscriptionRaw;
+    const payment = paymentRow
+      ? mapDbPayment(paymentRow)
+      : {
+          id: (row.payment_id as string) ?? (row.id as string),
+          firmId: row.firm_id as string,
+          subscriptionId: (row.subscription_id as string) ?? '',
+          amount: Number(row.amount_yer),
+          paymentMethod: 'bank_transfer',
+          receiptUrl: (row.receipt_url as string | null) ?? undefined,
+          status: 'pending' as const,
+          createdAt: row.created_at as string
+        };
+
+    return {
+      ...payment,
+      firmName: firms?.name,
+      planType: subscriptionRow?.plan_type ?? mapPlanIdToSaasPlanType(row.plan as SubscriptionPlanId),
+      transferReference: row.transfer_reference as string,
+      receiptPath: row.receipt_path as string,
+      requestId: row.id as string
+    };
   });
+}
+
+/** @deprecated Use fetchPendingPaymentsAdmin */
+export async function fetchPendingSubscriptionRequestsAdmin(): Promise<AdminSubscriptionRequest[]> {
+  const payments = await fetchPendingPaymentsAdmin();
+  return payments.map((payment) => ({
+    id: payment.requestId ?? payment.id,
+    firmId: payment.firmId,
+    firmName: payment.firmName,
+    plan: payment.planType === 'yearly' ? 'annual' : (payment.planType ?? 'monthly'),
+    amountYer: payment.amount,
+    transferReference: payment.transferReference ?? '',
+    receiptPath: payment.receiptPath ?? '',
+    receiptUrl: payment.receiptUrl,
+    status: 'pending',
+    createdAt: payment.createdAt,
+    paymentId: payment.id,
+    subscriptionId: payment.subscriptionId
+  }));
 }
 
 export async function getSubscriptionReceiptSignedUrl(path: string): Promise<string> {
@@ -189,6 +287,19 @@ export async function reviewSubscriptionRequest(input: {
   if (error) throw error;
 }
 
+export async function reviewPayment(input: {
+  paymentId: string;
+  action: 'approve' | 'reject';
+  rejectionReason?: string;
+}): Promise<void> {
+  const { error } = await supabase.rpc('review_payment', {
+    p_payment_id: input.paymentId,
+    p_action: input.action,
+    p_rejection_reason: input.rejectionReason ?? null
+  });
+  if (error) throw error;
+}
+
 function mapDbSubscriptionRequest(row: Record<string, unknown>): SubscriptionRequest {
   return {
     id: row.id as string,
@@ -201,6 +312,36 @@ function mapDbSubscriptionRequest(row: Record<string, unknown>): SubscriptionReq
     status: row.status as SubscriptionRequest['status'],
     adminNotes: (row.admin_notes as string | null) ?? undefined,
     createdAt: row.created_at as string,
-    reviewedAt: (row.reviewed_at as string | null) ?? undefined
+    reviewedAt: (row.reviewed_at as string | null) ?? undefined,
+    subscriptionId: (row.subscription_id as string | null) ?? undefined,
+    paymentId: (row.payment_id as string | null) ?? undefined
+  };
+}
+
+function mapDbSaasSubscription(row: Record<string, unknown>): SaasSubscription {
+  return {
+    id: row.id as string,
+    firmId: row.firm_id as string,
+    planType: row.plan_type as SaasPlanType,
+    status: row.status as SaasSubscription['status'],
+    startDate: (row.start_date as string | null) ?? null,
+    endDate: (row.end_date as string | null) ?? null,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string
+  };
+}
+
+function mapDbPayment(row: Record<string, unknown>): PaymentRecord {
+  return {
+    id: row.id as string,
+    firmId: row.firm_id as string,
+    subscriptionId: row.subscription_id as string,
+    amount: Number(row.amount),
+    paymentMethod: row.payment_method as string,
+    receiptUrl: (row.receipt_url as string | null) ?? undefined,
+    status: row.status as PaymentRecord['status'],
+    approvedAt: (row.approved_at as string | null) ?? undefined,
+    rejectionReason: (row.rejection_reason as string | null) ?? undefined,
+    createdAt: row.created_at as string
   };
 }

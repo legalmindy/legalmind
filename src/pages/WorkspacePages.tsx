@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { CaseRecord, Client, DocumentItem, Lawyer, Office, PageId, SessionItem, SubscriptionPlan, User, UserRole } from '../types/app';
 import { Briefcase, Calendar, Clock, FileText, Lock, MapPin, Plus, Printer, Search, Trash2, Edit3, Download, AlertCircle, MessageCircle, User as UserIcon, Loader2, Archive, Send, Sparkles, TrendingUp, TrendingDown, Wallet, ChevronDown, ChevronUp } from 'lucide-react';
+import { SubscriptionStatusBanner } from '../components/SubscriptionStatusBanner';
 import { StatCard } from '../components/StatCard';
 import { MfaSettings } from '../components/MfaSettings';
 import { FirmCodeCard } from '../components/FirmCodeCard';
@@ -139,6 +140,7 @@ export function DashboardPage({
   const chartMaxRevenue = Math.max(1, ...monthlyData.map((d) => d.revenue));
   const currentYear = new Date().getFullYear();
   const { data: firmProfile } = useFirmProfile(isAdmin);
+  const { data: subscription } = useFirmSubscription(true);
   const firmCode = office?.firmCode ?? firmProfile?.officeCode;
   const firmName = office?.name ?? firmProfile?.officeName ?? user.company;
 
@@ -184,6 +186,8 @@ export function DashboardPage({
           ) : null}
         </div>
       </div>
+
+      <SubscriptionStatusBanner subscription={subscription} onNavigate={setCurrentPage} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="إجمالي القضايا النشطة" value={stats.activeCases} desc="قضايا تحت المرافعة" change={statHints.casesMonthlyChange} icon={Briefcase} iconBg="bg-amber-500/5" iconText="text-amber-500" borderStyle="border-amber-500/10" />

@@ -181,6 +181,31 @@ export interface DbInvitation {
   updated_at: string;
 }
 
+export interface DbSubscription {
+  id: string;
+  firm_id: string;
+  plan_type: 'monthly' | 'quarterly' | 'yearly';
+  status: 'pending' | 'active' | 'expired' | 'cancelled';
+  start_date: string | null;
+  end_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbPayment {
+  id: string;
+  firm_id: string;
+  subscription_id: string;
+  amount: number;
+  payment_method: string;
+  receipt_url: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  approved_by: string | null;
+  approved_at: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+}
+
 export interface DbInvitationPreview {
   id: string;
   firm_id: string;

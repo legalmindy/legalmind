@@ -217,6 +217,9 @@ export interface CaseAttachment {
 export type SubscriptionPlanId = 'trial' | 'monthly' | 'quarterly' | 'annual';
 export type SubscriptionStatus = 'trial' | 'active' | 'expired';
 export type SubscriptionRequestStatus = 'pending' | 'approved' | 'rejected';
+export type SaasPlanType = 'monthly' | 'quarterly' | 'yearly';
+export type SaasSubscriptionStatus = 'pending' | 'active' | 'expired' | 'cancelled';
+export type PaymentStatus = 'pending' | 'approved' | 'rejected';
 
 export interface FirmSubscription {
   firmId: string;
@@ -240,6 +243,37 @@ export interface SubscriptionRequest {
   adminNotes?: string;
   createdAt: string;
   reviewedAt?: string;
+  subscriptionId?: string;
+  paymentId?: string;
+}
+
+export interface SaasSubscription {
+  id: string;
+  firmId: string;
+  planType: SaasPlanType;
+  status: SaasSubscriptionStatus;
+  startDate: string | null;
+  endDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentRecord {
+  id: string;
+  firmId: string;
+  subscriptionId: string;
+  amount: number;
+  paymentMethod: string;
+  receiptUrl?: string;
+  status: PaymentStatus;
+  approvedAt?: string;
+  rejectionReason?: string;
+  createdAt: string;
+  transferReference?: string;
+  receiptPath?: string;
+  planType?: SaasPlanType;
+  firmName?: string;
+  requestId?: string;
 }
 
 export interface PlanFeature {

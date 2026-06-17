@@ -1,17 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  fetchFirmPayments,
+  fetchFirmSaasSubscriptions,
   fetchFirmSubscriptionWithCache,
+  fetchPendingPaymentsAdmin,
   fetchPendingSubscriptionRequestsAdmin,
   fetchSubscriptionRequests,
   readCachedFirmSubscription,
+  reviewPayment,
   reviewSubscriptionRequest
 } from '../lib/subscription';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 
 export const subscriptionQueryKeys = {
   firm: ['firm-subscription'] as const,
+  saas: ['firm-saas-subscriptions'] as const,
+  payments: ['firm-payments'] as const,
   requests: ['subscription-requests'] as const,
-  adminPending: ['admin-subscription-requests'] as const
+  adminPending: ['admin-subscription-requests'] as const,
+  adminPayments: ['admin-pending-payments'] as const
 };
 
 export function useFirmSubscription(enabled = true) {
@@ -32,6 +39,24 @@ export function useFirmSubscription(enabled = true) {
   });
 }
 
+export function useFirmSaasSubscriptions(enabled = true) {
+  return useQuery({
+    queryKey: subscriptionQueryKeys.saas,
+    queryFn: fetchFirmSaasSubscriptions,
+    enabled: enabled && isSupabaseConfigured(),
+    staleTime: 30_000
+  });
+}
+
+export function useFirmPayments(enabled = true) {
+  return useQuery({
+    queryKey: subscriptionQueryKeys.payments,
+    queryFn: fetchFirmPayments,
+    enabled: enabled && isSupabaseConfigured(),
+    staleTime: 15_000
+  });
+}
+
 export function useSubscriptionRequests(enabled = true) {
   return useQuery({
     queryKey: subscriptionQueryKeys.requests,
@@ -41,6 +66,16 @@ export function useSubscriptionRequests(enabled = true) {
   });
 }
 
+export function useAdminPendingPayments(enabled = true) {
+  return useQuery({
+    queryKey: subscriptionQueryKeys.adminPayments,
+    queryFn: fetchPendingPaymentsAdmin,
+    enabled: enabled && isSupabaseConfigured(),
+    staleTime: 10_000
+  });
+}
+
+/** @deprecated Use useAdminPendingPayments */
 export function useAdminPendingSubscriptionRequests(enabled = true) {
   return useQuery({
     queryKey: subscriptionQueryKeys.adminPending,
@@ -56,8 +91,26 @@ export function useSubscriptionReviewMutations() {
     mutationFn: reviewSubscriptionRequest,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.adminPending });
+      void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.adminPayments });
       void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.requests });
       void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.firm });
+      void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.saas });
+      void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.payments });
+    }
+  });
+}
+
+export function usePaymentReviewMutations() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: reviewPayment,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.adminPending });
+      void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.adminPayments });
+      void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.requests });
+      void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.firm });
+      void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.saas });
+      void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.payments });
     }
   });
 }
