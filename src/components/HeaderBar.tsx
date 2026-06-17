@@ -41,7 +41,7 @@ interface HeaderBarProps {
   firmCode?: string;
   firmName?: string;
   onFirmCodeCopied?: (message: string) => void;
-  isPlatformOperator?: boolean;
+  isSuperAdmin?: boolean;
 }
 
 const navItems: Array<{ id: PageId; label: string; shortLabel?: string; icon: typeof Briefcase; roles: UserRole[] }> = [
@@ -76,7 +76,7 @@ export const HeaderBar = memo(function HeaderBar({
   firmCode,
   firmName,
   onFirmCodeCopied,
-  isPlatformOperator = false
+  isSuperAdmin = false
 }: HeaderBarProps) {
   const unreadCount = useMemo(() => notifications.filter((item) => !item.read).length, [notifications]);
   const visibleNavItems = useMemo(() => navItems.filter((item) => item.roles.includes(role)), [role]);
@@ -240,7 +240,7 @@ export const HeaderBar = memo(function HeaderBar({
                   <CreditCard className="h-4 w-4 text-slate-400" />
                   <span>الباقة والفوترة</span>
                 </button>
-                {isPlatformOperator ? (
+                {isSuperAdmin ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -250,7 +250,7 @@ export const HeaderBar = memo(function HeaderBar({
                     className="flex w-full items-center gap-2 px-4 py-2 text-right text-xs text-indigo-800 hover:bg-indigo-50 font-bold"
                   >
                     <CreditCard className="h-4 w-4 text-indigo-500" />
-                    <span>مراجعة الاشتراكات (إدارة)</span>
+                    <span>إدارة الاشتراكات (سوبر أدمن)</span>
                   </button>
                 ) : null}
                 <button

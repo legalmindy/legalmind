@@ -9,7 +9,7 @@ import { FirmCodeCard } from '../components/FirmCodeCard';
 import { ProfileAvatarUpload } from '../components/ProfileAvatarUpload';
 import { SubscriptionUpgradeModal } from '../components/SubscriptionUpgradeModal';
 import { SubscriptionFeatureList } from '../components/SubscriptionFeatureList';
-import { SettingsToggleRow } from '../components/SettingsToggleRow';
+import { PlatformBankSettings } from '../components/PlatformBankSettings';
 import { useFirmProfile } from '../hooks/useSupabaseQueries';
 import { useFirmSettings, useFirmSettingsMutations } from '../hooks/useFirmSettings';
 import { subscriptionQueryKeys, useFirmSubscription, useSubscriptionRequests } from '../hooks/useSubscription';
@@ -1716,6 +1716,11 @@ export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied }: S
           <button type="button" onClick={saveSettings} disabled={updateSettings.isPending || settingsLoading} className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold px-6 py-2.5 rounded-xl text-xs">
             {updateSettings.isPending ? 'جاري الحفظ...' : 'تحديث إعدادات الأمان'}
           </button>
+        ) : null}
+        {user.role === 'super_admin' ? (
+          <PlatformBankSettings
+            onNotify={(message, type = 'success') => onFirmCodeCopied?.(message)}
+          />
         ) : null}
       </div>
     </div>

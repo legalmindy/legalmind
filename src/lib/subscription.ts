@@ -10,6 +10,7 @@ import type {
   SubscriptionPlanId,
   SubscriptionRequest
 } from '../types/app';
+import { getPlanLabel } from '../constants/subscription';
 
 const SUBSCRIPTION_CACHE_KEY = 'legalmind_firm_subscription_v1';
 
@@ -241,8 +242,10 @@ export async function fetchPendingPaymentsAdmin(): Promise<PaymentRecord[]> {
       ...payment,
       firmName: firms?.name,
       planType: subscriptionRow?.plan_type ?? mapPlanIdToSaasPlanType(row.plan as SubscriptionPlanId),
+      planLabel: getPlanLabel(row.plan as SubscriptionPlanId),
       transferReference: row.transfer_reference as string,
       receiptPath: row.receipt_path as string,
+      proofOfPaymentUrl: payment.proofOfPaymentUrl ?? (row.receipt_url as string | null) ?? undefined,
       requestId: row.id as string
     };
   });
@@ -274,19 +277,6 @@ export async function getSubscriptionReceiptSignedUrl(path: string): Promise<str
   return data.signedUrl;
 }
 
-export async function reviewSubscriptionRequest(input: {
-  requestId: string;
-  action: 'approve' | 'reject';
-  adminNotes?: string;
-}): Promise<void> {
-  const { error } = await supabase.rpc('review_subscription_request', {
-    p_request_id: input.requestId,
-    p_action: input.action,
-    p_admin_notes: input.adminNotes ?? null
-  });
-  if (error) throw error;
-}
-
 export async function reviewPayment(input: {
   paymentId: string;
   action: 'approve' | 'reject';
@@ -297,7 +287,36 @@ export async function reviewPayment(input: {
     p_action: input.action,
     p_rejection_reason: input.rejectionReason ?? null
   });
-  if (error) throw error;
+  if (error) {
+    if (/rejection_reason_required/i.test(error.message)) {
+      throw new Error('سبب الرفض مطلوب.');
+    }
+    if (/not_authorized/i.test(error.message)) {
+      throw new Error('ليس لديك صلاحية مراجعة الاشتراكات.');
+    }
+    throw error;
+  }
+}
+
+export async function reviewSubscriptionRequest(input: {
+  requestId: string;
+  action: 'approve' | 'reject';
+  adminNotes?: string;
+}): Promise<void> {
+  const { error } = await supabase.rpc('review_subscription_request', {
+    p_request_id: input.requestId,
+    p_action: input.action,
+    p_admin_notes: input.adminNotes ?? null
+  });
+  if (error) {
+    if (/rejection_reason_required/i.test(error.message)) {
+      throw new Error('سبب الرفض مطلوب.');
+    }
+    if (/not_authorized/i.test(error.message)) {
+      throw new Error('ليس لديك صلاحية مراجعة الاشتراكات.');
+    }
+    throw error;
+  }
 }
 
 function mapDbSubscriptionRequest(row: Record<string, unknown>): SubscriptionRequest {
@@ -339,6 +358,7 @@ function mapDbPayment(row: Record<string, unknown>): PaymentRecord {
     amount: Number(row.amount),
     paymentMethod: row.payment_method as string,
     receiptUrl: (row.receipt_url as string | null) ?? undefined,
+    proofOfPaymentUrl: (row.proof_of_payment_url as string | null) ?? (row.receipt_url as string | null) ?? undefined,
     status: row.status as PaymentRecord['status'],
     approvedAt: (row.approved_at as string | null) ?? undefined,
     rejectionReason: (row.rejection_reason as string | null) ?? undefined,

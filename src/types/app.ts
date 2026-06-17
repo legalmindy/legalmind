@@ -265,6 +265,7 @@ export interface PaymentRecord {
   amount: number;
   paymentMethod: string;
   receiptUrl?: string;
+  proofOfPaymentUrl?: string;
   status: PaymentStatus;
   approvedAt?: string;
   rejectionReason?: string;
@@ -274,6 +275,15 @@ export interface PaymentRecord {
   planType?: SaasPlanType;
   firmName?: string;
   requestId?: string;
+  planLabel?: string;
+}
+
+export interface PlatformBankDetails {
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  iban: string;
+  note: string;
 }
 
 export interface PlanFeature {

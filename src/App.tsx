@@ -58,7 +58,7 @@ import { ClientReportModal } from './components/ClientReportModal';
 import { InvitationLinkModal } from './components/InvitationLinkModal';
 import { PaymentReminderModal } from './components/PaymentReminderModal';
 import { QueryErrorBanner, toArabicQueryError } from './components/QueryErrorBanner';
-import { usePlatformOperator } from './hooks/usePlatformOperator';
+import { isSuperAdminRole, resolvePageFromLocation, syncLocationForPage } from './lib/appRoutes';
 
 const LandingPage = lazy(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
 const AuthPages = lazy(() => import('./pages/AuthPages').then((m) => ({ default: m.AuthPages })));
@@ -112,7 +112,12 @@ export default function App() {
   const syncState = useOfflineSync(isAuth);
 
   // currentPage must be declared before queries so page-scoped `enabled` flags work
-  const [currentPage, setCurrentPage] = useState<PageId>('landing');
+  const [currentPage, setCurrentPage] = useState<PageId>(() => resolvePageFromLocation().page ?? 'landing');
+
+  const navigateToPage = useCallback((page: PageId) => {
+    setCurrentPage(page);
+    syncLocationForPage(page);
+  }, []);
 
   // Dev-only connection test — runs once after auth is ready
   useEffect(() => {
@@ -149,7 +154,7 @@ export default function App() {
   const { data: notifications = [] } = useNotifications(isAuth);
   const canShowFirmCode = Boolean(auth.user && canManageOffice(auth.user.role));
   const { data: firmProfile } = useFirmProfile(isAuth);
-  const { data: isPlatformOperator = false } = usePlatformOperator(isAuth);
+  const isSuperAdmin = Boolean(auth.user && isSuperAdminRole(auth.user.role));
   const firmCode = office?.firmCode ?? firmProfile?.officeCode;
   const firmName = office?.name ?? firmProfile?.officeName ?? auth.user?.company;
 
@@ -205,6 +210,9 @@ export default function App() {
   useRealtimeNotifications(refreshNotifications);
 
   useEffect(() => {
+    const resolved = resolvePageFromLocation();
+    if (resolved.page) setCurrentPage(resolved.page);
+
     const params = new URLSearchParams(window.location.search);
     const page = params.get('page') as PageId | null;
     if (page === 'invite') setCurrentPage('invite');
@@ -213,6 +221,13 @@ export default function App() {
     if (window.location.pathname === '/register-office') setCurrentPage('register-office');
     if (window.location.pathname === '/register-lawyer') setCurrentPage('register-lawyer');
     if (window.location.pathname.startsWith('/invite/')) setCurrentPage('invite');
+
+    const onPopState = () => {
+      const next = resolvePageFromLocation();
+      if (next.page) setCurrentPage(next.page);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
   // Redirect authenticated users away from all public pages (including
@@ -249,6 +264,14 @@ export default function App() {
     if (!user || user.role !== 'lawyer') return '';
     return lawyers.find((l) => l.email === user.email)?.id ?? '';
   }, [user, lawyers]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (currentPage === 'admin-billing' && !isSuperAdminRole(user.role)) {
+      setCurrentPage('dashboard');
+      showAlert('صفحة إدارة الاشتراكات متاحة لسوبر أدمن فقط.', 'error');
+    }
+  }, [currentPage, showAlert, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -522,7 +545,7 @@ export default function App() {
             user={user}
             currentPage={currentPage}
             role={user.role}
-            onChangePage={setCurrentPage}
+            onChangePage={navigateToPage}
             notificationCount={notifications.filter((n) => !n.read).length}
             notifications={notifications}
             showNotificationDropdown={showNotificationDropdown}
@@ -537,7 +560,7 @@ export default function App() {
             firmCode={canShowFirmCode ? firmCode : undefined}
             firmName={firmName}
             onFirmCodeCopied={(msg) => showAlert(msg, 'success')}
-            isPlatformOperator={isPlatformOperator}
+            isSuperAdmin={isSuperAdmin}
           />
           {/* SyncStatusBar is rendered as floating pill at the bottom — see below */}
         </>
@@ -553,16 +576,16 @@ export default function App() {
       <SubscriptionGuard
         isAuthenticated={isAuth}
         currentPage={currentPage}
-        onNavigate={setCurrentPage}
+        onNavigate={navigateToPage}
         onLogout={() => void handleLogout()}
       >
       <main className="pb-16">
-        {currentPage === 'landing' && <LandingPage onNavigate={setCurrentPage} />}
+        {currentPage === 'landing' && <LandingPage onNavigate={navigateToPage} />}
 
         {(currentPage === 'login' || currentPage === 'register' || currentPage === 'register-office' || currentPage === 'register-lawyer' || currentPage === 'invite' || currentPage === 'forgot' || currentPage === 'accept-invite') && (
           <AuthPages
             currentPage={currentPage}
-            onNavigate={setCurrentPage}
+            onNavigate={navigateToPage}
             onLogin={auth.login}
             onRegister={auth.register}
             onRegisterOffice={auth.registerOffice}
@@ -583,7 +606,7 @@ export default function App() {
             setActiveChartTab={setActiveChartTab} setHoveredDataPoint={setHoveredDataPoint}
             stats={stats} monthlyData={monthlyData} performance={dashboardPerformance}
             financials={dashboardFinancials} statHints={dashboardStatHints}
-            setCurrentPage={setCurrentPage}
+            setCurrentPage={navigateToPage}
             setShowClientModal={setShowClientModal}
             setShowCaseModal={(v) => { if (v) { setEditingCase(null); setNewCase({ ...initialCaseForm, lawyerId: currentUserLawyerId }); } setShowCaseModal(v); }}
             setShowSessionModal={setShowSessionModal}
@@ -697,7 +720,7 @@ export default function App() {
           <ReportsPage role={user.role} performance={dashboardPerformance} financials={dashboardFinancials} cases={cases} />
         )}
         {currentPage === 'subscription' && user && <SubscriptionPage />}
-        {currentPage === 'admin-billing' && user && isPlatformOperator && (
+        {currentPage === 'admin-billing' && user && isSuperAdmin && (
           <AdminSubscriptionPage onNotify={(message, type = 'info') => showAlert(message, type)} />
         )}
         {currentPage === 'profile' && user && (
