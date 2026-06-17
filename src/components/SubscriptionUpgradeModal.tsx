@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { Building2, Upload, X } from 'lucide-react';
 import { ModalFooter, ModalShell } from './Modals';
-import { KARIMI_BANK } from '../constants/subscription';
+import { usePlatformBankDetails } from '../hooks/usePlatformBank';
+import { defaultPlatformBankDetails } from '../lib/platformBank';
 import type { SubscriptionPlan } from '../types/app';
 
 interface SubscriptionUpgradeModalProps {
@@ -19,6 +20,8 @@ export function SubscriptionUpgradeModal({
   onClose,
   onSubmit
 }: SubscriptionUpgradeModalProps) {
+  const { data: bankDetails } = usePlatformBankDetails(open);
+  const bank = bankDetails ?? defaultPlatformBankDetails();
   const [transferReference, setTransferReference] = useState('');
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [error, setError] = useState('');
@@ -79,14 +82,14 @@ export function SubscriptionUpgradeModal({
         <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 space-y-2">
           <div className="flex items-center gap-2 font-bold text-indigo-950">
             <Building2 className="w-4 h-4" />
-            التحويل عبر {KARIMI_BANK.bankName}
+            التحويل عبر {bank.bankName}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700">
-            <p><span className="text-slate-500">اسم الحساب:</span> {KARIMI_BANK.accountName}</p>
-            <p><span className="text-slate-500">رقم الحساب:</span> {KARIMI_BANK.accountNumber}</p>
-            <p className="sm:col-span-2"><span className="text-slate-500">IBAN:</span> {KARIMI_BANK.iban}</p>
+            <p><span className="text-slate-500">اسم الحساب:</span> {bank.accountName}</p>
+            <p><span className="text-slate-500">رقم الحساب:</span> {bank.accountNumber}</p>
+            <p className="sm:col-span-2"><span className="text-slate-500">IBAN:</span> {bank.iban}</p>
           </div>
-          <p className="text-[11px] text-slate-500">{KARIMI_BANK.note}</p>
+          <p className="text-[11px] text-slate-500">{bank.note}</p>
         </div>
 
         <div>

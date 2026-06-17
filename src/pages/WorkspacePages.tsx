@@ -10,6 +10,7 @@ import { ProfileAvatarUpload } from '../components/ProfileAvatarUpload';
 import { SubscriptionUpgradeModal } from '../components/SubscriptionUpgradeModal';
 import { SubscriptionFeatureList } from '../components/SubscriptionFeatureList';
 import { PlatformBankSettings } from '../components/PlatformBankSettings';
+import { SettingsToggleRow } from '../components/SettingsToggleRow';
 import { useFirmProfile } from '../hooks/useSupabaseQueries';
 import { useFirmSettings, useFirmSettingsMutations } from '../hooks/useFirmSettings';
 import { subscriptionQueryKeys, useFirmSubscription, useSubscriptionRequests } from '../hooks/useSubscription';
@@ -1719,7 +1720,7 @@ export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied }: S
         ) : null}
         {user.role === 'super_admin' ? (
           <PlatformBankSettings
-            onNotify={(message, type = 'success') => onFirmCodeCopied?.(message)}
+            onNotify={(message) => onFirmCodeCopied?.(message)}
           />
         ) : null}
       </div>
