@@ -61,6 +61,7 @@ import { InvitationLinkModal } from './components/InvitationLinkModal';
 import { PaymentReminderModal } from './components/PaymentReminderModal';
 import { QueryErrorBanner, toArabicQueryError } from './components/QueryErrorBanner';
 import { isBillingAdminAccess, isSuperAdminRole, resolvePageFromLocation, syncLocationForPage, syncCaseDetailLocation, clearCaseDetailLocation } from './lib/appRoutes';
+import { isFirmManagerRole } from './lib/roleAccess';
 import { useBillingAdmin } from './hooks/useBillingAdmin';
 
 const LandingPage = lazy(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
@@ -81,6 +82,7 @@ const ExecutionRequestsPage = lazy(() => import('./pages/ExecutionRequestsPage')
 const AdminSubscriptionPage = lazy(() => import('./pages/AdminSubscriptionPage').then((m) => ({ default: m.AdminSubscriptionPage })));
 const CaseDetailPage = lazy(() => import('./pages/CaseDetailPage').then((m) => ({ default: m.CaseDetailPage })));
 const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage').then((m) => ({ default: m.AuditLogsPage })));
+const OfficeManagerPage = lazy(() => import('./pages/OfficeManagerPage').then((m) => ({ default: m.OfficeManagerPage })));
 
 const initialClientForm: Omit<Client, 'id' | 'casesCount' | 'createdAt'> = {
   name: '', phone: '', email: '', address: '', type: 'فرد'
@@ -130,12 +132,6 @@ export default function App() {
     syncLocationForPage(page);
   }, []);
 
-  const navigateToCaseDetail = useCallback((caseId: string) => {
-    setSelectedCaseId(caseId);
-    setCurrentPage('case-detail');
-    syncCaseDetailLocation(caseId);
-  }, []);
-
   // Dev-only connection test — runs once after auth is ready
   useEffect(() => {
     if (!import.meta.env.DEV || !isAuth) return;
@@ -163,7 +159,8 @@ export default function App() {
       currentPage === 'cases' ||
       currentPage === 'archive' ||
       currentPage === 'reports' ||
-      currentPage === 'sessions');
+      currentPage === 'sessions' ||
+      currentPage === 'office-manager');
 
   const { data: clients = [], isLoading: clientsLoading, isError: clientsError, error: clientsQueryError } =
     useClients(needsClients);
@@ -174,7 +171,7 @@ export default function App() {
   const needsEmployees = isAuth && (currentPage === 'employees' || currentPage === 'settings' || currentPage === 'dashboard');
   const needsSessions  = isAuth && (currentPage === 'sessions'  || currentPage === 'dashboard' || currentPage === 'cases' || currentPage === 'case-detail');
   const needsDocuments = isAuth && (currentPage === 'documents' || currentPage === 'case-detail');
-  const needsLawyers   = isAuth && (currentPage === 'lawyers'   || currentPage === 'cases' || currentPage === 'dashboard');
+  const needsLawyers   = isAuth && (currentPage === 'lawyers'   || currentPage === 'cases' || currentPage === 'dashboard' || currentPage === 'office-manager');
   const needsArchive   = isAuth && (currentPage === 'archive'   || currentPage === 'reports');
   const needsInvites   = isAuth && currentPage === 'employees';
 
@@ -297,6 +294,16 @@ export default function App() {
   useSessionReminders(upcomingSessions, needsHeaderAlerts, showAlert);
 
   const user = auth.user;
+
+  const navigateToCaseDetail = useCallback((caseId: string) => {
+    if (!user || !isFirmManagerRole(user.role)) {
+      showAlert('عرض 360° متاح لمدير المكتب فقط.', 'error');
+      return;
+    }
+    setSelectedCaseId(caseId);
+    setCurrentPage('case-detail');
+    syncCaseDetailLocation(caseId);
+  }, [user, showAlert]);
   const checkAccess = useCallback((allowedRoles: UserRole[]) =>
     user !== null && checkRoleAccess(user.role, allowedRoles), [user]);
 
@@ -319,6 +326,24 @@ export default function App() {
     if ((currentPage === 'employees' || currentPage === 'settings' || currentPage === 'reports') && !canManageOffice(user.role)) {
       setCurrentPage('dashboard');
       showAlert('هذه الصفحة متاحة لمدير المكتب فقط.', 'error');
+    }
+  }, [currentPage, showAlert, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (currentPage === 'case-detail' && !isFirmManagerRole(user.role)) {
+      setCurrentPage('cases');
+      setSelectedCaseId(null);
+      clearCaseDetailLocation();
+      showAlert('عرض 360° متاح لمدير المكتب فقط.', 'error');
+    }
+  }, [currentPage, showAlert, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (currentPage === 'office-manager' && !isFirmManagerRole(user.role)) {
+      setCurrentPage('dashboard');
+      showAlert('لوحة مدير المكتب متاحة لمدير المكتب فقط.', 'error');
     }
   }, [currentPage, showAlert, user]);
 
@@ -469,6 +494,7 @@ export default function App() {
         title: newDocument.title.trim() || undefined,
         category: newDocument.category
       });
+      void queryClient.invalidateQueries({ queryKey: ['case-timeline', newDocument.caseId] });
       setShowDocumentModal(false);
       setNewDocument({ title: '', caseId: '', category: 'مستند قانوني' });
       setDocumentFile(null);
@@ -576,6 +602,8 @@ export default function App() {
         return lawyersLoading;
       case 'reports':
         return casesLoading;
+      case 'office-manager':
+        return casesLoading || lawyersLoading;
       default:
         return false;
     }
@@ -727,10 +755,11 @@ export default function App() {
             onArchiveCase={openArchiveCase}
             onDeleteCase={(id) => void deleteCase(id)}
             canSendPaymentReminder={whatsappReportsEnabled}
-            onSendPaymentReminder={(cr) => setPaymentReminderCase(cr)} />
+            onSendPaymentReminder={(cr) => setPaymentReminderCase(cr)}
+            canViewCase360={Boolean(user && isFirmManagerRole(user.role))} />
         )}
 
-        {currentPage === 'case-detail' && user && selectedCaseId && (
+        {currentPage === 'case-detail' && user && selectedCaseId && isFirmManagerRole(user.role) && (
           <CaseDetailPage
             caseId={selectedCaseId}
             user={user}
@@ -856,6 +885,14 @@ export default function App() {
         )}
         {currentPage === 'audit-logs' && user && canManageOffice(user.role) && (
           <AuditLogsPage />
+        )}
+        {currentPage === 'office-manager' && user && isFirmManagerRole(user.role) && !pageLoading && (
+          <OfficeManagerPage
+            role={user.role}
+            cases={cases}
+            lawyers={lawyers}
+            onNotify={(message, type = 'info') => showAlert(message, type)}
+          />
         )}
       </main>
       </SubscriptionGuard>

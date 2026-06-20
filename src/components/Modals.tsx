@@ -10,6 +10,7 @@ import type {
 } from '../types/app';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { RichTextEditor } from './ui/RichTextEditor';
 
 interface ClientModalProps {
   open: boolean;
@@ -564,12 +565,11 @@ export function SessionModal({ open, session, formState, cases, onChange, onSave
 
         <div>
           <label className="block text-slate-600 mb-1 font-bold">ما حدث في الجلسة</label>
-          <textarea
+          <RichTextEditor
             value={formState.sessionOutcome ?? ''}
-            onChange={(e) => onChange({ ...formState, sessionOutcome: e.target.value })}
-            rows={5}
-            className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none text-right leading-relaxed"
+            onChange={(html) => onChange({ ...formState, sessionOutcome: html })}
             placeholder="الوقائع، القرارات، الطلبات، نتائج المحكمة، ملاحظات المحامي..."
+            minHeight="160px"
           />
         </div>
       </div>

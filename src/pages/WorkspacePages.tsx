@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { CaseRecord, Client, DocumentItem, Lawyer, Office, PageId, SessionItem, SubscriptionPlan, User, UserRole } from '../types/app';
-import { Briefcase, Calendar, Clock, FileText, Lock, MapPin, Plus, Printer, Search, Trash2, Edit3, Download, AlertCircle, MessageCircle, User as UserIcon, Loader2, Archive, Send, Sparkles, TrendingUp, TrendingDown, Wallet, ChevronDown, ChevronUp } from 'lucide-react';
+import { Briefcase, Calendar, Clock, FileText, Lock, MapPin, Plus, Printer, Search, Trash2, Edit3, Download, AlertCircle, MessageCircle, User as UserIcon, Loader2, Archive, Send, Sparkles, TrendingUp, TrendingDown, Wallet, ChevronDown, ChevronUp, FileSpreadsheet } from 'lucide-react';
 import { SubscriptionStatusBanner } from '../components/SubscriptionStatusBanner';
 import { StatCard } from '../components/StatCard';
 import { MfaSettings } from '../components/MfaSettings';
@@ -19,6 +19,7 @@ import { submitSubscriptionRequest } from '../lib/subscription';
 import type { ProfileUpdateInput } from '../lib/profileImage';
 import type { DashboardFinancials, DashboardPerformance, DashboardStatHints } from '../lib/dashboardAnalytics';
 import { buildFinancialReport, formatPercent, formatYer } from '../lib/dashboardAnalytics';
+import { exportToCsv, printHtml } from '../lib/reportsApi';
 import { useArchivedCases, useExpenses, useExpenseMutations } from '../hooks/useSupabaseQueries';
 
 interface DashboardPageProps {
@@ -76,6 +77,7 @@ interface CasesPageProps {
   onDeleteCase: (id: string) => void;
   onSendPaymentReminder?: (caseRecord: CaseRecord) => void;
   canSendPaymentReminder?: boolean;
+  canViewCase360?: boolean;
 }
 
 interface SessionsPageProps {
@@ -463,7 +465,7 @@ export function ClientsPage({ clients, searchQuery, onSearch, onCreateClient, on
   );
 }
 
-export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, onSearch, onStatusFilterChange, onCategoryFilterChange, onCreateCase, onEditCase, onViewCase, onArchiveCase, onDeleteCase, onSendPaymentReminder, canSendPaymentReminder }: CasesPageProps) {
+export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, onSearch, onStatusFilterChange, onCategoryFilterChange, onCreateCase, onEditCase, onViewCase, onArchiveCase, onDeleteCase, onSendPaymentReminder, canSendPaymentReminder, canViewCase360 = false }: CasesPageProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-right">
@@ -581,7 +583,9 @@ export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, on
                     <Archive className="h-3.5 w-3.5" />
                     أرشفة
                   </button>
-                  <button type="button" onClick={() => onViewCase(caseRecord)} className="px-3 py-1.5 hover:bg-[#7A1F2B]/10 text-[#7A1F2B] rounded-lg font-bold transition-all">عرض 360°</button>
+                  {canViewCase360 ? (
+                    <button type="button" onClick={() => onViewCase(caseRecord)} className="px-3 py-1.5 hover:bg-[#7A1F2B]/10 text-[#7A1F2B] rounded-lg font-bold transition-all">عرض 360°</button>
+                  ) : null}
                   <button type="button" onClick={() => onEditCase(caseRecord)} className="px-3 py-1.5 hover:bg-indigo-50 text-indigo-700 rounded-lg font-bold transition-all">تعديل الملف</button>
                   <button type="button" onClick={() => onDeleteCase(caseRecord.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
                 </div>
@@ -932,6 +936,7 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
   const [expenseError, setExpenseError] = useState('');
 
   const [deleteError, setDeleteError] = useState('');
+  const [exporting, setExporting] = useState<'pdf' | 'excel' | null>(null);
 
   const { data: archivedCases = [] } = useArchivedCases(true);
   const { data: expenses = [], isLoading: expLoading } = useExpenses(true);
@@ -987,6 +992,100 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
     }
   };
 
+  const monthLabels = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+  const handleExportExcel = () => {
+    setExporting('excel');
+    try {
+      const summaryRows = [
+        { البند: 'إجمالي العقود', القيمة: report.totalContracted },
+        { البند: 'المحصّل', القيمة: report.totalCollected },
+        { البند: 'المتبقي', القيمة: report.totalPending },
+        { البند: 'المصروفات', القيمة: report.totalExpenses },
+        { البند: 'صافي الربح', القيمة: report.netProfit },
+        { البند: 'نسبة التحصيل', القيمة: `${report.collectionRate}%` }
+      ];
+      exportToCsv(`تقرير-مالي-${selectedYear}-ملخص.csv`, summaryRows);
+
+      exportToCsv(
+        `تقرير-مالي-${selectedYear}-شهري.csv`,
+        report.monthlyData.map((m) => ({
+          الشهر: monthLabels[m.monthIndex] ?? m.monthIndex + 1,
+          المحصل: m.collected,
+          المصروفات: m.expenses,
+          الربح: m.collected - m.expenses
+        }))
+      );
+
+      if (report.clientBreakdown.length) {
+        exportToCsv(
+          `تقرير-مالي-${selectedYear}-عملاء.csv`,
+          report.clientBreakdown.map((c) => ({
+            العميل: c.clientName,
+            'عدد القضايا': c.caseCount,
+            المتعاقد: c.totalContract,
+            المتبقي: c.totalPending
+          }))
+        );
+      }
+
+      if (expenses.length) {
+        exportToCsv(
+          `تقرير-مالي-${selectedYear}-مصروفات.csv`,
+          expenses
+            .filter((e) => e.expense_date.startsWith(String(selectedYear)))
+            .map((e) => ({
+              الوصف: e.title,
+              المبلغ: e.amount,
+              التصنيف: e.category,
+              التاريخ: e.expense_date,
+              ملاحظات: e.notes ?? ''
+            }))
+        );
+      }
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const handleExportPdf = () => {
+    setExporting('pdf');
+    try {
+      const monthlyRows = report.monthlyData
+        .map(
+          (m) =>
+            `<tr><td>${monthLabels[m.monthIndex] ?? m.monthIndex + 1}</td><td>${formatYer(m.collected)}</td><td>${formatYer(m.expenses)}</td><td>${formatYer(m.collected - m.expenses)}</td></tr>`
+        )
+        .join('');
+
+      const clientRows = report.clientBreakdown
+        .map(
+          (c) =>
+            `<tr><td>${c.clientName}</td><td>${c.caseCount}</td><td>${formatYer(c.totalContract)}</td><td>${formatYer(c.totalContract - c.totalPending)}</td><td>${formatYer(c.totalPending)}</td></tr>`
+        )
+        .join('');
+
+      const html = `
+        <div class="header"><h1>التقرير المالي — ${selectedYear}</h1></div>
+        <table>
+          <tr><th>إجمالي العقود</th><td>${formatYer(report.totalContracted)}</td></tr>
+          <tr><th>المحصّل</th><td>${formatYer(report.totalCollected)}</td></tr>
+          <tr><th>المتبقي</th><td>${formatYer(report.totalPending)}</td></tr>
+          <tr><th>المصروفات</th><td>${formatYer(report.totalExpenses)}</td></tr>
+          <tr><th>صافي الربح</th><td>${formatYer(report.netProfit)}</td></tr>
+          <tr><th>نسبة التحصيل</th><td>${report.collectionRate}%</td></tr>
+        </table>
+        <h2>الأداء الشهري</h2>
+        <table><thead><tr><th>الشهر</th><th>المحصّل</th><th>المصروفات</th><th>الربح</th></tr></thead><tbody>${monthlyRows}</tbody></table>
+        <h2>مديونية العملاء</h2>
+        <table><thead><tr><th>العميل</th><th>القضايا</th><th>المتعاقد</th><th>المحصّل</th><th>المتبقي</th></tr></thead><tbody>${clientRows || '<tr><td colspan="5">—</td></tr>'}</tbody></table>
+      `;
+      printHtml(`التقرير المالي ${selectedYear}`, html);
+    } finally {
+      setExporting(null);
+    }
+  };
+
   if (accessDenied) {
     return (
       <div className="max-w-7xl mx-auto px-4 mt-6">
@@ -1008,15 +1107,35 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
           <h1 className="text-2xl font-black">التقارير المالية والأداء القانوني</h1>
           <p className="text-xs text-indigo-200 mt-1">تحليل شامل للإيرادات، المصروفات، الأرباح الشهرية ومديونية العملاء.</p>
         </div>
-        <select
-          value={selectedYear}
-          onChange={(e) => setSelectedYear(Number(e.target.value))}
-          className="bg-white/10 border border-white/20 text-white rounded-xl px-3 py-2 text-sm font-bold outline-none hover:bg-white/20 transition-colors"
-        >
-          {yearOptions.map((y) => (
-            <option key={y} value={y} className="text-slate-900">{y}</option>
-          ))}
-        </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleExportPdf}
+            disabled={exporting !== null}
+            className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold hover:bg-white/20 disabled:opacity-60"
+          >
+            {exporting === 'pdf' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+            PDF / طباعة
+          </button>
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={exporting !== null}
+            className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold hover:bg-white/20 disabled:opacity-60"
+          >
+            {exporting === 'excel' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+            Excel
+          </button>
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="bg-white/10 border border-white/20 text-white rounded-xl px-3 py-2 text-sm font-bold outline-none hover:bg-white/20 transition-colors"
+          >
+            {yearOptions.map((y) => (
+              <option key={y} value={y} className="text-slate-900">{y}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* KPI Cards */}

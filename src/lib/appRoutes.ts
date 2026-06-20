@@ -6,7 +6,8 @@ const PATH_TO_PAGE: Record<string, PageId> = {
   '/login': 'login',
   '/register-office': 'register-office',
   '/register-lawyer': 'register-lawyer',
-  '/audit-logs': 'audit-logs'
+  '/audit-logs': 'audit-logs',
+  '/office-manager': 'office-manager'
 };
 
 const PAGE_TO_PATH: Partial<Record<PageId, string>> = {
@@ -15,7 +16,8 @@ const PAGE_TO_PATH: Partial<Record<PageId, string>> = {
   login: '/login',
   'register-office': '/register-office',
   'register-lawyer': '/register-lawyer',
-  'audit-logs': '/audit-logs'
+  'audit-logs': '/audit-logs',
+  'office-manager': '/office-manager'
 };
 
 export function resolveCaseIdFromLocation(): string | null {

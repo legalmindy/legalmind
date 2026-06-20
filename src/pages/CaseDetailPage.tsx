@@ -33,6 +33,7 @@ import { appendCaseNote, fetchCaseTimeline } from '../lib/caseTimeline';
 import { createReceiptVoucher, fetchCaseReceipts, reprintReceiptVoucher } from '../lib/receiptVoucher';
 import { hasPermission, fetchMyPermissions } from '../lib/permissions';
 import { printReceiptElement, ReceiptVoucherPrint } from '../components/case/ReceiptVoucherPrint';
+import { RichTextContent } from '../components/ui/RichTextEditor';
 import { toArabicQueryError } from '../components/QueryErrorBanner';
 
 const TABS: Array<{ id: CaseDetailTab; label: string; icon: typeof Scale }> = [
@@ -289,7 +290,7 @@ export function CaseDetailPage({
                   </div>
                   <p className="mt-1 text-xs text-slate-600">{s.court}{s.judgeName ? ` • ${s.judgeName}` : ''}</p>
                   {s.sessionOutcome ? (
-                    <p className="mt-2 line-clamp-3 text-[11px] text-slate-500">{s.sessionOutcome}</p>
+                    <RichTextContent html={s.sessionOutcome} className="mt-2 line-clamp-3 text-[11px]" />
                   ) : null}
                 </button>
               ))

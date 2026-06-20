@@ -807,10 +807,12 @@ export async function fetchLawyers(): Promise<Lawyer[]> {
 }
 
 export async function assignCaseLawyer(caseId: string, lawyerId: string | null): Promise<CaseRecord> {
+  const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('cases')
     .update({ assigned_lawyer_id: lawyerId })
     .eq('id', caseId)
+    .eq('firm_id', firmId)
     .select(CASE_SELECT)
     .single();
   if (error) throw error;

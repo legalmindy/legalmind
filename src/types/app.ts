@@ -24,7 +24,8 @@ export type PageId =
   | 'notifications'
   | 'admin-billing'
   | 'case-detail'
-  | 'audit-logs';
+  | 'audit-logs'
+  | 'office-manager';
 
 export type CaseDetailTab =
   | 'overview'

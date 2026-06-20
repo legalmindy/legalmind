@@ -125,3 +125,28 @@ export async function fetchFirmRoles(): Promise<FirmRole[]> {
     permissions: (row.permissions as Record<string, boolean>) ?? {}
   }));
 }
+
+export async function updateFirmRolePermissions(
+  roleId: string,
+  permissions: Record<string, boolean>
+): Promise<void> {
+  const { error } = await supabase.rpc('update_firm_role_permissions', {
+    p_role_id: roleId,
+    p_permissions: permissions
+  });
+  throwIfSupabaseError(error);
+}
+
+export async function createCustomFirmRole(
+  name: string,
+  slug: string,
+  permissions: Record<string, boolean>
+): Promise<string> {
+  const { data, error } = await supabase.rpc('create_custom_firm_role', {
+    p_name: name,
+    p_slug: slug,
+    p_permissions: permissions
+  });
+  throwIfSupabaseError(error);
+  return String((data as { role_id?: string })?.role_id ?? '');
+}
