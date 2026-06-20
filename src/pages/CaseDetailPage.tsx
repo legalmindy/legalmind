@@ -4,6 +4,8 @@ import {
   ArrowRight,
   Banknote,
   Calendar,
+  Download,
+  FileDown,
   FileText,
   History,
   Loader2,
@@ -35,6 +37,12 @@ import { hasPermission, fetchMyPermissions } from '../lib/permissions';
 import { printReceiptElement, ReceiptVoucherPrint } from '../components/case/ReceiptVoucherPrint';
 import { RichTextContent } from '../components/ui/RichTextEditor';
 import { toArabicQueryError } from '../components/QueryErrorBanner';
+import {
+  downloadCaseDocument,
+  downloadCaseFullJson,
+  downloadCaseFullReport,
+  fetchCaseExportBundle
+} from '../lib/caseExport';
 
 const TABS: Array<{ id: CaseDetailTab; label: string; icon: typeof Scale }> = [
   { id: 'overview', label: 'نظرة عامة', icon: Scale },
@@ -81,6 +89,8 @@ export function CaseDetailPage({
   });
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [activeVoucherId, setActiveVoucherId] = useState<string | null>(null);
+  const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
+  const [exportingCase, setExportingCase] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: caseRecord, isLoading: caseLoading, isError: caseError, error: caseQueryError } = useQuery({
@@ -184,6 +194,37 @@ export function CaseDetailPage({
     }
   };
 
+  const handleDownloadDocument = async (doc: DocumentItem) => {
+    setDownloadingDocId(doc.id);
+    try {
+      await downloadCaseDocument(doc);
+      onNotify(`تم تنزيل "${doc.title}".`, 'success');
+    } catch (err) {
+      onNotify(toArabicQueryError(err, 'تنزيل المستند'), 'error');
+    } finally {
+      setDownloadingDocId(null);
+    }
+  };
+
+  const handleExportFullCase = async (format: 'html' | 'json') => {
+    if (!caseRecord) return;
+    setExportingCase(true);
+    try {
+      const bundle = await fetchCaseExportBundle(caseId, caseRecord, firmName, sessions, documents);
+      if (format === 'html') {
+        downloadCaseFullReport(bundle);
+        onNotify('تم تنزيل ملف القضية الكامل (HTML).', 'success');
+      } else {
+        downloadCaseFullJson(bundle);
+        onNotify('تم تنزيل ملف القضية الكامل (JSON).', 'success');
+      }
+    } catch (err) {
+      onNotify(toArabicQueryError(err, 'تصدير بيانات القضية'), 'error');
+    } finally {
+      setExportingCase(false);
+    }
+  };
+
   if (caseLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center" dir="rtl">
@@ -227,6 +268,17 @@ export function CaseDetailPage({
           <p className="text-[10px] font-bold text-slate-400">بيانات القضية</p>
           <h1 className="text-xl font-black text-slate-900">{caseRecord.title}</h1>
           <p className="text-xs text-slate-500">{caseRecord.court_case_number} • {caseRecord.clientName}</p>
+          <div className="mt-2 flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              disabled={exportingCase}
+              onClick={() => void handleExportFullCase('html')}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#7A1F2B]/20 bg-[#7A1F2B]/5 px-3 py-1.5 text-[11px] font-bold text-[#7A1F2B] hover:bg-[#7A1F2B]/10 disabled:opacity-50"
+            >
+              {exportingCase ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+              تنزيل ملف القضية الكامل
+            </button>
+          </div>
         </div>
       </div>
 
@@ -327,17 +379,63 @@ export function CaseDetailPage({
         )}
 
         {tab === 'documents' && (
-          <div className="space-y-2">
+          <div className="space-y-4">
+            <div className="rounded-xl border border-dashed border-[#7A1F2B]/30 bg-[#7A1F2B]/5 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-slate-800">تصدير بيانات القضية الكاملة</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    ملف واحد يضم بيانات القضية، الجلسات، المستندات، الدفعات، السندات، والسجل من البداية للنهاية.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={exportingCase}
+                    onClick={() => void handleExportFullCase('html')}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#7A1F2B] px-3 py-2 text-xs font-bold text-white hover:bg-[#6a1a25] disabled:opacity-50"
+                  >
+                    {exportingCase ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                    تنزيل HTML
+                  </button>
+                  <button
+                    type="button"
+                    disabled={exportingCase}
+                    onClick={() => void handleExportFullCase('json')}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {exportingCase ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                    تنزيل JSON
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {caseDocuments.length === 0 ? (
               <EmptyState text="لا توجد مستندات." />
             ) : (
               caseDocuments.map((d) => (
-                <div key={d.id} className="flex items-center justify-between rounded-xl border border-slate-100 p-3">
-                  <div>
+                <div key={d.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 p-3">
+                  <div className="min-w-0 flex-1">
                     <p className="font-bold text-slate-800">{d.title}</p>
                     <p className="text-xs text-slate-500">{d.category} • {d.dateUploaded}</p>
                   </div>
-                  <FileText className="h-4 w-4 text-slate-400" />
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={downloadingDocId === d.id}
+                      onClick={() => void handleDownloadDocument(d)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-[#7A1F2B] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-[#6a1a25] disabled:opacity-50"
+                    >
+                      {downloadingDocId === d.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Download className="h-3.5 w-3.5" />
+                      )}
+                      تنزيل
+                    </button>
+                    <FileText className="h-4 w-4 text-slate-400" />
+                  </div>
                 </div>
               ))
             )}
