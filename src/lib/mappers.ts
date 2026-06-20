@@ -77,6 +77,8 @@ export function mapDbCase(row: DbCase): CaseRecord {
     total_amount: row.total_amount,
     paid_amount: row.paid_amount,
     remaining_amount: row.remaining_amount,
+    contract_currency: (row as DbCase & { contract_currency?: string }).contract_currency ?? 'YER',
+    contract_date: (row as DbCase & { contract_date?: string | null }).contract_date ?? undefined,
     status: (row.status ?? 'active') as CaseStatus,
     judgment_date: row.judgment_date ?? undefined,
     archive_date: row.archive_date ?? undefined,
@@ -101,7 +103,10 @@ export function mapDbSession(row: DbSession): SessionItem {
     time: row.session_time.slice(0, 5),
     status: (row.status ?? 'مجدولة') as SessionStatus,
     type: row.session_type ?? '',
-    notes: row.notes ?? ''
+    notes: row.notes ?? '',
+    judgeName: (row as DbSession & { judge_name?: string }).judge_name ?? undefined,
+    nextSessionDate: (row as DbSession & { next_session_date?: string | null }).next_session_date ?? undefined,
+    sessionOutcome: (row as DbSession & { session_outcome?: string | null }).session_outcome ?? undefined
   };
 }
 

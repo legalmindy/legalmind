@@ -60,7 +60,7 @@ import { ClientReportModal } from './components/ClientReportModal';
 import { InvitationLinkModal } from './components/InvitationLinkModal';
 import { PaymentReminderModal } from './components/PaymentReminderModal';
 import { QueryErrorBanner, toArabicQueryError } from './components/QueryErrorBanner';
-import { isBillingAdminAccess, isSuperAdminRole, resolvePageFromLocation, syncLocationForPage } from './lib/appRoutes';
+import { isBillingAdminAccess, isSuperAdminRole, resolvePageFromLocation, syncLocationForPage, syncCaseDetailLocation, clearCaseDetailLocation } from './lib/appRoutes';
 import { useBillingAdmin } from './hooks/useBillingAdmin';
 
 const LandingPage = lazy(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
@@ -79,6 +79,8 @@ const ProfilePage = lazy(() => import('./pages/WorkspacePages').then((m) => ({ d
 const SettingsPage = lazy(() => import('./pages/WorkspacePages').then((m) => ({ default: m.SettingsPage })));
 const ExecutionRequestsPage = lazy(() => import('./pages/ExecutionRequestsPage').then((m) => ({ default: m.ExecutionRequestsPage })));
 const AdminSubscriptionPage = lazy(() => import('./pages/AdminSubscriptionPage').then((m) => ({ default: m.AdminSubscriptionPage })));
+const CaseDetailPage = lazy(() => import('./pages/CaseDetailPage').then((m) => ({ default: m.CaseDetailPage })));
+const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage').then((m) => ({ default: m.AuditLogsPage })));
 
 const initialClientForm: Omit<Client, 'id' | 'casesCount' | 'createdAt'> = {
   name: '', phone: '', email: '', address: '', type: 'فرد'
@@ -91,7 +93,8 @@ const initialCaseForm: Omit<CaseRecord, 'id' | 'clientName' | 'dateStarted'> = {
 };
 
 const initialSessionForm: Omit<SessionItem, 'id' | 'caseTitle'> = {
-  caseId: '', court: '', date: '', time: '', status: 'مجدولة', type: '', notes: ''
+  caseId: '', court: '', date: '', time: '', status: 'مجدولة', type: '', notes: '',
+  judgeName: '', nextSessionDate: '', sessionOutcome: ''
 };
 
 const initialEmployeeForm: Omit<Employee, 'id' | 'created_at'> = {
@@ -116,10 +119,21 @@ export default function App() {
 
   // currentPage must be declared before queries so page-scoped `enabled` flags work
   const [currentPage, setCurrentPage] = useState<PageId>(() => resolvePageFromLocation().page ?? 'landing');
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(() => resolvePageFromLocation().caseId ?? null);
 
   const navigateToPage = useCallback((page: PageId) => {
     setCurrentPage(page);
+    if (page !== 'case-detail') {
+      setSelectedCaseId(null);
+      clearCaseDetailLocation();
+    }
     syncLocationForPage(page);
+  }, []);
+
+  const navigateToCaseDetail = useCallback((caseId: string) => {
+    setSelectedCaseId(caseId);
+    setCurrentPage('case-detail');
+    syncCaseDetailLocation(caseId);
   }, []);
 
   // Dev-only connection test — runs once after auth is ready
@@ -158,8 +172,8 @@ export default function App() {
 
   const needsHeaderAlerts = isAuth && !PUBLIC_PAGES.includes(currentPage);
   const needsEmployees = isAuth && (currentPage === 'employees' || currentPage === 'settings' || currentPage === 'dashboard');
-  const needsSessions  = isAuth && (currentPage === 'sessions'  || currentPage === 'dashboard' || currentPage === 'cases');
-  const needsDocuments = isAuth && currentPage === 'documents';
+  const needsSessions  = isAuth && (currentPage === 'sessions'  || currentPage === 'dashboard' || currentPage === 'cases' || currentPage === 'case-detail');
+  const needsDocuments = isAuth && (currentPage === 'documents' || currentPage === 'case-detail');
   const needsLawyers   = isAuth && (currentPage === 'lawyers'   || currentPage === 'cases' || currentPage === 'dashboard');
   const needsArchive   = isAuth && (currentPage === 'archive'   || currentPage === 'reports');
   const needsInvites   = isAuth && currentPage === 'employees';
@@ -709,10 +723,37 @@ export default function App() {
             onStatusFilterChange={setStatusFilter} onCategoryFilterChange={setCategoryFilter}
             onCreateCase={() => { setEditingCase(null); setNewCase({ ...initialCaseForm, lawyerId: currentUserLawyerId }); setShowCaseModal(true); }}
             onEditCase={(cr) => { setEditingCase(cr); setNewCase({ title: cr.title, clientId: cr.clientId, category: cr.category, case_type: cr.case_type, case_stage: cr.case_stage, court_case_number: cr.court_case_number, total_amount: cr.total_amount, paid_amount: cr.paid_amount, remaining_amount: cr.remaining_amount, status: cr.status, court: cr.court, caseNo: cr.caseNo, lawyerId: cr.lawyerId, description: cr.description, notes: cr.notes ?? '' }); setShowCaseModal(true); }}
+            onViewCase={(cr) => navigateToCaseDetail(cr.id)}
             onArchiveCase={openArchiveCase}
             onDeleteCase={(id) => void deleteCase(id)}
             canSendPaymentReminder={whatsappReportsEnabled}
             onSendPaymentReminder={(cr) => setPaymentReminderCase(cr)} />
+        )}
+
+        {currentPage === 'case-detail' && user && selectedCaseId && (
+          <CaseDetailPage
+            caseId={selectedCaseId}
+            user={user}
+            firmName={firmName ?? user.company}
+            sessions={sessions}
+            documents={documents}
+            onBack={() => navigateToPage('cases')}
+            onCreateSession={(caseId) => {
+              setEditingSession(null);
+              setNewSession({ ...initialSessionForm, caseId });
+              setShowSessionModal(true);
+            }}
+            onEditSession={(s) => {
+              setEditingSession(s);
+              setNewSession({
+                caseId: s.caseId, court: s.court, date: s.date, time: s.time, status: s.status,
+                type: s.type, notes: s.notes, judgeName: s.judgeName ?? '', nextSessionDate: s.nextSessionDate ?? '',
+                sessionOutcome: s.sessionOutcome ?? ''
+              });
+              setShowSessionModal(true);
+            }}
+            onNotify={(message, type = 'info') => showAlert(message, type)}
+          />
         )}
 
         {currentPage === 'archive' && user && !pageLoading && (
@@ -774,7 +815,7 @@ export default function App() {
         {currentPage === 'sessions' && user && !pageLoading && (
           <SessionsPage sessions={sessions}
             onCreateSession={() => { setEditingSession(null); setNewSession(initialSessionForm); setShowSessionModal(true); }}
-            onEditSession={(s) => { setEditingSession(s); setNewSession({ caseId: s.caseId, court: s.court, date: s.date, time: s.time, status: s.status, type: s.type, notes: s.notes }); setShowSessionModal(true); }}
+            onEditSession={(s) => { setEditingSession(s); setNewSession({ caseId: s.caseId, court: s.court, date: s.date, time: s.time, status: s.status, type: s.type, notes: s.notes, judgeName: s.judgeName ?? '', nextSessionDate: s.nextSessionDate ?? '', sessionOutcome: s.sessionOutcome ?? '' }); setShowSessionModal(true); }}
             onDeleteSession={(id) => void deleteSession(id)} />
         )}
 
@@ -810,7 +851,11 @@ export default function App() {
             office={office}
             onSaveOffice={(payload) => void officeMutations.updateOffice.mutateAsync(payload).then(() => showAlert('تم تحديث بيانات المكتب.', 'success')).catch((err) => showAlert(toArabicQueryError(err, 'تحديث بيانات المكتب'), 'error'))}
             onFirmCodeCopied={(msg) => showAlert(msg, 'success')}
+            onOpenAuditLogs={() => navigateToPage('audit-logs')}
           />
+        )}
+        {currentPage === 'audit-logs' && user && canManageOffice(user.role) && (
+          <AuditLogsPage />
         )}
       </main>
       </SubscriptionGuard>

@@ -255,6 +255,20 @@ export async function fetchArchivedCases(): Promise<CaseRecord[]> {
   return (data as DbCase[]).map(mapDbCase);
 }
 
+export async function fetchCaseById(caseId: string): Promise<CaseRecord | null> {
+  const firmId = await getCurrentFirmId();
+  const { data, error } = await supabase
+    .from('cases')
+    .select(CASE_SELECT)
+    .eq('id', caseId)
+    .eq('firm_id', firmId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  throwIfSupabaseError(error);
+  if (!data) return null;
+  return mapDbCase(data as DbCase);
+}
+
 export async function createCase(
   payload: Omit<CaseRecord, 'id' | 'clientName' | 'dateStarted' | 'remaining_amount'>
 ): Promise<CaseRecord> {
@@ -295,6 +309,8 @@ export async function createCase(
       description: maybeCleanText(payload.description, 2000),
       total_amount: Number(payload.total_amount) || 0,
       paid_amount: Number(payload.paid_amount) || 0,
+      contract_currency: payload.contract_currency ?? 'YER',
+      contract_date: payload.contract_date || null,
       status: payload.status || 'active',
       notes: maybeCleanText(payload.notes, 1000)
     })
@@ -321,6 +337,8 @@ export async function updateCaseRecord(payload: CaseRecord): Promise<CaseRecord>
       description: maybeCleanText(fields.description, 2000),
       total_amount: fields.total_amount,
       paid_amount: fields.paid_amount,
+      contract_currency: fields.contract_currency ?? 'YER',
+      contract_date: fields.contract_date || null,
       status: fields.status,
       notes: maybeCleanText(fields.notes, 1000)
     })
@@ -417,7 +435,10 @@ export async function createSession(payload: Omit<SessionItem, 'id' | 'caseTitle
       session_time: payload.time,
       status: payload.status,
       session_type: maybeCleanText(payload.type, 100),
-      notes: maybeCleanText(payload.notes, 1000)
+      notes: maybeCleanText(payload.notes, 1000),
+      judge_name: maybeCleanText(payload.judgeName, 200),
+      next_session_date: payload.nextSessionDate || null,
+      session_outcome: maybeCleanText(payload.sessionOutcome, 8000)
     })
     .select(SESSION_SELECT)
     .single();
@@ -437,7 +458,10 @@ export async function updateSessionRecord(payload: SessionItem): Promise<Session
       session_time: fields.time,
       status: fields.status,
       session_type: maybeCleanText(fields.type, 100),
-      notes: maybeCleanText(fields.notes, 1000)
+      notes: maybeCleanText(fields.notes, 1000),
+      judge_name: maybeCleanText(fields.judgeName, 200),
+      next_session_date: fields.nextSessionDate || null,
+      session_outcome: maybeCleanText(fields.sessionOutcome, 8000)
     })
     .eq('id', id)
     .eq('firm_id', firmId)

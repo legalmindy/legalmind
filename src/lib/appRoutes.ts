@@ -5,7 +5,8 @@ const PATH_TO_PAGE: Record<string, PageId> = {
   '/subscription': 'subscription',
   '/login': 'login',
   '/register-office': 'register-office',
-  '/register-lawyer': 'register-lawyer'
+  '/register-lawyer': 'register-lawyer',
+  '/audit-logs': 'audit-logs'
 };
 
 const PAGE_TO_PATH: Partial<Record<PageId, string>> = {
@@ -13,11 +14,32 @@ const PAGE_TO_PATH: Partial<Record<PageId, string>> = {
   subscription: '/subscription',
   login: '/login',
   'register-office': '/register-office',
-  'register-lawyer': '/register-lawyer'
+  'register-lawyer': '/register-lawyer',
+  'audit-logs': '/audit-logs'
 };
 
-export function resolvePageFromLocation(): { page: PageId | null } {
+export function resolveCaseIdFromLocation(): string | null {
+  const match = window.location.pathname.match(/^\/case\/([0-9a-f-]{36})$/i);
+  return match?.[1] ?? null;
+}
+
+export function syncCaseDetailLocation(caseId: string): void {
+  const path = `/case/${caseId}`;
+  if (window.location.pathname !== path) {
+    window.history.pushState({ page: 'case-detail', caseId }, '', path);
+  }
+}
+
+export function clearCaseDetailLocation(): void {
+  if (window.location.pathname.startsWith('/case/')) {
+    window.history.pushState({ page: 'cases' }, '', '/');
+  }
+}
+
+export function resolvePageFromLocation(): { page: PageId | null; caseId?: string } {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
+  const caseId = resolveCaseIdFromLocation();
+  if (caseId) return { page: 'case-detail', caseId };
   if (PATH_TO_PAGE[path]) return { page: PATH_TO_PAGE[path]! };
   if (path.startsWith('/invite/')) return { page: 'invite' };
 

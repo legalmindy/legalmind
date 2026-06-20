@@ -71,6 +71,7 @@ interface CasesPageProps {
   onCategoryFilterChange: (value: string) => void;
   onCreateCase: () => void;
   onEditCase: (caseRecord: CaseRecord) => void;
+  onViewCase: (caseRecord: CaseRecord) => void;
   onArchiveCase: (caseRecord: CaseRecord) => void;
   onDeleteCase: (id: string) => void;
   onSendPaymentReminder?: (caseRecord: CaseRecord) => void;
@@ -113,6 +114,7 @@ interface SettingsPageProps {
   office?: Office;
   onSaveOffice: (office: Office) => void;
   onFirmCodeCopied?: (message: string) => void;
+  onOpenAuditLogs?: () => void;
 }
 
 export function DashboardPage({
@@ -461,7 +463,7 @@ export function ClientsPage({ clients, searchQuery, onSearch, onCreateClient, on
   );
 }
 
-export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, onSearch, onStatusFilterChange, onCategoryFilterChange, onCreateCase, onEditCase, onArchiveCase, onDeleteCase, onSendPaymentReminder, canSendPaymentReminder }: CasesPageProps) {
+export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, onSearch, onStatusFilterChange, onCategoryFilterChange, onCreateCase, onEditCase, onViewCase, onArchiveCase, onDeleteCase, onSendPaymentReminder, canSendPaymentReminder }: CasesPageProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-right">
@@ -579,6 +581,7 @@ export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, on
                     <Archive className="h-3.5 w-3.5" />
                     أرشفة
                   </button>
+                  <button type="button" onClick={() => onViewCase(caseRecord)} className="px-3 py-1.5 hover:bg-[#7A1F2B]/10 text-[#7A1F2B] rounded-lg font-bold transition-all">عرض 360°</button>
                   <button type="button" onClick={() => onEditCase(caseRecord)} className="px-3 py-1.5 hover:bg-indigo-50 text-indigo-700 rounded-lg font-bold transition-all">تعديل الملف</button>
                   <button type="button" onClick={() => onDeleteCase(caseRecord.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
                 </div>
@@ -1596,7 +1599,7 @@ export function ProfilePage({ user, onSave, onUploadAvatar }: ProfilePageProps) 
   );
 }
 
-export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied }: SettingsPageProps) {
+export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied, onOpenAuditLogs }: SettingsPageProps) {
   const isAdmin = user.role === 'admin' || user.role === 'firm_manager' || user.role === 'super_admin';
   const { data: firmProfile } = useFirmProfile(isAdmin);
   const { data: firmSettings, isLoading: settingsLoading } = useFirmSettings(isAdmin);
@@ -1722,6 +1725,15 @@ export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied }: S
           <PlatformBankSettings
             onNotify={(message) => onFirmCodeCopied?.(message)}
           />
+        ) : null}
+        {isAdmin && onOpenAuditLogs ? (
+          <button
+            type="button"
+            onClick={onOpenAuditLogs}
+            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-[#7A1F2B] hover:bg-[#7A1F2B]/5"
+          >
+            فتح سجل التدقيق والمراقبة
+          </button>
         ) : null}
       </div>
     </div>

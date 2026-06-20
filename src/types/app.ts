@@ -22,7 +22,46 @@ export type PageId =
   | 'execution'
   | 'help'
   | 'notifications'
-  | 'admin-billing';
+  | 'admin-billing'
+  | 'case-detail'
+  | 'audit-logs';
+
+export type CaseDetailTab =
+  | 'overview'
+  | 'sessions'
+  | 'documents'
+  | 'financials'
+  | 'payments'
+  | 'receipts'
+  | 'timeline'
+  | 'notes'
+  | 'lawyers';
+
+export type PermissionKey =
+  | 'cases.view'
+  | 'cases.create'
+  | 'cases.edit'
+  | 'cases.delete'
+  | 'clients.view'
+  | 'clients.create'
+  | 'clients.edit'
+  | 'clients.delete'
+  | 'documents.upload'
+  | 'documents.download'
+  | 'documents.delete'
+  | 'financials.view'
+  | 'financials.add_payments'
+  | 'financials.print_receipts'
+  | 'sessions.view'
+  | 'sessions.create'
+  | 'sessions.edit'
+  | 'users.invite'
+  | 'users.manage'
+  | 'users.permissions'
+  | 'subscriptions.view'
+  | 'subscriptions.manage'
+  | 'settings.view'
+  | 'settings.edit';
 
 export type UserRole = 'super_admin' | 'admin' | 'lawyer' | 'assistant' | 'firm_manager';
 export type CustomerType = 'شركة تجارية' | 'فرد';
@@ -122,6 +161,8 @@ export interface CaseRecord {
   total_amount: number;
   paid_amount: number;
   remaining_amount: number;
+  contract_currency?: string;
+  contract_date?: string;
   status: CaseStatus;
   judgment_date?: string;
   archive_date?: string;
@@ -145,6 +186,67 @@ export interface SessionItem {
   status: SessionStatus;
   type: string;
   notes: string;
+  judgeName?: string;
+  nextSessionDate?: string;
+  sessionOutcome?: string;
+}
+
+export interface CasePayment {
+  id: string;
+  caseId: string;
+  amount: number;
+  paymentDate: string;
+  paymentMethod: string;
+  notes?: string;
+  receiptStoragePath?: string;
+  receiptFileName?: string;
+  createdAt: string;
+}
+
+export interface CaseFinancialSummary {
+  contractTotal: number;
+  totalPaid: number;
+  remaining: number;
+  paymentPercentage: number;
+  lastPaymentDate?: string;
+  lastPaymentAmount?: number;
+  currency: string;
+  contractDate?: string;
+}
+
+export interface ReceiptVoucher {
+  id: string;
+  caseId: string;
+  casePaymentId: string;
+  receiptNumber: string;
+  amount: number;
+  clientName?: string;
+  caseNumber?: string;
+  contractTotal?: number;
+  remainingBalance?: number;
+  paymentMethod?: string;
+  notes?: string;
+  qrPayload?: string;
+  printedAt: string;
+  reprintCount: number;
+}
+
+export interface CaseTimelineEvent {
+  id: string;
+  eventType: string;
+  title: string;
+  details?: string;
+  metadata?: Record<string, unknown>;
+  actorName?: string;
+  createdAt: string;
+}
+
+export interface FirmRole {
+  id: string;
+  name: string;
+  slug: string;
+  isTemplate: boolean;
+  permissions: Record<string, boolean>;
 }
 
 export interface DocumentItem {

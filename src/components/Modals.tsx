@@ -540,6 +540,38 @@ export function SessionModal({ open, session, formState, cases, onChange, onSave
             placeholder="المستندات أو الحضور الشخصي المطلوب"
           />
         </div>
+
+        <div>
+          <label className="block text-slate-600 mb-1 font-bold">اسم القاضي</label>
+          <input
+            type="text"
+            value={formState.judgeName ?? ''}
+            onChange={(e) => onChange({ ...formState, judgeName: e.target.value })}
+            className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none text-right"
+            placeholder="اسم القاضي / الدائرة"
+          />
+        </div>
+
+        <div>
+          <label className="block text-slate-600 mb-1 font-bold">تاريخ الجلسة القادمة</label>
+          <input
+            type="date"
+            value={formState.nextSessionDate ?? ''}
+            onChange={(e) => onChange({ ...formState, nextSessionDate: e.target.value })}
+            className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none text-right font-mono"
+          />
+        </div>
+
+        <div>
+          <label className="block text-slate-600 mb-1 font-bold">ما حدث في الجلسة</label>
+          <textarea
+            value={formState.sessionOutcome ?? ''}
+            onChange={(e) => onChange({ ...formState, sessionOutcome: e.target.value })}
+            rows={5}
+            className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none text-right leading-relaxed"
+            placeholder="الوقائع، القرارات، الطلبات، نتائج المحكمة، ملاحظات المحامي..."
+          />
+        </div>
       </div>
     </ModalShell>
   );
