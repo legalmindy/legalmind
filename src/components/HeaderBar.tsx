@@ -14,7 +14,6 @@ import {
   Shield,
   TrendingUp,
   User,
-  UserCog,
   Users,
   X
 } from 'lucide-react';
@@ -59,8 +58,7 @@ const navItems: Array<{ id: PageId; label: string; shortLabel?: string; icon: ty
   { id: 'sessions', label: 'الجلسات', icon: Calendar, roles: ['super_admin', 'admin', 'firm_manager', 'lawyer', 'assistant'] },
   { id: 'documents', label: 'المستندات', shortLabel: 'مستندات', icon: FileText, roles: ['super_admin', 'admin', 'firm_manager', 'lawyer', 'assistant'] },
   { id: 'lawyers', label: 'المحامون', shortLabel: 'محامون', icon: Shield, roles: ['super_admin', 'admin', 'firm_manager', 'assistant'] },
-  { id: 'reports', label: 'التقارير المالية', shortLabel: 'تقارير', icon: TrendingUp, roles: ['super_admin', 'admin', 'firm_manager'] },
-  { id: 'office-manager', label: 'مدير المكتب', shortLabel: 'إدارة', icon: UserCog, roles: ['super_admin', 'firm_manager'] }
+  { id: 'reports', label: 'التقارير المالية', shortLabel: 'تقارير', icon: TrendingUp, roles: ['super_admin', 'admin', 'firm_manager'] }
 ];
 
 export const HeaderBar = memo(function HeaderBar({

@@ -82,7 +82,6 @@ const ExecutionRequestsPage = lazy(() => import('./pages/ExecutionRequestsPage')
 const AdminSubscriptionPage = lazy(() => import('./pages/AdminSubscriptionPage').then((m) => ({ default: m.AdminSubscriptionPage })));
 const CaseDetailPage = lazy(() => import('./pages/CaseDetailPage').then((m) => ({ default: m.CaseDetailPage })));
 const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage').then((m) => ({ default: m.AuditLogsPage })));
-const OfficeManagerPage = lazy(() => import('./pages/OfficeManagerPage').then((m) => ({ default: m.OfficeManagerPage })));
 
 const initialClientForm: Omit<Client, 'id' | 'casesCount' | 'createdAt'> = {
   name: '', phone: '', email: '', address: '', type: 'فرد'
@@ -122,9 +121,13 @@ export default function App() {
   // currentPage must be declared before queries so page-scoped `enabled` flags work
   const [currentPage, setCurrentPage] = useState<PageId>(() => resolvePageFromLocation().page ?? 'landing');
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(() => resolvePageFromLocation().caseId ?? null);
+  const [employeesSection, setEmployeesSection] = useState<'team' | 'manager'>(() =>
+    resolvePageFromLocation().page === 'office-manager' ? 'manager' : 'team'
+  );
 
   const navigateToPage = useCallback((page: PageId) => {
     setCurrentPage(page);
+    if (page === 'employees') setEmployeesSection('team');
     if (page !== 'case-detail') {
       setSelectedCaseId(null);
       clearCaseDetailLocation();
@@ -152,6 +155,11 @@ export default function App() {
       currentPage === 'dashboard' ||
       currentPage === 'execution' ||
       currentPage === 'cases');
+  const needsManagerDataOnEmployees =
+    isAuth &&
+    (currentPage === 'employees' || currentPage === 'office-manager') &&
+    Boolean(auth.user && isFirmManagerRole(auth.user.role));
+
   const needsCases =
     isAuth &&
     (currentPage === 'dashboard' ||
@@ -160,7 +168,7 @@ export default function App() {
       currentPage === 'archive' ||
       currentPage === 'reports' ||
       currentPage === 'sessions' ||
-      currentPage === 'office-manager');
+      needsManagerDataOnEmployees);
 
   const { data: clients = [], isLoading: clientsLoading, isError: clientsError, error: clientsQueryError } =
     useClients(needsClients);
@@ -171,7 +179,7 @@ export default function App() {
   const needsEmployees = isAuth && (currentPage === 'employees' || currentPage === 'settings' || currentPage === 'dashboard');
   const needsSessions  = isAuth && (currentPage === 'sessions'  || currentPage === 'dashboard' || currentPage === 'cases' || currentPage === 'case-detail');
   const needsDocuments = isAuth && (currentPage === 'documents' || currentPage === 'case-detail');
-  const needsLawyers   = isAuth && (currentPage === 'lawyers'   || currentPage === 'cases' || currentPage === 'dashboard' || currentPage === 'office-manager');
+  const needsLawyers   = isAuth && (currentPage === 'lawyers'   || currentPage === 'cases' || currentPage === 'dashboard' || needsManagerDataOnEmployees);
   const needsArchive   = isAuth && (currentPage === 'archive'   || currentPage === 'reports');
   const needsInvites   = isAuth && currentPage === 'employees';
 
@@ -340,12 +348,13 @@ export default function App() {
   }, [currentPage, showAlert, user]);
 
   useEffect(() => {
-    if (!user) return;
-    if (currentPage === 'office-manager' && !isFirmManagerRole(user.role)) {
-      setCurrentPage('dashboard');
-      showAlert('لوحة مدير المكتب متاحة لمدير المكتب فقط.', 'error');
+    if (currentPage !== 'office-manager') return;
+    setEmployeesSection('manager');
+    setCurrentPage('employees');
+    if (window.location.pathname === '/office-manager') {
+      window.history.replaceState({ page: 'employees' }, '', '/');
     }
-  }, [currentPage, showAlert, user]);
+  }, [currentPage]);
 
   const handleLogout = useCallback(async () => {
     await auth.logout();
@@ -593,7 +602,7 @@ export default function App() {
       case 'archive':
         return casesLoading;
       case 'employees':
-        return employeesLoading;
+        return employeesLoading || (Boolean(user && isFirmManagerRole(user.role)) && (casesLoading || lawyersLoading));
       case 'sessions':
         return sessionsLoading;
       case 'documents':
@@ -602,8 +611,6 @@ export default function App() {
         return lawyersLoading;
       case 'reports':
         return casesLoading;
-      case 'office-manager':
-        return casesLoading || lawyersLoading;
       default:
         return false;
     }
@@ -615,7 +622,8 @@ export default function App() {
     employeesLoading,
     sessionsLoading,
     documentsLoading,
-    lawyersLoading
+    lawyersLoading,
+    user
   ]);
 
   const hasQueryError =
@@ -838,6 +846,11 @@ export default function App() {
             firmCode={firmCode}
             firmName={firmName}
             onFirmCodeCopied={(msg) => showAlert(msg, 'success')}
+            userRole={user.role}
+            cases={cases}
+            lawyers={lawyers}
+            initialSection={employeesSection}
+            onNotify={(message, type = 'info') => showAlert(message, type)}
           />
         )}
 
@@ -885,14 +898,6 @@ export default function App() {
         )}
         {currentPage === 'audit-logs' && user && canManageOffice(user.role) && (
           <AuditLogsPage />
-        )}
-        {currentPage === 'office-manager' && user && isFirmManagerRole(user.role) && !pageLoading && (
-          <OfficeManagerPage
-            role={user.role}
-            cases={cases}
-            lawyers={lawyers}
-            onNotify={(message, type = 'info') => showAlert(message, type)}
-          />
         )}
       </main>
       </SubscriptionGuard>

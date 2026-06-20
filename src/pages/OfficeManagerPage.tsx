@@ -22,16 +22,17 @@ import { toArabicQueryError } from '../components/QueryErrorBanner';
 
 type ManagerTab = 'cases' | 'lawyers' | 'permissions';
 
-interface OfficeManagerPageProps {
+interface OfficeManagerPanelProps {
   role: UserRole;
   cases: CaseRecord[];
   lawyers: Lawyer[];
   onNotify: (message: string, type?: 'success' | 'error' | 'info') => void;
+  embedded?: boolean;
 }
 
 const PERMISSION_KEYS = Object.keys(PERMISSION_LABELS) as PermissionKey[];
 
-export function OfficeManagerPage({ role, cases, lawyers, onNotify }: OfficeManagerPageProps) {
+export function OfficeManagerPanel({ role, cases, lawyers, onNotify, embedded = false }: OfficeManagerPanelProps) {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<ManagerTab>('cases');
   const [reassigningId, setReassigningId] = useState<string | null>(null);
@@ -134,6 +135,7 @@ export function OfficeManagerPage({ role, cases, lawyers, onNotify }: OfficeMana
   };
 
   if (accessDenied) {
+    if (embedded) return null;
     return (
       <div className="mx-auto max-w-3xl px-4 py-12 text-center" dir="rtl">
         <Shield className="mx-auto h-12 w-12 text-rose-500" />
@@ -145,18 +147,18 @@ export function OfficeManagerPage({ role, cases, lawyers, onNotify }: OfficeMana
 
   const tabs: { id: ManagerTab; label: string; icon: typeof Briefcase }[] = [
     { id: 'cases', label: 'توزيع القضايا', icon: Briefcase },
-    { id: 'lawyers', label: 'المحامون', icon: Users },
+    { id: 'lawyers', label: 'أداء المحامين', icon: Users },
     { id: 'permissions', label: 'مصفوفة الصلاحيات', icon: UserCog }
   ];
 
-  return (
-    <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6" dir="rtl">
-      <div className="rounded-2xl bg-gradient-to-l from-[#7A1F2B] via-[#641923] to-slate-900 p-6 text-white shadow-xl">
-        <h1 className="text-2xl font-black">لوحة مدير المكتب</h1>
+  const content = (
+    <>
+      <div className={`rounded-2xl bg-gradient-to-l from-[#7A1F2B] via-[#641923] to-slate-900 text-white shadow-xl ${embedded ? 'p-5' : 'p-6'}`}>
+        <h2 className={`font-black ${embedded ? 'text-lg' : 'text-2xl'}`}>لوحة مدير المكتب</h2>
         <p className="mt-1 text-xs text-white/80">
-          إدارة المحامين، إعادة توزيع القضايا والموكلين، وتخصيص الأدوار والصلاحيات.
+          إدارة المحامين، إعادة توزيع القضايا، وتخصيص الأدوار والصلاحيات.
         </p>
-        <div className="mt-4 flex flex-wrap gap-3 text-xs">
+        <div className="mt-4 flex flex-wrap gap-2 text-xs">
           <span className="rounded-lg bg-white/10 px-3 py-1.5 font-bold">{activeCases.length} قضية نشطة</span>
           <span className="rounded-lg bg-white/10 px-3 py-1.5 font-bold">{lawyers.length} محامٍ</span>
           <span className="rounded-lg bg-amber-400/20 px-3 py-1.5 font-bold text-amber-100">{unassignedCount} بدون محامٍ</span>
@@ -380,6 +382,21 @@ export function OfficeManagerPage({ role, cases, lawyers, onNotify }: OfficeMana
           </div>
         </div>
       )}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="space-y-4">{content}</div>;
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6" dir="rtl">
+      {content}
     </div>
   );
+}
+
+/** للتوافق — يُفضّل استخدام OfficeManagerPanel داخل صفحة الموظفين */
+export function OfficeManagerPage(props: Omit<OfficeManagerPanelProps, 'embedded'>) {
+  return <OfficeManagerPanel {...props} />;
 }
