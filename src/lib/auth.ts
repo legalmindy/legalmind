@@ -1,5 +1,6 @@
 import type { AuthError, Factor, Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { callPublicRpc, supabase } from './supabaseClient';
+import { isInvalidAuthError, purgeInvalidSession, resolveAuthUserId, signOutLocal } from './authSession';
 import type { Invitation, User, UserRole } from '../types/app';
 import type { DbEmployee, DbInvitationPreview } from '../types/database';
 import { mapEmployeeToUser } from './mappers';
@@ -371,8 +372,16 @@ export async function getSession(): Promise<Session | null> {
 }
 
 export async function fetchCurrentUser(): Promise<User | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user) {
+    if (error && isInvalidAuthError(error)) {
+      await signOutLocal();
+      clearAppQueryCache();
+      clearPermissionsCache();
+      clearFirmIdCache();
+    }
+    return null;
+  }
 
   const status = await getEmployeeAccessStatus(user.id);
   if (employeeStatusMessage(status)) {
@@ -400,8 +409,19 @@ export async function fetchCurrentUserWithRepairDetails(): Promise<{
   user: User | null;
   repair: AuthRepairResult;
 }> {
+  await purgeInvalidSession(() => {
+    clearAppQueryCache();
+    clearPermissionsCache();
+    clearFirmIdCache();
+  });
+
   let user = await fetchCurrentUser();
   if (user) return { user, repair: { ok: true, action: 'existing' } };
+
+  const authUserId = await resolveAuthUserId();
+  if (!authUserId) {
+    return { user: null, repair: { ok: false, action: 'no_session' } };
+  }
 
   user = await loadUserFromProfileContext();
   if (user) return { user, repair: { ok: true, action: 'context_rpc' } };
@@ -423,8 +443,20 @@ export interface AuthRepairResult {
 }
 
 async function repairAuthProfileIfNeeded(): Promise<AuthRepairResult> {
+  const authUserId = await resolveAuthUserId();
+  if (!authUserId) {
+    return { ok: false, action: 'no_session', error: 'لا توجد جلسة صالحة.' };
+  }
+
   const { data, error } = await supabase.rpc('repair_current_user_profile');
   if (error) {
+    if (isInvalidAuthError(error)) {
+      await signOutLocal();
+      clearAppQueryCache();
+      clearPermissionsCache();
+      clearFirmIdCache();
+      return { ok: false, action: 'session_cleared', error: 'انتهت الجلسة. سجّل الدخول مجدداً.' };
+    }
     if (/repair_current_user_profile|42883|does not exist/i.test(error.message)) {
       return {
         ok: false,

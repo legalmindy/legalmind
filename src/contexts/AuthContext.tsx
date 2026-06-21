@@ -23,6 +23,9 @@ import {
   type SignUpData
 } from '../lib/auth';
 import { clearAppQueryCache } from '../lib/queryClient';
+import { clearFirmIdCache } from '../lib/api';
+import { clearPermissionsCache } from '../lib/permissions';
+import { purgeInvalidSession } from '../lib/authSession';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 
 export interface AuthContextValue {
@@ -72,10 +75,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let initialLoadDone = false;
 
     // ── 1. Primary init ──────────────────────────────────────────────────
-    // fetchCurrentUser() calls supabase.auth.getUser() which validates the
-    // stored token against the server. This is the single source of truth
-    // for the first load; it sets isLoading → false exactly once.
-    fetchCurrentUserWithRepairDetails()
+    void purgeInvalidSession(() => {
+      clearAppQueryCache();
+      clearPermissionsCache();
+      clearFirmIdCache();
+    }).then(() =>
+      fetchCurrentUserWithRepairDetails()
+    )
       .then(async ({ user: u }) => {
         if (!mounted) return;
         if (u === null) {

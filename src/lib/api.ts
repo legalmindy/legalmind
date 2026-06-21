@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { resolveAuthUserId } from './authSession';
 import {
   mapDbCase,
   mapDbClient,
@@ -65,33 +66,33 @@ export function clearFirmIdCache(): void {
 }
 
 export async function getCurrentFirmId(): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('غير مصرح');
+  const userId = await resolveAuthUserId();
+  if (!userId) throw new Error('غير مصرح');
 
-  const cached = firmIdCache.get(user.id);
+  const cached = firmIdCache.get(userId);
   if (cached) return cached;
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('firm_id')
-    .eq('id', user.id)
+    .eq('id', userId)
     .is('deleted_at', null)
     .maybeSingle();
 
   if (!profileError && profile?.firm_id) {
-    firmIdCache.set(user.id, profile.firm_id as string);
+    firmIdCache.set(userId, profile.firm_id as string);
     return profile.firm_id as string;
   }
 
   const { data: employee, error: employeeError } = await supabase
     .from('employees')
     .select('firm_id')
-    .eq('auth_uid', user.id)
+    .eq('auth_uid', userId)
     .is('deleted_at', null)
     .maybeSingle();
 
   if (!employeeError && employee?.firm_id) {
-    firmIdCache.set(user.id, employee.firm_id as string);
+    firmIdCache.set(userId, employee.firm_id as string);
     return employee.firm_id as string;
   }
 
