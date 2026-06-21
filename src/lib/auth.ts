@@ -1,5 +1,5 @@
 import type { AuthError, Factor, Session, User as SupabaseUser } from '@supabase/supabase-js';
-import { supabase } from './supabaseClient';
+import { callPublicRpc, supabase } from './supabaseClient';
 import type { Invitation, User, UserRole } from '../types/app';
 import type { DbEmployee, DbInvitationPreview } from '../types/database';
 import { mapEmployeeToUser } from './mappers';
@@ -230,7 +230,7 @@ export async function verifyOfficeCode(officeCode: string): Promise<OfficeCodePr
   const normalizedCode = normalizeFirmCode(officeCode);
   if (!isValidFirmCodeFormat(normalizedCode)) return null;
 
-  const { data, error } = await supabase.rpc('get_office_by_code', { office_code_input: normalizedCode });
+  const { data, error } = await callPublicRpc('get_office_by_code', { office_code_input: normalizedCode });
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : data;
   if (!row) return null;

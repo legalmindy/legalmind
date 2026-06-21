@@ -47,3 +47,30 @@ function createSupabaseClient(): SupabaseClient {
 }
 
 export const supabase = createSupabaseClient();
+
+/** Client without persisted session — for pre-login RPCs (avoids 401 from stale JWT). */
+function createPublicSupabaseClient(): SupabaseClient {
+  const fetchWithTimeout: typeof fetch = (input, init) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20_000);
+    return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+  };
+
+  if (!isSupabaseConfigured()) {
+    return createClient('https://placeholder.supabase.co', 'placeholder', {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      global: { fetch: fetchWithTimeout }
+    });
+  }
+
+  return createClient(supabaseUrl!, supabaseAnonKey!, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { fetch: fetchWithTimeout }
+  });
+}
+
+const publicSupabase = createPublicSupabaseClient();
+
+export function callPublicRpc(fn: string, args: Record<string, unknown> = {}) {
+  return publicSupabase.rpc(fn, args);
+}

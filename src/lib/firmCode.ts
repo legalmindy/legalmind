@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { callPublicRpc } from './supabaseClient';
 
 /** Firm code format: ABC-1234 (8 chars, uppercase, globally unique) */
 const FIRM_CODE_PATTERN = /^[A-Z]{3}-[0-9]{4}$/;
@@ -61,7 +61,7 @@ export async function isFirmCodeAvailable(code: string): Promise<boolean> {
   const normalized = normalizeFirmCode(code);
   if (!isValidFirmCodeFormat(normalized)) return false;
 
-  const { data, error } = await supabase.rpc('office_code_exists', { office_code_input: normalized });
+  const { data, error } = await callPublicRpc('office_code_exists', { office_code_input: normalized });
   if (error) throw error;
   return !data;
 }
@@ -88,7 +88,7 @@ export async function isEmailAvailableForRegistration(email: string): Promise<bo
   const normalized = email.trim().toLowerCase();
   if (!normalized) return false;
 
-  const { data, error } = await supabase.rpc('is_email_available_for_registration', {
+  const { data, error } = await callPublicRpc('is_email_available_for_registration', {
     check_email: normalized
   });
   if (error) throw error;
@@ -111,7 +111,7 @@ export async function validateFirmCodeForRegistration(code: string): Promise<Fir
   }
 
   try {
-    const { data, error } = await supabase.rpc('get_office_by_code', { office_code_input: normalizedCode });
+    const { data, error } = await callPublicRpc('get_office_by_code', { office_code_input: normalizedCode });
     if (error) throw error;
     const row = Array.isArray(data) ? data[0] : data;
     if (!row) {
@@ -124,7 +124,15 @@ export async function validateFirmCodeForRegistration(code: string): Promise<Fir
       firmId: row.id as string,
       firmName: row.name as string
     };
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/401|jwt|unauthorized|PGRST301/i.test(message)) {
+      return {
+        valid: false,
+        normalizedCode,
+        error: 'تعذر التحقق من كود المكتب. أعد تحميل الصفحة أو سجّل الخروج ثم حاول مجدداً.'
+      };
+    }
     return { valid: false, normalizedCode, error: 'تعذر التحقق من كود المكتب. تحقق من الاتصال.' };
   }
 }

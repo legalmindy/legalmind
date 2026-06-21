@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { callPublicRpc, supabase } from './supabaseClient';
 import { normalizeFirmCode } from './firmCode';
 import { throwIfSupabaseError } from './supabaseQueryHelpers';
 
@@ -20,7 +20,7 @@ export async function fetchFirmRolesForRegistration(officeCode: string): Promise
   const normalized = normalizeFirmCode(officeCode);
   if (!normalized) return [];
 
-  const { data, error } = await supabase.rpc('get_firm_roles_for_registration', {
+  const { data, error } = await callPublicRpc('get_firm_roles_for_registration', {
     office_code_input: normalized
   });
   throwIfSupabaseError(error);
