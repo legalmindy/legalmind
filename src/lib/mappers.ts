@@ -123,13 +123,15 @@ export function mapDbDocument(row: DbDocument): DocumentItem {
   };
 }
 
-export function mapDbEmployee(row: DbEmployee): Employee {
+export function mapDbEmployee(row: DbEmployee & { firm_roles?: { name?: string; slug?: string } | null }): Employee {
   return {
     id: row.id,
     full_name: row.full_name,
     email: row.email,
     phone: row.phone ?? '',
     role: row.role,
+    firmRoleName: row.firm_roles?.name,
+    firmRoleSlug: row.firm_roles?.slug,
     status: row.status,
     profile_image: row.profile_image ?? undefined,
     created_at: row.created_at

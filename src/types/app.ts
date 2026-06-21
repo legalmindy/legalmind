@@ -80,6 +80,8 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  /** Arabic display name from firm role template (e.g. سكرتير). */
+  roleLabel?: string;
   plan: string;
   company: string;
   phone: string;
@@ -267,6 +269,8 @@ export interface Employee {
   email: string;
   phone: string;
   role: UserRole;
+  firmRoleName?: string;
+  firmRoleSlug?: string;
   status: EmployeeStatus;
   profile_image?: string;
   created_at: string;

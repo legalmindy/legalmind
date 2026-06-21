@@ -8,6 +8,7 @@ import { getCurrentProfileContext } from '../services/profileService';
 import { FirmCodeCard } from '../components/FirmCodeCard';
 import { fetchInvitationPreview, type AuthResult, type InvitationPreview, type InvitedUserRegistrationData, type LawyerRegistrationData, type OfficeRegistrationData, type SignUpData } from '../lib/auth';
 import { fetchFirmRolesForRegistration, type RegistrationFirmRole } from '../lib/memberRegistration';
+import { resolveRoleDisplayName } from '../lib/roleLabels';
 
 interface AuthPagesProps {
   currentPage: 'login' | 'register-office' | 'register-lawyer' | 'register' | 'invite' | 'forgot' | 'accept-invite';
@@ -434,7 +435,7 @@ export function AuthPages({
                 >
                   {firmRoles.map((role) => (
                     <option key={role.slug} value={role.slug}>
-                      {role.name.includes('(قالب)') ? role.name : `${role.name} (قالب)`}
+                      {resolveRoleDisplayName(role.name, role.slug)}
                     </option>
                   ))}
                 </select>

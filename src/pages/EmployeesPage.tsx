@@ -26,6 +26,7 @@ import {
   rejectMemberRegistration
 } from '../lib/memberRegistration';
 import { toArabicQueryError } from '../components/QueryErrorBanner';
+import { resolveRoleDisplayName, LEGACY_ROLE_LABELS } from '../lib/roleLabels';
 import type { CaseRecord, Employee, Invitation, Lawyer, UserRole } from '../types/app';
 
 type EmployeesSection = 'team' | 'manager';
@@ -49,14 +50,6 @@ interface EmployeesPageProps {
   onNotify?: (message: string, type?: 'success' | 'error' | 'info') => void;
   initialSection?: EmployeesSection;
 }
-
-const ROLE_LABELS: Record<string, string> = {
-  super_admin: 'سوبر أدمن',
-  admin: 'أدمن',
-  firm_manager: 'مدير المكتب',
-  lawyer: 'محامي',
-  assistant: 'مساعد'
-};
 
 export function EmployeesPage({
   employees,
@@ -326,7 +319,7 @@ export function EmployeesPage({
                         <td className="px-4 py-3 font-bold text-slate-800">{invite.fullName || '—'}</td>
                         <td className="px-4 py-3">
                           <span className="inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-bold text-indigo-700">
-                            {ROLE_LABELS[invite.role] ?? invite.role}
+                            {LEGACY_ROLE_LABELS[invite.role as UserRole] ?? invite.role}
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -412,7 +405,7 @@ export function EmployeesPage({
                       <td className="px-4 py-3.5 font-mono text-slate-600">{employee.phone}</td>
                       <td className="px-4 py-3.5">
                         <span className="inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-bold text-indigo-700">
-                          {ROLE_LABELS[employee.role] ?? employee.role}
+                          {resolveRoleDisplayName(employee.firmRoleName, employee.firmRoleSlug, employee.role)}
                         </span>
                       </td>
                       <td className="px-4 py-3.5">

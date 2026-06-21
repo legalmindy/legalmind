@@ -12,6 +12,7 @@ import { clearAppQueryCache } from './queryClient';
 import { isValidYemeniPhone, normalizeYemeniPhoneForStorage } from '../utils/format';
 import { logSecurityEvent, logSecurityEventPublic } from './securityEvents';
 import { employeeStatusMessage, getEmployeeAccessStatus } from './memberRegistration';
+import { resolveRoleDisplayName } from './roleLabels';
 
 export interface AuthResult {
   success: boolean;
@@ -164,6 +165,7 @@ export async function signIn(email: string, password: string): Promise<AuthResul
   }
 
   logSecurityEvent('login_success', 'info');
+  clearPermissionsCache();
   return { success: true };
 }
 
@@ -514,11 +516,13 @@ async function loadEmployeeForAuthUser(
 ): Promise<{
   role?: UserRole;
   profileImage?: string | null;
+  firmRoleName?: string | null;
+  firmRoleSlug?: string | null;
 } | null> {
   const selectEmployee = async (column: 'auth_uid' | 'id' | 'email', value: string) => {
     const { data, error } = await supabase
       .from('employees')
-      .select('role, profile_image')
+      .select('role, profile_image, firm_roles(name, slug)')
       .eq(column, value)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
@@ -542,9 +546,14 @@ async function loadEmployeeForAuthUser(
   }
 
   if (!data) return null;
+  const firmRoles = (data as { firm_roles?: { name?: string; slug?: string } | { name?: string; slug?: string }[] | null })
+    .firm_roles;
+  const firmRole = Array.isArray(firmRoles) ? firmRoles[0] : firmRoles;
   return {
     role: data.role as UserRole,
-    profileImage: data.profile_image as string | null
+    profileImage: data.profile_image as string | null,
+    firmRoleName: firmRole?.name ?? null,
+    firmRoleSlug: firmRole?.slug ?? null
   };
 }
 
@@ -586,6 +595,7 @@ async function loadUserFromProfileContext(): Promise<User | null> {
     name: ctx.full_name ?? authUser.email ?? '',
     email: ctx.email ?? authUser.email ?? '',
     role: resolveAppUserRole(employee?.role, ctx.role),
+    roleLabel: resolveRoleDisplayName(employee?.firmRoleName, employee?.firmRoleSlug, resolveAppUserRole(employee?.role, ctx.role)),
     plan: 'free',
     company: ctx.firm_name ?? 'مكتب محاماة',
     phone: '',
@@ -603,11 +613,13 @@ async function mapProfileRowToUser(
   });
   const profileImage = (profile.profile_image as string | null) ?? employee?.profileImage ?? undefined;
   const profileRole = profile.role as string | null;
+  const resolvedRole = resolveAppUserRole(employee?.role, profileRole);
   return {
     id: profile.id as string,
     name: (profile.full_name as string) ?? authUser.email ?? '',
     email: (profile.email as string) ?? authUser.email ?? '',
-    role: resolveAppUserRole(employee?.role, profileRole),
+    role: resolvedRole,
+    roleLabel: resolveRoleDisplayName(employee?.firmRoleName, employee?.firmRoleSlug, resolvedRole),
     plan: (profile.firms as { plan?: string } | null)?.plan ?? 'free',
     company: (profile.firms as { name?: string } | null)?.name ?? 'مكتب محاماة',
     phone: (profile.phone as string | null) ?? '',
@@ -647,7 +659,7 @@ async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
 
   const { data: employee, error: employeeError } = await supabase
     .from('employees')
-    .select('*, firms!firm_id(name, plan)')
+    .select('*, firms!firm_id(name, plan), firm_roles(name, slug)')
     .eq('auth_uid', authUser.id)
     .is('deleted_at', null)
     .maybeSingle();
@@ -657,12 +669,14 @@ async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
   }
 
   if (employee) {
-    const emp = employee as DbEmployee & { firms: { name: string; plan: string } | null };
+    const emp = employee as DbEmployee & { firms: { name: string; plan: string } | null; firm_roles?: { name?: string; slug?: string } | null };
     const mapped = mapEmployeeToUser(emp, emp.firms?.name ?? 'مكتب محاماة', emp.firms?.plan ?? 'free');
+    const resolvedRole = resolveAppUserRole(mapped.role, null);
     return {
       ...mapped,
       id: authUser.id,
-      role: resolveAppUserRole(mapped.role, null)
+      role: resolvedRole,
+      roleLabel: resolveRoleDisplayName(emp.firm_roles?.name, emp.firm_roles?.slug, resolvedRole)
     };
   }
 
@@ -674,18 +688,20 @@ async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
 
   const { data: employeeRetry } = await supabase
     .from('employees')
-    .select('*, firms!firm_id(name, plan)')
+    .select('*, firms!firm_id(name, plan), firm_roles(name, slug)')
     .eq('auth_uid', authUser.id)
     .is('deleted_at', null)
     .maybeSingle();
 
   if (employeeRetry) {
-    const emp = employeeRetry as DbEmployee & { firms: { name: string; plan: string } | null };
+    const emp = employeeRetry as DbEmployee & { firms: { name: string; plan: string } | null; firm_roles?: { name?: string; slug?: string } | null };
     const mapped = mapEmployeeToUser(emp, emp.firms?.name ?? 'مكتب محاماة', emp.firms?.plan ?? 'free');
+    const resolvedRole = resolveAppUserRole(mapped.role, null);
     return {
       ...mapped,
       id: authUser.id,
-      role: resolveAppUserRole(mapped.role, null)
+      role: resolvedRole,
+      roleLabel: resolveRoleDisplayName(emp.firm_roles?.name, emp.firm_roles?.slug, resolvedRole)
     };
   }
 

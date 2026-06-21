@@ -39,6 +39,7 @@ import { isFirmManagerRole } from './lib/roleAccess';
 import { useBillingAdmin } from './hooks/useBillingAdmin';
 import { PUBLIC_PAGES } from './app/workspaceForms';
 import { useMyPermissions } from './hooks/useMyPermissions';
+import { canAccessPage } from './lib/permissions';
 import { useWorkspacePageFlags } from './hooks/useWorkspacePageFlags';
 import { useWorkspaceDerivedData } from './hooks/useWorkspaceDerivedData';
 import { useWorkspaceActions } from './hooks/useWorkspaceActions';
@@ -79,7 +80,7 @@ export default function App() {
   }, [isAuth]);
 
   const user = auth.user;
-  const { permissions: myPermissions } = useMyPermissions(isAuth);
+  const { permissions: myPermissions, isLoading: permissionsLoading } = useMyPermissions(isAuth);
   const pageFlags = useWorkspacePageFlags(currentPage, isAuth, user?.role);
 
   const { data: clients = [], isLoading: clientsLoading, isError: clientsError, error: clientsQueryError } =
@@ -197,12 +198,14 @@ export default function App() {
   }, [currentPage, isBillingAdminDb, isBillingAdminLoading, workspace.showAlert, user]);
 
   useEffect(() => {
-    if (!user) return;
-    if ((currentPage === 'employees' || currentPage === 'settings' || currentPage === 'reports') && !canManageOffice(user.role)) {
+    if (!user || permissionsLoading) return;
+    if (PUBLIC_PAGES.includes(currentPage)) return;
+    if (currentPage === 'profile' || currentPage === 'dashboard') return;
+    if (!canAccessPage(myPermissions, currentPage, user.role)) {
       setCurrentPage('dashboard');
-      workspace.showAlert('هذه الصفحة متاحة لمدير المكتب فقط.', 'error');
+      workspace.showAlert('ليس لديك صلاحية للوصول إلى هذه الصفحة.', 'error');
     }
-  }, [currentPage, workspace.showAlert, user]);
+  }, [currentPage, myPermissions, permissionsLoading, user, workspace]);
 
   useEffect(() => {
     if (!user) return;

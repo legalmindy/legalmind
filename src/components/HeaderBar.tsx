@@ -23,6 +23,7 @@ import { NotificationPanel } from './NotificationPanel';
 import { UserAvatar } from './ui/UserAvatar';
 import type { NotificationItem, PageId, SessionItem, User as UserType, UserRole } from '../types/app';
 import { canAccessPage } from '../lib/permissions';
+import { resolveRoleDisplayName } from '../lib/roleLabels';
 
 interface HeaderBarProps {
   user: UserType;
@@ -50,25 +51,17 @@ interface HeaderBarProps {
   isBillingAdmin?: boolean;
 }
 
-const ROLE_LABELS_AR: Record<UserRole, string> = {
-  super_admin: 'مدير المنصة',
-  admin: 'مدير',
-  firm_manager: 'مالك المكتب',
-  lawyer: 'محامٍ',
-  assistant: 'مساعد'
-};
-
-const navItems: Array<{ id: PageId; label: string; shortLabel?: string; icon: typeof Briefcase; roles: UserRole[] }> = [
-  { id: 'dashboard', label: 'الرئيسية', shortLabel: 'الرئيسية', icon: BarChart3, roles: ['super_admin', 'admin', 'firm_manager', 'lawyer', 'assistant'] },
-  { id: 'clients', label: 'العملاء', icon: Users, roles: ['super_admin', 'admin', 'firm_manager', 'assistant'] },
-  { id: 'execution', label: 'طلبات التنفيذ', shortLabel: 'تنفيذ', icon: Gavel, roles: ['super_admin', 'admin', 'firm_manager', 'assistant', 'lawyer'] },
-  { id: 'cases', label: 'القضايا', icon: Briefcase, roles: ['super_admin', 'admin', 'firm_manager', 'lawyer', 'assistant'] },
-  { id: 'archive', label: 'الأرشيف', icon: Archive, roles: ['super_admin', 'admin', 'firm_manager', 'lawyer'] },
-  { id: 'employees', label: 'الموظفون', shortLabel: 'موظفون', icon: User, roles: ['super_admin', 'admin', 'firm_manager'] },
-  { id: 'sessions', label: 'الجلسات', icon: Calendar, roles: ['super_admin', 'admin', 'firm_manager', 'lawyer', 'assistant'] },
-  { id: 'documents', label: 'المستندات', shortLabel: 'مستندات', icon: FileText, roles: ['super_admin', 'admin', 'firm_manager', 'lawyer', 'assistant'] },
-  { id: 'lawyers', label: 'المحامون', shortLabel: 'محامون', icon: Shield, roles: ['super_admin', 'admin', 'firm_manager', 'assistant'] },
-  { id: 'reports', label: 'التقارير المالية', shortLabel: 'تقارير', icon: TrendingUp, roles: ['super_admin', 'admin', 'firm_manager'] }
+const navItems: Array<{ id: PageId; label: string; shortLabel?: string; icon: typeof Briefcase }> = [
+  { id: 'dashboard', label: 'الرئيسية', shortLabel: 'الرئيسية', icon: BarChart3 },
+  { id: 'clients', label: 'العملاء', icon: Users },
+  { id: 'execution', label: 'طلبات التنفيذ', shortLabel: 'تنفيذ', icon: Gavel },
+  { id: 'cases', label: 'القضايا', icon: Briefcase },
+  { id: 'archive', label: 'الأرشيف', icon: Archive },
+  { id: 'employees', label: 'الموظفون', shortLabel: 'موظفون', icon: User },
+  { id: 'sessions', label: 'الجلسات', icon: Calendar },
+  { id: 'documents', label: 'المستندات', shortLabel: 'مستندات', icon: FileText },
+  { id: 'lawyers', label: 'المحامون', shortLabel: 'محامون', icon: Shield },
+  { id: 'reports', label: 'التقارير المالية', shortLabel: 'تقارير', icon: TrendingUp }
 ];
 
 export const HeaderBar = memo(function HeaderBar({
@@ -102,14 +95,11 @@ export const HeaderBar = memo(function HeaderBar({
     [unreadCount, upcomingSessions.length]
   );
   const visibleNavItems = useMemo(
-    () =>
-      navItems.filter(
-        (item) => item.roles.includes(role) && canAccessPage(permissions, item.id, role)
-      ),
-    [role, permissions]
+    () => navItems.filter((item) => canAccessPage(permissions, item.id, role)),
+    [permissions, role]
   );
   const officeLabel = firmName?.trim() || user.company?.trim() || 'مكتب محاماة';
-  const roleLabel = ROLE_LABELS_AR[role] ?? role;
+  const roleLabel = user.roleLabel ?? resolveRoleDisplayName(undefined, undefined, role);
 
   return (
     <header

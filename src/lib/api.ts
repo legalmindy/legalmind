@@ -582,7 +582,7 @@ export async function fetchEmployees(): Promise<Employee[]> {
   const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('employees')
-    .select('*')
+    .select('*, firm_roles(name, slug)')
     .eq('firm_id', firmId)
     .is('deleted_at', null)
     .order('created_at', { ascending: false });

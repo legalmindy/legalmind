@@ -105,9 +105,15 @@ export async function fetchMyPermissions(): Promise<Record<string, boolean>> {
   const { data: session } = await supabase.auth.getSession();
   if (!session.session) return {};
 
+  const { data, error } = await supabase.rpc('get_my_permissions');
+  if (!error && data && typeof data === 'object') {
+    cachedPermissions = data as Record<string, boolean>;
+    return cachedPermissions;
+  }
+
   const { data: employee } = await supabase
     .from('employees')
-    .select('role, firm_role_id, individual_permissions, firm_roles(permissions)')
+    .select('role, firm_role_id, individual_permissions, firm_roles(permissions, slug)')
     .eq('auth_uid', session.session.user.id)
     .is('deleted_at', null)
     .maybeSingle();
@@ -116,14 +122,21 @@ export async function fetchMyPermissions(): Promise<Record<string, boolean>> {
 
   const individual =
     (employee as { individual_permissions?: Record<string, boolean> | null }).individual_permissions;
-  const rolePerms =
-    individual ??
-    (employee as { firm_roles?: { permissions?: Record<string, boolean> } | null }).firm_roles?.permissions ??
-    LEGACY_ROLE_PERMISSIONS[String((employee as { role?: string }).role)] ??
-    {};
+  const firmRoles = (employee as { firm_roles?: { permissions?: Record<string, boolean> } | null }).firm_roles;
+  const rolePerms = firmRoles?.permissions;
+  const legacyRole = String((employee as { role?: string }).role ?? '');
 
-  cachedPermissions = rolePerms;
-  return rolePerms;
+  if (individual && Object.keys(individual).length > 0) {
+    cachedPermissions = individual;
+  } else if (rolePerms && Object.keys(rolePerms).length > 0) {
+    cachedPermissions = rolePerms;
+  } else if (LEGACY_ROLE_PERMISSIONS[legacyRole]) {
+    cachedPermissions = LEGACY_ROLE_PERMISSIONS[legacyRole] as Record<string, boolean>;
+  } else {
+    cachedPermissions = {};
+  }
+
+  return cachedPermissions;
 }
 
 export function hasPermission(
@@ -131,7 +144,9 @@ export function hasPermission(
   key: PermissionKey,
   fallbackRole?: string
 ): boolean {
-  if (permissions && key in permissions) return Boolean(permissions[key]);
+  if (permissions && Object.keys(permissions).length > 0) {
+    return Boolean(permissions[key]);
+  }
   if (fallbackRole && LEGACY_ROLE_PERMISSIONS[fallbackRole]?.[key]) return true;
   return false;
 }
