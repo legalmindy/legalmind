@@ -33,6 +33,7 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
 
   const [deleteError, setDeleteError] = useState('');
   const [exporting, setExporting] = useState<'pdf' | 'excel' | null>(null);
+  const [printError, setPrintError] = useState('');
 
   const { data: archivedCases = [] } = useArchivedCases(true);
   const { data: expenses = [], isLoading: expLoading } = useExpenses(true);
@@ -146,6 +147,7 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
 
   const handleExportPdf = () => {
     setExporting('pdf');
+    setPrintError('');
     try {
       const monthlyRows = report.monthlyData
         .map(
@@ -177,6 +179,9 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
         <table><thead><tr><th>العميل</th><th>القضايا</th><th>المتعاقد</th><th>المحصّل</th><th>المتبقي</th></tr></thead><tbody>${clientRows || '<tr><td colspan="5">—</td></tr>'}</tbody></table>
       `;
       printHtml(`التقرير المالي ${selectedYear}`, html);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'تعذر فتح نافذة الطباعة';
+      setPrintError(msg);
     } finally {
       setExporting(null);
     }
@@ -233,6 +238,15 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
           </select>
         </div>
       </div>
+
+      {printError ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-right">
+          <p className="text-xs font-bold text-amber-800">{printError}</p>
+          <button type="button" onClick={() => setPrintError('')} className="text-[11px] text-amber-600 underline mt-1">
+            إغلاق
+          </button>
+        </div>
+      ) : null}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

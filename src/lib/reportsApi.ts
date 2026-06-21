@@ -83,17 +83,48 @@ export function exportToCsv(filename: string, rows: Record<string, unknown>[]): 
   URL.revokeObjectURL(url);
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** Opens a print-friendly window and triggers the system print dialog. */
 export function printHtml(title: string, html: string): void {
-  const win = window.open('', '_blank', 'width=800,height=900');
-  if (!win) return;
-  win.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>${title}</title>
+  const win = window.open('', '_blank', 'width=900,height=900');
+  if (!win) {
+    throw new Error('تعذر فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع ثم أعد المحاولة.');
+  }
+
+  const safeTitle = escapeHtml(title);
+  win.document.open();
+  win.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>${safeTitle}</title>
     <style>
-      body{font-family:Tahoma,Arial,sans-serif;padding:24px;color:#111}
+      body{font-family:Tahoma,Arial,sans-serif;padding:24px;color:#111;line-height:1.5}
       .header{text-align:center;border-bottom:2px solid #7A1F2B;padding-bottom:16px;margin-bottom:20px}
-      table{width:100%;border-collapse:collapse;margin-top:12px}
-      th,td{border:1px solid #ddd;padding:8px;text-align:right}
-      th{background:#f8fafc}
-      @media print{button{display:none}}
-    </style></head><body>${html}<button onclick="window.print()">طباعة</button></body></html>`);
+      .header h1{margin:0;font-size:1.35rem}
+      h2{font-size:1rem;margin:24px 0 8px;color:#334155}
+      table{width:100%;border-collapse:collapse;margin-top:12px;font-size:12px}
+      th,td{border:1px solid #cbd5e1;padding:8px;text-align:right}
+      th{background:#f1f5f9;font-weight:bold}
+      .print-actions{margin-top:28px;text-align:center}
+      .print-btn{background:#7A1F2B;color:#fff;border:none;padding:10px 28px;border-radius:8px;font:bold 14px Tahoma;cursor:pointer}
+      @media print{
+        .print-actions{display:none}
+        body{padding:10mm}
+        @page{margin:12mm}
+      }
+    </style></head><body>
+      ${html}
+      <div class="print-actions">
+        <button type="button" class="print-btn" onclick="window.print()">طباعة</button>
+      </div>
+      <script>
+        window.onload=function(){window.focus();setTimeout(function(){window.print();},300);};
+        window.onafterprint=function(){window.close();};
+      </script>
+    </body></html>`);
   win.document.close();
 }
