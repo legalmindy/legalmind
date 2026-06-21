@@ -448,6 +448,11 @@ async function repairAuthProfileIfNeeded(): Promise<AuthRepairResult> {
     return { ok: false, action: 'no_session', error: 'لا توجد جلسة صالحة.' };
   }
 
+  const contextUser = await loadUserFromProfileContext();
+  if (contextUser) {
+    return { ok: true, action: 'context_rpc' };
+  }
+
   const { data, error } = await supabase.rpc('repair_current_user_profile');
   if (error) {
     if (isInvalidAuthError(error)) {
@@ -624,11 +629,6 @@ async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
   if (!profile) {
     const contextUser = await loadUserFromProfileContext();
     if (contextUser) return contextUser;
-
-    const repaired = await repairAuthProfileIfNeeded();
-    if (repaired.ok) {
-      ({ profile, profileError } = await loadProfile());
-    }
   }
 
   if (profile) {
@@ -753,12 +753,7 @@ export async function getMfaFactors(): Promise<Factor[]> {
 export function onAuthStateChange(callback: (user: User | null) => void) {
   return supabase.auth.onAuthStateChange(async (_event, session) => {
     if (session?.user) {
-      let appUser = await buildAppUser(session.user);
-      if (!appUser) {
-        await ensureAuthProfileReady();
-        appUser = await buildAppUser(session.user);
-      }
-      callback(appUser);
+      callback(await fetchCurrentUser());
     } else {
       callback(null);
     }
