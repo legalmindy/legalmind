@@ -73,7 +73,7 @@ export type CaseType = 'مدنية' | 'تجارية' | 'أحوال شخصية' |
 export type CaseStage = 'ابتدائي مدني' | 'ابتدائي شخصي' | 'ابتدائي جنائي' | 'استئناف' | 'نقض';
 export type CaseStatus = 'active' | 'archived' | 'closed';
 export type SessionStatus = 'مجدولة' | 'منعقدة' | 'مؤجلة' | 'ملغاة' | 'منتهية';
-export type EmployeeStatus = 'active' | 'suspended' | 'disabled';
+export type EmployeeStatus = 'active' | 'suspended' | 'disabled' | 'pending_approval';
 
 export interface User {
   id: string;

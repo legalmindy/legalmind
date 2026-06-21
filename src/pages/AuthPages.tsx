@@ -7,6 +7,7 @@ import { isValidFirmCodeFormat, normalizeFirmCode, validateFirmCodeForRegistrati
 import { getCurrentProfileContext } from '../services/profileService';
 import { FirmCodeCard } from '../components/FirmCodeCard';
 import { fetchInvitationPreview, type AuthResult, type InvitationPreview, type InvitedUserRegistrationData, type LawyerRegistrationData, type OfficeRegistrationData, type SignUpData } from '../lib/auth';
+import { fetchFirmRolesForRegistration, type RegistrationFirmRole } from '../lib/memberRegistration';
 
 interface AuthPagesProps {
   currentPage: 'login' | 'register-office' | 'register-lawyer' | 'register' | 'invite' | 'forgot' | 'accept-invite';
@@ -45,6 +46,8 @@ export function AuthPages({
   const [firmCodeInput, setFirmCodeInput] = useState('');
   const [firmCodeStatus, setFirmCodeStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const [firmCodeError, setFirmCodeError] = useState('');
+  const [firmRoles, setFirmRoles] = useState<RegistrationFirmRole[]>([]);
+  const [selectedRoleSlug, setSelectedRoleSlug] = useState('');
   const inviteToken = useMemo(() => {
     const pathToken = window.location.pathname.startsWith('/invite/') ? window.location.pathname.split('/invite/')[1] : '';
     return decodeURIComponent(pathToken || new URLSearchParams(window.location.search).get('token') || '');
@@ -67,33 +70,49 @@ export function AuthPages({
       setFirmCodeStatus('idle');
       setFirmPreviewName('');
       setFirmCodeError('');
+      setFirmRoles([]);
+      setSelectedRoleSlug('');
       return;
     }
     if (!isValidFirmCodeFormat(normalized)) {
       setFirmCodeStatus('invalid');
       setFirmPreviewName('');
       setFirmCodeError(`الصيغة غير صحيحة. الكود يجب أن يكون بشكل: ABC-1234 (القيمة الحالية: ${normalized})`);
+      setFirmRoles([]);
+      setSelectedRoleSlug('');
       return;
     }
 
     const timer = window.setTimeout(() => {
       setFirmCodeStatus('checking');
       void validateFirmCodeForRegistration(normalized)
-        .then((result) => {
+        .then(async (result) => {
           if (result.valid) {
             setFirmCodeStatus('valid');
             setFirmPreviewName(result.firmName ?? '');
             setFirmCodeError('');
+            try {
+              const roles = await fetchFirmRolesForRegistration(result.normalizedCode);
+              setFirmRoles(roles);
+              setSelectedRoleSlug(roles[0]?.slug ?? '');
+            } catch {
+              setFirmRoles([]);
+              setSelectedRoleSlug('');
+            }
           } else {
             setFirmCodeStatus('invalid');
             setFirmPreviewName('');
             setFirmCodeError(result.error ?? 'الكود غير موجود. تأكد من نسخه بدقة من إعدادات المكتب.');
+            setFirmRoles([]);
+            setSelectedRoleSlug('');
           }
         })
         .catch(() => {
           setFirmCodeStatus('invalid');
           setFirmPreviewName('');
           setFirmCodeError('تعذر التحقق من الكود. تحقق من الاتصال بالإنترنت.');
+          setFirmRoles([]);
+          setSelectedRoleSlug('');
         });
     }, 400);
 
@@ -125,7 +144,9 @@ export function AuthPages({
         return;
       }
       if (result.needsEmailVerification) {
-        if (result.error) {
+        if (currentPage === 'register-lawyer') {
+          setSuccess('تم إرسال طلب الانضمام بنجاح. بعد تأكيد بريدك الإلكتروني، ينتظر حسابك موافقة مالك المكتب.');
+        } else if (result.error) {
           setError(result.error);
           setSuccess('تم إنشاء الحساب. يمكنك محاولة تسجيل الدخول الآن.');
         } else {
@@ -322,8 +343,8 @@ export function AuthPages({
             <div className="bg-amber-500 w-12 h-12 rounded-2xl flex items-center justify-center text-slate-950 mx-auto mb-3 shadow">
               <UserPlus className="w-6 h-6" aria-hidden="true" />
             </div>
-            <h2 className="text-2xl font-black text-slate-900">إنشاء حساب محامي</h2>
-            <p className="text-xs text-slate-500 mt-1">أدخل كود المكتب للانضمام كعضو قانوني.</p>
+            <h2 className="text-2xl font-black text-slate-900">إنشاء حساب عضو بالمكتب</h2>
+            <p className="text-xs text-slate-500 mt-1">أدخل كود المكتب واختر نوع صلاحيتك — يتطلب موافقة مالك المكتب.</p>
           </div>
           <form
             noValidate
@@ -346,6 +367,10 @@ export function AuthPages({
                 setError('صيغة كود المكتب غير صحيحة. مثال: HUD-4829');
                 return;
               }
+              if (!selectedRoleSlug) {
+                setError('يرجى اختيار نوع الصلاحية في المكتب.');
+                return;
+              }
 
               void handleAsync(async () => {
                 const validation = await validateFirmCodeForRegistration(firmCode);
@@ -356,7 +381,8 @@ export function AuthPages({
                   fullName: data.get('fullName') as string,
                   email,
                   password,
-                  officeCode: validation.normalizedCode
+                  officeCode: validation.normalizedCode,
+                  firmRoleSlug: selectedRoleSlug
                 });
               });
             }}
@@ -397,6 +423,26 @@ export function AuthPages({
                 </p>
               )}
             </div>
+            {firmCodeStatus === 'valid' && firmRoles.length > 0 ? (
+              <div>
+                <label htmlFor="firm-role" className="block text-xs font-bold text-slate-700 mb-1">نوع الصلاحية في المكتب</label>
+                <select
+                  id="firm-role"
+                  value={selectedRoleSlug}
+                  onChange={(e) => setSelectedRoleSlug(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none text-sm text-right bg-white"
+                >
+                  {firmRoles.map((role) => (
+                    <option key={role.slug} value={role.slug}>
+                      {role.name.includes('(قالب)') ? role.name : `${role.name} (قالب)`}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1 text-right">
+                  يحدد مالك المكتب صلاحياتك وفق هذا الدور بعد الموافقة على طلبك.
+                </p>
+              </div>
+            ) : null}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input name="password" type="password" required minLength={8} placeholder="كلمة المرور" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm" />
               <input name="confirmPassword" type="password" required minLength={8} placeholder="تأكيد كلمة المرور" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm" />
@@ -405,7 +451,7 @@ export function AuthPages({
             {success && <p className="text-emerald-600 text-xs font-bold" role="status">{success}</p>}
             <button type="submit" disabled={loading} className="w-full bg-indigo-900 hover:bg-indigo-800 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              إنشاء حساب محامي
+              إنشاء حساب عضو بالمكتب
             </button>
           </form>
         </div>
@@ -571,7 +617,7 @@ export function AuthPages({
           </button>
           <span className="text-xs text-slate-400 mx-2">|</span>
           <button type="button" onClick={() => onNavigate('register-lawyer')} className="text-xs text-indigo-700 font-bold hover:underline">
-            حساب محامي
+            عضو بالمكتب
           </button>
         </div>
       </div>

@@ -15,8 +15,8 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
       primary: true
     },
     {
-      title: 'إنشاء حساب',
-      desc: 'انضم إلى مكتبك عبر كود المكتب وابدأ إدارة ملفاتك القانونية.',
+      title: 'إنشاء حساب عضو',
+      desc: 'انضم إلى مكتبك عبر كود المكتب واختر صلاحيتك بموافقة المالك.',
       icon: UserPlus,
       action: () => onNavigate('register-lawyer')
     },
@@ -51,7 +51,7 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
             onClick={() => onNavigate('register-lawyer')}
             className="border border-white/20 !text-white hover:bg-white/10 font-bold text-sm px-5 py-2 rounded-xl transition-all duration-300"
           >
-            إنشاء حساب محامي
+            إنشاء حساب عضو بالمكتب
           </button>
           <button
             type="button"

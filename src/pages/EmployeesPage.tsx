@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Search,
   Plus,
@@ -17,6 +18,12 @@ import {
 import { FirmCodeCard } from '../components/FirmCodeCard';
 import { OfficeManagerPanel } from './OfficeManagerPage';
 import { isFirmManagerRole } from '../lib/roleAccess';
+import {
+  approveMemberRegistration,
+  fetchPendingMemberRegistrations,
+  rejectMemberRegistration
+} from '../lib/memberRegistration';
+import { toArabicQueryError } from '../components/QueryErrorBanner';
 import type { CaseRecord, Employee, Invitation, Lawyer, UserRole } from '../types/app';
 
 type EmployeesSection = 'team' | 'manager';
@@ -74,7 +81,14 @@ export function EmployeesPage({
   const [section, setSection] = useState<EmployeesSection>(initialSection);
 
   const showManagerTab = isFirmManagerRole(userRole);
+  const queryClient = useQueryClient();
   const activeCount = employees.filter((item) => item.status === 'active').length;
+
+  const { data: pendingMembers = [], refetch: refetchPendingMembers } = useQuery({
+    queryKey: ['pending-member-registrations'],
+    queryFn: fetchPendingMemberRegistrations,
+    enabled: showManagerTab
+  });
 
   const filteredEmployees = useMemo(() => {
     return employees.filter((item) => {
@@ -128,6 +142,7 @@ export function EmployeesPage({
             { label: 'إجمالي الفريق', value: employees.length },
             { label: 'نشط', value: activeCount },
             { label: 'دعوات معلقة', value: invitations.filter((i) => i.status === 'pending').length },
+            { label: 'طلبات انضمام', value: pendingMembers.length },
             { label: 'المحامون', value: lawyers.length || employees.filter((e) => e.role === 'lawyer').length }
           ].map((stat) => (
             <div key={stat.label} className="border-l border-slate-100 px-4 py-3 first:border-l-0">
@@ -171,6 +186,63 @@ export function EmployeesPage({
 
       {section === 'team' ? (
         <>
+          {showManagerTab && pendingMembers.length > 0 ? (
+            <div className="overflow-hidden rounded-3xl border border-amber-200 bg-amber-50/60 shadow-sm">
+              <div className="border-b border-amber-200/80 px-5 py-4">
+                <h2 className="text-sm font-black text-amber-950">طلبات انضمام بانتظار الموافقة</h2>
+                <p className="mt-1 text-[11px] text-amber-900/80">
+                  أعضاء سجّلوا عبر كود المكتب واختاروا صلاحيتهم — يحتاجون موافقة مالك المكتب.
+                </p>
+              </div>
+              <div className="divide-y divide-amber-100">
+                {pendingMembers.map((member) => (
+                  <div key={member.employeeId} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                    <div>
+                      <p className="font-bold text-slate-900">{member.fullName}</p>
+                      <p className="text-xs text-slate-600">{member.email}</p>
+                      <p className="mt-1 text-[11px] font-bold text-[#7A1F2B]">
+                        {member.roleName ? `${member.roleName} (قالب)` : 'عضو بالمكتب'}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void approveMemberRegistration(member.employeeId)
+                            .then(async () => {
+                              await refetchPendingMembers();
+                              void queryClient.invalidateQueries({ queryKey: ['employees'] });
+                              onNotify?.('تمت الموافقة وتفعيل العضو.', 'success');
+                            })
+                            .catch((err) => onNotify?.(toArabicQueryError(err, 'الموافقة على العضو'), 'error'))
+                        }
+                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold text-white"
+                      >
+                        <UserCheck className="h-3.5 w-3.5" />
+                        موافقة
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void rejectMemberRegistration(member.employeeId)
+                            .then(async () => {
+                              await refetchPendingMembers();
+                              onNotify?.('تم رفض طلب الانضمام.', 'info');
+                            })
+                            .catch((err) => onNotify?.(toArabicQueryError(err, 'رفض العضو'), 'error'))
+                        }
+                        className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-[11px] font-bold text-rose-700"
+                      >
+                        <Ban className="h-3.5 w-3.5" />
+                        رفض
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {firmCode ? (
             <FirmCodeCard firmCode={firmCode} firmName={firmName} onCopied={onFirmCodeCopied} />
           ) : null}
@@ -208,6 +280,7 @@ export function EmployeesPage({
               >
                 <option>الكل</option>
                 <option value="active">نشط</option>
+                <option value="pending_approval">بانتظار الموافقة</option>
                 <option value="suspended">معلق</option>
                 <option value="disabled">معطل</option>
               </select>
@@ -338,12 +411,20 @@ export function EmployeesPage({
                           className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${
                             employee.status === 'active'
                               ? 'bg-emerald-50 text-emerald-700'
-                              : employee.status === 'suspended'
-                                ? 'bg-amber-50 text-amber-700'
-                                : 'bg-rose-50 text-rose-700'
+                              : employee.status === 'pending_approval'
+                                ? 'bg-sky-50 text-sky-700'
+                                : employee.status === 'suspended'
+                                  ? 'bg-amber-50 text-amber-700'
+                                  : 'bg-rose-50 text-rose-700'
                           }`}
                         >
-                          {employee.status === 'active' ? 'نشط' : employee.status === 'suspended' ? 'معلق' : 'معطل'}
+                          {employee.status === 'active'
+                            ? 'نشط'
+                            : employee.status === 'pending_approval'
+                              ? 'بانتظار الموافقة'
+                              : employee.status === 'suspended'
+                                ? 'معلق'
+                                : 'معطل'}
                         </span>
                       </td>
                       <td className="px-4 py-3.5 text-center">

@@ -9,6 +9,7 @@ import { clearFirmIdCache } from './api';
 import { clearPermissionsCache } from './permissions';
 import { clearAppQueryCache } from './queryClient';
 import { isValidYemeniPhone, normalizeYemeniPhoneForStorage } from '../utils/format';
+import { employeeStatusMessage, getEmployeeAccessStatus } from './memberRegistration';
 
 export interface AuthResult {
   success: boolean;
@@ -40,6 +41,7 @@ export interface LawyerRegistrationData {
   email: string;
   password: string;
   officeCode: string;
+  firmRoleSlug: string;
 }
 
 export interface InvitedUserRegistrationData {
@@ -144,6 +146,18 @@ export async function signIn(email: string, password: string): Promise<AuthResul
     return { success: false, needsMfa: true, factorId: mfaCheck.factorId };
   }
 
+  if (data.user) {
+    const status = await getEmployeeAccessStatus(data.user.id);
+    const blockMessage = employeeStatusMessage(status);
+    if (blockMessage) {
+      await supabase.auth.signOut();
+      clearAppQueryCache();
+      clearPermissionsCache();
+      clearFirmIdCache();
+      return { success: false, error: blockMessage };
+    }
+  }
+
   return { success: true };
 }
 
@@ -234,6 +248,11 @@ export async function registerLawyer(data: LawyerRegistrationData): Promise<Auth
   const office = await verifyOfficeCode(firmCode);
   if (!office) return { success: false, error: 'كود المكتب غير صحيح أو غير موجود. مثال صحيح: HUD-4829' };
 
+  const roleSlug = data.firmRoleSlug?.trim();
+  if (!roleSlug || roleSlug === 'firm_owner') {
+    return { success: false, error: 'يرجى اختيار نوع الصلاحية في المكتب.' };
+  }
+
   const normalizedEmail = data.email.trim().toLowerCase();
   try {
     const emailAvailable = await isEmailAvailableForRegistration(normalizedEmail);
@@ -249,18 +268,21 @@ export async function registerLawyer(data: LawyerRegistrationData): Promise<Auth
     password: data.password,
     options: {
       data: {
-        registration_flow: 'lawyer',
+        registration_flow: 'office_member',
         firm_code: firmCode,
         office_code: firmCode,
+        firm_role_slug: roleSlug,
         full_name: data.fullName,
-        role: 'lawyer'
+        role: roleSlug.includes('lawyer') ? 'lawyer' : 'assistant'
       },
       emailRedirectTo: `${window.location.origin}/login`
     }
   });
 
   if (error) return { success: false, error: mapAuthError(error) };
-  if (authData.session) return { success: true };
+  if (authData.session) {
+    await supabase.auth.signOut();
+  }
   return { success: true, needsEmailVerification: true };
 }
 
@@ -351,6 +373,16 @@ export async function getSession(): Promise<Session | null> {
 export async function fetchCurrentUser(): Promise<User | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
+
+  const status = await getEmployeeAccessStatus(user.id);
+  if (employeeStatusMessage(status)) {
+    await supabase.auth.signOut();
+    clearAppQueryCache();
+    clearPermissionsCache();
+    clearFirmIdCache();
+    return null;
+  }
+
   return buildAppUser(user);
 }
 
