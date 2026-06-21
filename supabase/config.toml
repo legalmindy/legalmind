@@ -1,7 +1,4 @@
 # LegalMind Yemen — Supabase project config (CLI deploy)
 
-[functions.legal-ai]
-verify_jwt = false
-
 [functions.invite-user]
 verify_jwt = false

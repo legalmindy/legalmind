@@ -8,4 +8,3 @@ export { ReportsPage } from './ReportsPage';
 export { SubscriptionPage } from './SubscriptionPage';
 export { ProfilePage } from './ProfilePage';
 export { SettingsPage } from './SettingsPage';
-export { LegalAiPage } from './LegalAiPage';

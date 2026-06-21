@@ -30,10 +30,6 @@ export const PERMISSION_GROUPS: Array<{ title: string; keys: PermissionKey[] }> 
   {
     title: 'الاشتراك والإعدادات',
     keys: ['subscriptions.view', 'subscriptions.manage', 'settings.view', 'settings.edit']
-  },
-  {
-    title: 'الذكاء الاصطناعي',
-    keys: ['ai.use']
   }
 ];
 

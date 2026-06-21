@@ -48,8 +48,6 @@ const ReportsPage = lazy(() => import('../../pages/workspace/ReportsPage').then(
 const SubscriptionPage = lazy(() => import('../../pages/workspace/SubscriptionPage').then((m) => ({ default: m.SubscriptionPage })));
 const ProfilePage = lazy(() => import('../../pages/workspace/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const SettingsPage = lazy(() => import('../../pages/workspace/SettingsPage').then((m) => ({ default: m.SettingsPage })));
-const LegalAiPage = lazy(() => import('../../pages/workspace/LegalAiPage').then((m) => ({ default: m.LegalAiPage })));
-
 type WorkspaceAuthHandlers = Pick<
   AuthContextValue,
   | 'login'
@@ -507,8 +505,6 @@ export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
           onGetUrl={(docId) => getDocumentDownloadUrl(docId)}
         />
       )}
-
-      {currentPage === 'legal-ai' && user && !pageLoading && <LegalAiPage />}
 
       {currentPage === 'lawyers' && user && !pageLoading && <LawyersPage lawyers={lawyers} />}
 
