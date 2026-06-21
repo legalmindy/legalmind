@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import type { FunctionsHttpError } from '@supabase/supabase-js';
 
 export type LegalAiAction = 'summarize' | 'contract_draft' | 'legal_research';
 
@@ -43,6 +44,27 @@ export const CONTRACT_TYPES = [
 ] as const;
 
 const MAX_TEXT_FILE_BYTES = 512_000;
+const TEXT_EXTENSIONS = new Set(['txt', 'md', 'csv', 'json']);
+
+async function parseFunctionError(error: unknown): Promise<string> {
+  if (error && typeof error === 'object' && 'context' in error) {
+    try {
+      const ctx = await (error as FunctionsHttpError).context.json();
+      if (ctx && typeof ctx === 'object' && 'error' in ctx && typeof ctx.error === 'string') {
+        return ctx.error;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  if (error instanceof Error) {
+    if (/failed to fetch|network|CORS/i.test(error.message)) {
+      return 'تعذر الاتصال بخدمة الذكاء الاصطناعي. تأكد من نشر Edge Function (legal-ai) وإضافة OPENAI_API_KEY في Supabase.';
+    }
+    return error.message;
+  }
+  return 'فشل طلب المساعد القانوني.';
+}
 
 export async function callLegalAi(payload: LegalAiPayload): Promise<LegalAiResponse> {
   const { data: session } = await supabase.auth.getSession();
@@ -50,33 +72,17 @@ export async function callLegalAi(payload: LegalAiPayload): Promise<LegalAiRespo
     throw new Error('يجب تسجيل الدخول لاستخدام المساعد القانوني.');
   }
 
-  const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '');
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  if (!baseUrl || !anonKey) {
-    throw new Error('إعدادات Supabase غير مكتملة.');
+  const { data, error } = await supabase.functions.invoke('legal-ai', { body: payload });
+
+  if (error) {
+    throw new Error(await parseFunctionError(error));
   }
 
-  const response = await fetch(`${baseUrl}/functions/v1/legal-ai`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${session.session.access_token}`,
-      apikey: anonKey,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
+  const body = (data ?? {}) as { result?: string; error?: string; action?: LegalAiAction };
+  if (body.error) throw new Error(body.error);
+  if (!body.result) throw new Error('لم يُرجع المساعد نتيجة.');
 
-  const data = (await response.json().catch(() => ({}))) as { result?: string; error?: string; action?: LegalAiAction };
-
-  if (!response.ok) {
-    throw new Error(data.error ?? 'فشل طلب المساعد القانوني.');
-  }
-
-  if (!data.result) {
-    throw new Error('لم يُرجع المساعد نتيجة.');
-  }
-
-  return { result: data.result, action: data.action ?? payload.action };
+  return { result: body.result, action: body.action ?? payload.action };
 }
 
 export async function readTextFromFile(file: File): Promise<string> {
@@ -84,10 +90,24 @@ export async function readTextFromFile(file: File): Promise<string> {
     throw new Error('حجم الملف كبير. الحد الأقصى 500 كيلوبايت للملفات النصية.');
   }
   const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-  if (!['txt', 'md', 'csv', 'json'].includes(ext)) {
-    throw new Error('ارفع ملفاً نصياً (.txt أو .md) أو الصق نص المستند مباشرة. ملفات PDF تحتاج نسخ النص يدوياً.');
+  if (!TEXT_EXTENSIONS.has(ext)) {
+    throw new Error('ارفع ملفاً نصياً (.txt أو .md) أو الصق نص المستند. ملفات PDF/DOCX تحتاج نسخ النص يدوياً.');
   }
   return (await file.text()).trim();
+}
+
+/** Try loading plain text from a stored document URL (txt/md only). */
+export async function fetchDocumentText(url: string, title: string): Promise<string | null> {
+  const ext = (url.split('?')[0]?.split('.').pop() ?? title.split('.').pop() ?? '').toLowerCase();
+  if (!TEXT_EXTENSIONS.has(ext)) return null;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const text = (await response.text()).trim();
+    return text.length >= 40 ? text : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function checkLegalAiAccess(): Promise<boolean> {

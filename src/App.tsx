@@ -200,6 +200,10 @@ export default function App() {
   useEffect(() => {
     if (!user || permissionsLoading) return;
     if (PUBLIC_PAGES.includes(currentPage)) return;
+    if (currentPage === 'legal-ai') {
+      setCurrentPage('documents');
+      return;
+    }
     if (currentPage === 'profile' || currentPage === 'dashboard') return;
     if (!canAccessPage(myPermissions, currentPage, user.role)) {
       setCurrentPage('dashboard');

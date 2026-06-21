@@ -18,9 +18,14 @@ type LegalAiPayload = {
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, prefer',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400'
 };
+
+function corsResponse(status = 204): Response {
+  return new Response(null, { status, headers: corsHeaders });
+}
 
 const MAX_INPUT = 14_000;
 const HOURLY_LIMIT = 40;
@@ -151,7 +156,7 @@ async function callOpenAi(system: string, user: string): Promise<string> {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return corsResponse(204);
   if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -174,7 +179,19 @@ Deno.serve(async (req) => {
   if (userError || !userData.user) return jsonResponse({ error: 'Unauthorized' }, 401);
 
   const { data: allowed, error: accessError } = await userClient.rpc('assert_ai_assistant_access');
-  if (accessError || !allowed) {
+  if (accessError) {
+    console.warn('[legal-ai] assert_ai_assistant_access:', accessError.message);
+    const { data: employeeCheck } = await adminClient
+      .from('employees')
+      .select('id, role')
+      .eq('auth_uid', userData.user.id)
+      .eq('status', 'active')
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (!employeeCheck) {
+      return jsonResponse({ error: 'ليس لديك صلاحية استخدام المساعد القانوني الذكي.' }, 403);
+    }
+  } else if (!allowed) {
     return jsonResponse({ error: 'ليس لديك صلاحية استخدام المساعد القانوني الذكي.' }, 403);
   }
 

@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Briefcase, FileText, Plus, Download, Loader2, Printer } from 'lucide-react';
+import { Briefcase, FileText, Plus, Download, Loader2, Printer, Sparkles } from 'lucide-react';
+import { LegalAiPanel } from '../../components/LegalAiPanel';
+import { useMyPermissions } from '../../hooks/useMyPermissions';
+import { fetchDocumentText } from '../../lib/legalAi';
 import type { DocumentItem } from '../../types/app';
 import type { DocumentsPageProps } from './types';
 
@@ -34,9 +37,20 @@ function DocTypeIcon({ category }: { category: string }) {
   );
 }
 
-function DocCard({ doc, onGetUrl }: { doc: DocumentItem; onGetUrl?: (id: string) => Promise<string> }) {
+function DocCard({
+  doc,
+  onGetUrl,
+  onSummarize,
+  canSummarize
+}: {
+  doc: DocumentItem;
+  onGetUrl?: (id: string) => Promise<string>;
+  onSummarize?: (doc: DocumentItem, url: string) => void;
+  canSummarize?: boolean;
+}) {
   const [loading, setLoading] = useState(false);
   const [printLoading, setPrintLoading] = useState(false);
+  const [summarizeLoading, setSummarizeLoading] = useState(false);
   const isImg = isImageDoc(doc);
 
   const fetchFreshUrl = async (): Promise<string> => {
@@ -98,6 +112,17 @@ function DocCard({ doc, onGetUrl }: { doc: DocumentItem; onGetUrl?: (id: string)
     }
   };
 
+  const handleSummarize = async () => {
+    if (!onSummarize) return;
+    setSummarizeLoading(true);
+    try {
+      const url = await fetchFreshUrl();
+      onSummarize(doc, url);
+    } finally {
+      setSummarizeLoading(false);
+    }
+  };
+
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all text-right overflow-hidden group">
       <div className="relative h-32 bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center overflow-hidden">
@@ -129,20 +154,28 @@ function DocCard({ doc, onGetUrl }: { doc: DocumentItem; onGetUrl?: (id: string)
         <p className="text-[10px] text-slate-400">رُفعت في: {doc.dateUploaded}</p>
       </div>
 
-      <div className="px-4 pb-4 flex items-center gap-2">
+      <div className="px-4 pb-4 flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => void handleDownload()}
           disabled={loading}
-          className="flex-1 flex items-center justify-center gap-1.5 bg-indigo-900 hover:bg-indigo-800 disabled:opacity-50 text-white font-bold px-3 py-2 rounded-xl text-[11px] transition-colors"
+          className="flex-1 min-w-[5rem] flex items-center justify-center gap-1.5 bg-indigo-900 hover:bg-indigo-800 disabled:opacity-50 text-white font-bold px-3 py-2 rounded-xl text-[11px] transition-colors"
         >
-          {loading ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <Download className="w-3.5 h-3.5" />
-          )}
+          {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
           تحميل
         </button>
+        {canSummarize ? (
+          <button
+            type="button"
+            onClick={() => void handleSummarize()}
+            disabled={summarizeLoading}
+            title="تلخيص بالذكاء الاصطناعي"
+            className="flex items-center justify-center gap-1 border border-[#7A1F2B]/30 bg-[#FFF9FA] hover:bg-[#7A1F2B]/10 disabled:opacity-50 text-[#7A1F2B] font-bold px-3 py-2 rounded-xl text-[11px] transition-colors"
+          >
+            {summarizeLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            لخّص
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => void handlePrint()}
@@ -150,11 +183,7 @@ function DocCard({ doc, onGetUrl }: { doc: DocumentItem; onGetUrl?: (id: string)
           title="طباعة المستند"
           className="flex items-center justify-center gap-1 border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-600 font-bold px-3 py-2 rounded-xl text-[11px] transition-colors"
         >
-          {printLoading ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <Printer className="w-3.5 h-3.5" />
-          )}
+          {printLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
           طباعة
         </button>
       </div>
@@ -163,6 +192,12 @@ function DocCard({ doc, onGetUrl }: { doc: DocumentItem; onGetUrl?: (id: string)
 }
 
 export function DocumentsPage({ documents, onCreateDocument, onGetUrl }: DocumentsPageProps) {
+  const { can } = useMyPermissions();
+  const canUseAi = can('ai.use');
+  const [aiDocText, setAiDocText] = useState('');
+  const [aiDocTitle, setAiDocTitle] = useState<string | undefined>();
+  const [aiHint, setAiHint] = useState<string | null>(null);
+
   const grouped = useMemo(() => {
     const map = new Map<string, { caseTitle: string; docs: DocumentItem[] }>();
     for (const doc of documents) {
@@ -173,6 +208,20 @@ export function DocumentsPage({ documents, onCreateDocument, onGetUrl }: Documen
     return Array.from(map.entries());
   }, [documents]);
 
+  const handleSummarizeDoc = async (doc: DocumentItem, url: string) => {
+    setAiHint(null);
+    setAiDocTitle(doc.title);
+    const text = await fetchDocumentText(url, doc.title);
+    if (text) {
+      setAiDocText(text);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    setAiDocText('');
+    setAiHint(`«${doc.title}»: الصق نص المستند في المساعد أعلاه (ملفات PDF/DOCX تحتاج نسخ النص يدوياً).`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-right">
@@ -180,6 +229,7 @@ export function DocumentsPage({ documents, onCreateDocument, onGetUrl }: Documen
           <h1 className="text-2xl font-black text-slate-900">خزانة المستندات</h1>
           <p className="text-xs text-slate-500 font-medium">
             {documents.length} مستند — مرتبة حسب القضية
+            {canUseAi ? ' · المساعد الذكي مدمج أدناه' : ''}
           </p>
         </div>
         <button
@@ -191,11 +241,20 @@ export function DocumentsPage({ documents, onCreateDocument, onGetUrl }: Documen
         </button>
       </div>
 
+      {canUseAi ? (
+        <div className="space-y-2">
+          {aiHint ? (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">{aiHint}</p>
+          ) : null}
+          <LegalAiPanel embedded defaultTab="summarize" initialDocText={aiDocText} initialDocTitle={aiDocTitle} />
+        </div>
+      ) : null}
+
       {documents.length === 0 && (
         <div className="text-center py-20 text-slate-400">
           <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="font-bold text-sm">لا توجد مستندات بعد</p>
-          <p className="text-xs mt-1">اضغط "رفع وثيقة جديدة" لإضافة أول مستند</p>
+          <p className="text-xs mt-1">اضغط &quot;رفع وثيقة جديدة&quot; لإضافة أول مستند</p>
         </div>
       )}
 
@@ -212,7 +271,13 @@ export function DocumentsPage({ documents, onCreateDocument, onGetUrl }: Documen
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {group.docs.map((doc) => (
-              <DocCard key={doc.id} doc={doc} onGetUrl={onGetUrl} />
+              <DocCard
+                key={doc.id}
+                doc={doc}
+                onGetUrl={onGetUrl}
+                canSummarize={canUseAi}
+                onSummarize={(d, url) => void handleSummarizeDoc(d, url)}
+              />
             ))}
           </div>
         </div>
