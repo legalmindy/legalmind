@@ -8,9 +8,12 @@ import type {
   Lawyer,
   SessionItem
 } from '../types/app';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { RichTextEditor } from './ui/RichTextEditor';
+import { fetchAssignableFirmRoles } from '../lib/permissions';
+import { legacyEmployeeRoleFromFirmSlug } from '../lib/roleLabels';
+import type { FirmRole } from '../types/app';
 
 interface ClientModalProps {
   open: boolean;
@@ -674,7 +677,54 @@ export function DocumentModal({ open, formState, cases, onChange, onSave, onClos
 }
 
 export function EmployeeModal({ open, employee, formState, onChange, onSave, onClose }: EmployeeModalProps) {
+  const [assignableRoles, setAssignableRoles] = useState<FirmRole[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [rolesError, setRolesError] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+
+    setRolesLoading(true);
+    setRolesError('');
+    void fetchAssignableFirmRoles()
+      .then((roles) => {
+        setAssignableRoles(roles);
+        if (!roles.length) return;
+
+        const currentRoleId = formState.firm_role_id;
+        const matchedCurrent = currentRoleId ? roles.find((role) => role.id === currentRoleId) : undefined;
+        const fallbackRole =
+          matchedCurrent ??
+          roles.find((role) => role.slug === employee?.firmRoleSlug) ??
+          roles.find((role) => role.slug === 'lawyer') ??
+          roles[0];
+
+        if (!fallbackRole) return;
+
+        if (!matchedCurrent || matchedCurrent.id !== fallbackRole.id) {
+          onChange({
+            ...formState,
+            firm_role_id: fallbackRole.id,
+            role: legacyEmployeeRoleFromFirmSlug(fallbackRole.slug)
+          });
+        }
+      })
+      .catch(() => setRolesError('تعذر تحميل أدوار المكتب. حدّث الصفحة وحاول مرة أخرى.'))
+      .finally(() => setRolesLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync default role once when modal opens
+  }, [open, employee?.id]);
+
   if (!open) return null;
+
+  const handleRoleChange = (roleId: string) => {
+    const selectedRole = assignableRoles.find((role) => role.id === roleId);
+    if (!selectedRole) return;
+    onChange({
+      ...formState,
+      firm_role_id: selectedRole.id,
+      role: legacyEmployeeRoleFromFirmSlug(selectedRole.slug)
+    });
+  };
 
   return (
     <ModalShell
@@ -730,13 +780,20 @@ export function EmployeeModal({ open, employee, formState, onChange, onSave, onC
           <div>
             <label className="block text-slate-600 mb-1 font-bold">الدور</label>
             <select
-              value={formState.role}
-              onChange={(e) => onChange({ ...formState, role: e.target.value as Employee['role'] })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none bg-white text-right"
+              value={formState.firm_role_id ?? ''}
+              onChange={(e) => handleRoleChange(e.target.value)}
+              disabled={rolesLoading || assignableRoles.length === 0}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none bg-white text-right disabled:bg-slate-50"
             >
-              <option value="lawyer">محامي</option>
-              <option value="assistant">مساعد</option>
+              {rolesLoading ? <option value="">جاري تحميل الأدوار...</option> : null}
+              {!rolesLoading && assignableRoles.length === 0 ? <option value="">لا توجد أدوار متاحة</option> : null}
+              {assignableRoles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
             </select>
+            {rolesError ? <p className="mt-1 text-[11px] font-bold text-rose-600">{rolesError}</p> : null}
           </div>
           <div>
             <label className="block text-slate-600 mb-1 font-bold">الحالة</label>

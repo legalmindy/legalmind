@@ -431,6 +431,7 @@ export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
               email: employee.email,
               phone: employee.phone,
               role: employee.role,
+              firm_role_id: employee.firm_role_id ?? '',
               status: employee.status,
               profile_image: employee.profile_image
             });

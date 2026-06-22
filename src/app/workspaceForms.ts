@@ -27,5 +27,5 @@ export const initialSessionForm: Omit<SessionItem, 'id' | 'caseTitle'> = {
 };
 
 export const initialEmployeeForm: Omit<Employee, 'id' | 'created_at'> = {
-  full_name: '', email: '', phone: '', role: 'lawyer', status: 'active'
+  full_name: '', email: '', phone: '', role: 'lawyer', firm_role_id: '', status: 'active'
 };

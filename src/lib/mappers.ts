@@ -130,6 +130,7 @@ export function mapDbEmployee(row: DbEmployee & { firm_roles?: { name?: string; 
     email: row.email,
     phone: row.phone ?? '',
     role: row.role,
+    firm_role_id: row.firm_role_id ?? undefined,
     firmRoleName: row.firm_roles?.name,
     firmRoleSlug: row.firm_roles?.slug,
     status: row.status,

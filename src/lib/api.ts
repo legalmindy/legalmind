@@ -610,7 +610,7 @@ export async function createEmployee(payload: Omit<Employee, 'id' | 'created_at'
 
 export interface InviteUserPayload {
   email: string;
-  role: Extract<UserRole, 'lawyer' | 'assistant'>;
+  firmRoleId: string;
   fullName?: string;
   phone?: string;
 }
@@ -630,10 +630,11 @@ export async function fetchInvitations(): Promise<Invitation[]> {
 export async function inviteOfficeUser(payload: InviteUserPayload): Promise<Invitation> {
   const { data, error } = await supabase.rpc('create_office_invitation', {
     invite_email: payload.email.trim(),
-    invite_role: payload.role,
+    invite_role: null,
     app_origin: window.location.origin,
     invite_full_name: payload.fullName?.trim() || null,
-    invite_phone: payload.phone?.trim() || null
+    invite_phone: payload.phone?.trim() || null,
+    invite_firm_role_id: payload.firmRoleId
   });
   if (error) throw new Error(formatInvitationError(error));
 

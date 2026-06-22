@@ -6,6 +6,7 @@ import { isValidEmail } from '../lib/sanitize';
 import { canManageCases, canManageClients, canManageOffice, checkRoleAccess } from '../lib/api';
 import { formatCaseSaveError } from '../lib/supabaseQueryHelpers';
 import { toArabicQueryError } from '../components/QueryErrorBanner';
+import { applyFirmRoleToEmployee } from '../lib/permissions';
 import {
   initialCaseForm,
   initialClientForm,
@@ -267,6 +268,9 @@ export function useWorkspaceActions({
     if (!newEmployee.full_name.trim() || !newEmployee.email.trim()) {
       showAlert('اسم الموظف والبريد الإلكتروني مطلوبان.', 'error'); return;
     }
+    if (!newEmployee.firm_role_id) {
+      showAlert('اختر دوراً للعضو من قائمة أدوار المكتب.', 'error'); return;
+    }
     if (!isValidEmail(newEmployee.email.trim())) {
       showAlert('البريد الإلكتروني غير صالح. استخدم صيغة مثل name@example.com (أحرف إنجليزية فقط).', 'error');
       return;
@@ -277,12 +281,17 @@ export function useWorkspaceActions({
     }
     try {
       if (editingEmployee) {
-        await employeeMutations.updateEmployee.mutateAsync({ ...editingEmployee, ...newEmployee });
-        showAlert('تم تحديث صلاحيات عضو الفريق.', 'success');
+        const { firm_role_id, role: _role, ...profileChanges } = newEmployee;
+        await employeeMutations.updateEmployee.mutateAsync({ ...editingEmployee, ...profileChanges });
+        if (firm_role_id && firm_role_id !== editingEmployee.firm_role_id) {
+          await applyFirmRoleToEmployee(editingEmployee.id, firm_role_id);
+          void queryClient.invalidateQueries({ queryKey: ['employees'] });
+        }
+        showAlert('تم تحديث بيانات عضو الفريق.', 'success');
       } else {
         const invitation = await employeeMutations.inviteEmployee.mutateAsync({
           email: newEmployee.email.trim(),
-          role: newEmployee.role === 'assistant' ? 'assistant' : 'lawyer',
+          firmRoleId: newEmployee.firm_role_id!,
           fullName: newEmployee.full_name.trim(),
           phone: newEmployee.phone.trim() || undefined
         });

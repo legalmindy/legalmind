@@ -47,8 +47,8 @@ export function formatInvitationError(error: PostgrestError | Error | unknown): 
     return 'تعذر تنفيذ العملية. الدعوة غير موجودة أو تم إلغاؤها/قبولها مسبقاً.';
   }
 
-  if (lower.includes('invalid role') || lower.includes('invalid invitation role')) {
-    return 'الدور المحدد غير مدعوم للدعوة. اختر محامي أو مساعد.';
+  if (lower.includes('invalid role') || lower.includes('invalid invitation role') || lower.includes('cannot_assign_firm_owner')) {
+    return 'الدور المحدد غير مدعوم. اختر أحد أدوار المكتب ما عدا مالك المكتب.';
   }
 
   if (lower.includes('subscription') || lower.includes('inactive')) {

@@ -55,6 +55,7 @@ export interface DbEmployee {
   email: string;
   phone: string | null;
   role: UserRole;
+  firm_role_id?: string | null;
   status: EmployeeStatus;
   profile_image: string | null;
   created_at: string;

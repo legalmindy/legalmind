@@ -155,6 +155,17 @@ export function clearPermissionsCache(): void {
   cachedPermissions = null;
 }
 
+export const NON_ASSIGNABLE_FIRM_ROLE_SLUGS = ['firm_owner'] as const;
+
+export function isAssignableFirmRole(slug: string): boolean {
+  return !NON_ASSIGNABLE_FIRM_ROLE_SLUGS.includes(slug as (typeof NON_ASSIGNABLE_FIRM_ROLE_SLUGS)[number]);
+}
+
+export async function fetchAssignableFirmRoles(): Promise<FirmRole[]> {
+  const roles = await fetchFirmRoles();
+  return roles.filter((role) => isAssignableFirmRole(role.slug));
+}
+
 export async function fetchFirmRoles(): Promise<FirmRole[]> {
   const firmId = await getCurrentFirmId();
   const { data, error } = await supabase

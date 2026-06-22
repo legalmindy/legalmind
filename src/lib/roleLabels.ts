@@ -37,3 +37,7 @@ export function resolveRoleDisplayName(
   }
   return 'عضو';
 }
+
+export function legacyEmployeeRoleFromFirmSlug(slug: string): Extract<UserRole, 'lawyer' | 'assistant'> {
+  return slug === 'lawyer' || slug === 'managing_lawyer' ? 'lawyer' : 'assistant';
+}

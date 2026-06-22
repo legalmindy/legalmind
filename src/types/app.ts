@@ -269,6 +269,7 @@ export interface Employee {
   email: string;
   phone: string;
   role: UserRole;
+  firm_role_id?: string;
   firmRoleName?: string;
   firmRoleSlug?: string;
   status: EmployeeStatus;
