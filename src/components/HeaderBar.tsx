@@ -23,6 +23,7 @@ import { NotificationPanel } from './NotificationPanel';
 import { UserAvatar } from './ui/UserAvatar';
 import type { NotificationItem, PageId, SessionItem, User as UserType, UserRole } from '../types/app';
 import { canAccessPage } from '../lib/permissions';
+import { isFirmManagerRole } from '../lib/roleAccess';
 import { resolveRoleDisplayName } from '../lib/roleLabels';
 
 interface HeaderBarProps {
@@ -155,10 +156,12 @@ export const HeaderBar = memo(function HeaderBar({
             </div>
           ) : null}
 
-          <div className="hidden items-center gap-1 rounded-full border border-white/10 bg-[#641923] px-2 py-0.5 xl:flex">
-            <span className="text-[9px] font-semibold text-white/80">الصلاحية:</span>
-            <span className="max-w-[4.5rem] truncate text-[9px] font-bold text-white 2xl:max-w-none">{roleLabel}</span>
-          </div>
+          {isFirmManagerRole(role) ? (
+            <div className="hidden items-center gap-1 rounded-full border border-white/10 bg-[#641923] px-2 py-0.5 xl:flex">
+              <span className="text-[9px] font-semibold text-white/80">الصلاحية:</span>
+              <span className="max-w-[4.5rem] truncate text-[9px] font-bold text-white 2xl:max-w-none">{roleLabel}</span>
+            </div>
+          ) : null}
 
           <div className="relative">
             <button

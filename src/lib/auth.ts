@@ -87,7 +87,13 @@ function mapAuthError(error: AuthError): string {
 
   if (/database error saving new user/i.test(raw)) {
     console.error('[AUTH] Supabase signup provisioning error:', raw);
-    return 'تعذر إنشاء الحساب في قاعدة البيانات. تحقق من صحة رقم الهاتف (9 أرقام تبدأ بـ 77 أو 73 أو 71 أو 70)، وأن البريد غير مستخدم مسبقاً، ثم أعد المحاولة.';
+    if (/email already registered/i.test(raw)) {
+      return 'هذا البريد الإلكتروني مسجل مسبقاً في النظام. جرّب تسجيل الدخول أو تواصل مع مدير المكتب.';
+    }
+    if (/invitation is invalid or expired/i.test(raw)) {
+      return 'انتهت صلاحية الدعوة أو لم تعد صالحة. اطلب دعوة جديدة من مدير المكتب.';
+    }
+    return 'تعذر إنشاء الحساب. تأكد أن البريد غير مستخدم مسبقاً، ثم أعد المحاولة أو تواصل مع مدير المكتب.';
   }
 
   if (/duplicate key|unique constraint|already registered/i.test(raw)) {

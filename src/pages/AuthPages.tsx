@@ -475,10 +475,6 @@ export function AuthPages({
     const expired = invitePreview
       ? invitePreview.status !== 'pending' || new Date(invitePreview.expiresAt).getTime() <= Date.now()
       : false;
-    const inviteRoleLabel = invitePreview
-      ? resolveRoleDisplayName(invitePreview.roleName, invitePreview.roleSlug, invitePreview.role)
-      : '';
-
     return (
       <div className="max-w-lg mx-auto mt-12 px-4">
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
@@ -489,7 +485,7 @@ export function AuthPages({
               {inviteStep === 'credentials'
                 ? 'أدخل البريد الإلكتروني وكلمة المرور المرتبطة بالدعوة.'
                 : invitePreview
-                  ? `دعوة للانضمام إلى ${invitePreview.officeName} بدور ${inviteRoleLabel}`
+                  ? `دعوة للانضمام إلى ${invitePreview.officeName}`
                   : 'تأكيد بياناتك'}
             </p>
           </div>
@@ -622,9 +618,6 @@ export function AuthPages({
               <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-right space-y-1">
                 <p className="text-[11px] text-indigo-700">
                   المكتب: <strong>{invitePreview?.officeName}</strong>
-                </p>
-                <p className="text-[11px] text-indigo-700">
-                  الدور: <strong>{inviteRoleLabel}</strong>
                 </p>
                 {inviteFullName ? (
                   <p className="text-[11px] text-indigo-700">
