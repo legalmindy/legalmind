@@ -102,5 +102,4 @@ export interface SettingsPageProps {
   office?: Office;
   onSaveOffice: (office: Office) => void;
   onFirmCodeCopied?: (message: string) => void;
-  onOpenAuditLogs?: () => void;
 }

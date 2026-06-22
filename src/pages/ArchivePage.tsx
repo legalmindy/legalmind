@@ -1,17 +1,26 @@
 import type { CaseRecord } from '../types/app';
 import { useMemo, useState } from 'react';
-import { Search, RefreshCcw, Archive } from 'lucide-react';
+import { History, Search, RefreshCcw, Archive } from 'lucide-react';
+import { consumeArchiveTab } from '../lib/appRoutes';
+import { AuditLogsPage } from './AuditLogsPage';
 
 interface ArchivePageProps {
   cases: CaseRecord[];
   onRestore: (caseId: string) => void;
   onPermanentArchive: (caseId: string) => void;
+  showActivityLog?: boolean;
 }
 
-export function ArchivePage({ cases, onRestore, onPermanentArchive }: ArchivePageProps) {
+export function ArchivePage({
+  cases,
+  onRestore,
+  onPermanentArchive,
+  showActivityLog = false
+}: ArchivePageProps) {
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('الكل');
   const [statusFilter, setStatusFilter] = useState('الكل');
+  const [activeTab, setActiveTab] = useState<'cases' | 'activity'>(() => consumeArchiveTab() ?? 'cases');
 
   const filteredCases = useMemo(() => {
     return cases.filter((item) => {
@@ -32,15 +41,50 @@ export function ArchivePage({ cases, onRestore, onPermanentArchive }: ArchivePag
       <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-black text-slate-900">إدارة الأرشيف والقضايا المغلقة</h1>
-            <p className="text-xs text-slate-500 mt-1">استرجع الملفات المؤرشفة أو انسخها إلى سجل الأرشيف الدائم بدون إعادة تحميل الصفحة.</p>
+            <h1 className="text-2xl font-black text-slate-900">الأرشيف وسجل النشاط</h1>
+            <p className="text-xs text-slate-500 mt-1">
+              {showActivityLog
+                ? 'إدارة القضايا المؤرشفة ومتابعة نشاط الموظفين في المكتب.'
+                : 'استرجع الملفات المؤرشفة أو انسخها إلى سجل الأرشيف الدائم بدون إعادة تحميل الصفحة.'}
+            </p>
           </div>
-          <button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-950 text-white text-xs font-bold hover:bg-indigo-800 transition-all">
-            <RefreshCcw className="w-4 h-4" /> تحديث البيانات
-          </button>
+          {activeTab === 'cases' ? (
+            <button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-950 text-white text-xs font-bold hover:bg-indigo-800 transition-all">
+              <RefreshCcw className="w-4 h-4" /> تحديث البيانات
+            </button>
+          ) : null}
         </div>
+
+        {showActivityLog ? (
+          <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+            <button
+              type="button"
+              onClick={() => setActiveTab('cases')}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-colors ${
+                activeTab === 'cases' ? 'bg-indigo-950 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <Archive className="w-4 h-4" />
+              القضايا المؤرشفة
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('activity')}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-colors ${
+                activeTab === 'activity' ? 'bg-[#7A1F2B] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <History className="w-4 h-4" />
+              سجل النشاط
+            </button>
+          </div>
+        ) : null}
       </div>
 
+      {activeTab === 'activity' && showActivityLog ? (
+        <AuditLogsPage embedded />
+      ) : (
+        <>
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
         <div className="col-span-2 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3">
           <Search className="w-4 h-4 text-slate-400" />
@@ -123,6 +167,8 @@ export function ArchivePage({ cases, onRestore, onPermanentArchive }: ArchivePag
         <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm text-center text-slate-500">
           لا توجد قضايا في الأرشيف بهذه المعايير.
         </div>
+      )}
+        </>
       )}
     </div>
   );

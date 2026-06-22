@@ -7,7 +7,6 @@ const PATH_TO_PAGE: Record<string, PageId> = {
   '/reset-password': 'reset-password',
   '/register-office': 'register-office',
   '/register-lawyer': 'register-lawyer',
-  '/audit-logs': 'audit-logs',
   '/office-manager': 'office-manager'
 };
 
@@ -18,7 +17,6 @@ const PAGE_TO_PATH: Partial<Record<PageId, string>> = {
   'reset-password': '/reset-password',
   'register-office': '/register-office',
   'register-lawyer': '/register-lawyer',
-  'audit-logs': '/audit-logs',
   'office-manager': '/office-manager'
 };
 
@@ -28,6 +26,18 @@ export function resolveCaseIdFromLocation(): string | null {
 }
 
 const CASE_DETAIL_TAB_KEY = 'legalmind:caseDetailTab';
+const ARCHIVE_TAB_KEY = 'legalmind:archiveTab';
+
+export function stashArchiveTab(tab: 'cases' | 'activity'): void {
+  sessionStorage.setItem(ARCHIVE_TAB_KEY, tab);
+}
+
+export function consumeArchiveTab(): 'cases' | 'activity' | null {
+  const stored = sessionStorage.getItem(ARCHIVE_TAB_KEY);
+  sessionStorage.removeItem(ARCHIVE_TAB_KEY);
+  if (stored === 'cases' || stored === 'activity') return stored;
+  return null;
+}
 
 export function stashCaseDetailTab(tab: CaseDetailTab): void {
   sessionStorage.setItem(CASE_DETAIL_TAB_KEY, tab);
@@ -67,6 +77,10 @@ export function clearCaseDetailLocation(): void {
 
 export function resolvePageFromLocation(): { page: PageId | null; caseId?: string } {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
+  if (path === '/audit-logs') {
+    stashArchiveTab('activity');
+    return { page: 'archive' };
+  }
   const caseId = resolveCaseIdFromLocation();
   if (caseId) return { page: 'case-detail', caseId };
   if (PATH_TO_PAGE[path]) return { page: PATH_TO_PAGE[path]! };

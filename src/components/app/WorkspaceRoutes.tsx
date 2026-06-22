@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { PageLoader } from '../ui/LoadingSpinner';
-import { canManageOffice, getDocumentDownloadUrl } from '../../lib/api';
+import { getDocumentDownloadUrl } from '../../lib/api';
 import { toArabicQueryError } from '../QueryErrorBanner';
 import { canAccessCaseDetail, hasPermission } from '../../lib/permissions';
 import { updateUserProfile, uploadProfileAvatar } from '../../lib/profileImage';
@@ -38,7 +38,6 @@ const EmployeesPage = lazy(() => import('../../pages/EmployeesPage').then((m) =>
 const ExecutionRequestsPage = lazy(() => import('../../pages/ExecutionRequestsPage').then((m) => ({ default: m.ExecutionRequestsPage })));
 const AdminSubscriptionPage = lazy(() => import('../../pages/AdminSubscriptionPage').then((m) => ({ default: m.AdminSubscriptionPage })));
 const CaseDetailPage = lazy(() => import('../../pages/CaseDetailPage').then((m) => ({ default: m.CaseDetailPage })));
-const AuditLogsPage = lazy(() => import('../../pages/AuditLogsPage').then((m) => ({ default: m.AuditLogsPage })));
 const DashboardPage = lazy(() => import('../../pages/workspace/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const ClientsPage = lazy(() => import('../../pages/workspace/ClientsPage').then((m) => ({ default: m.ClientsPage })));
 const CasesPage = lazy(() => import('../../pages/workspace/CasesPage').then((m) => ({ default: m.CasesPage })));
@@ -398,6 +397,7 @@ export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
       {currentPage === 'archive' && user && !pageLoading && (
         <ArchivePage
           cases={archivedCases}
+          showActivityLog={user.role === 'firm_manager'}
           onRestore={(id) =>
             void caseMutations.restoreCase
               .mutateAsync(id)
@@ -563,11 +563,8 @@ export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
               .catch((err) => showAlert(toArabicQueryError(err, 'تحديث بيانات المكتب'), 'error'))
           }
           onFirmCodeCopied={(msg) => showAlert(msg, 'success')}
-          onOpenAuditLogs={() => navigateToPage('audit-logs')}
         />
       )}
-
-      {currentPage === 'audit-logs' && user && canManageOffice(user.role) && <AuditLogsPage />}
     </Suspense>
   );
 }

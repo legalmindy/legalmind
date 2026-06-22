@@ -53,7 +53,7 @@ export function canAccessPage(
   fallbackRole?: string
 ): boolean {
   if (page === 'audit-logs') {
-    return fallbackRole === 'firm_manager' || fallbackRole === 'admin' || fallbackRole === 'super_admin';
+    return fallbackRole === 'firm_manager';
   }
   const required = PAGE_PERMISSIONS[page];
   if (!required) return true;

@@ -10,7 +10,7 @@ import {
 } from '../lib/auditLogLabels';
 import { toArabicQueryError } from '../components/QueryErrorBanner';
 
-export function AuditLogsPage() {
+export function AuditLogsPage({ embedded = false }: { embedded?: boolean }) {
   const [tableFilter, setTableFilter] = useState('');
 
   const { data: logs = [], isLoading, isError, error } = useQuery({
@@ -27,31 +27,48 @@ export function AuditLogsPage() {
   }, [logs]);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-3 py-4 sm:px-6" dir="rtl">
-      <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-[#7A1F2B]/10 p-3">
-            <Shield className="h-6 w-6 text-[#7A1F2B]" />
+    <div className={embedded ? 'space-y-4' : 'mx-auto max-w-6xl space-y-4 px-3 py-4 sm:px-6'} dir="rtl">
+      {!embedded ? (
+        <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-[#7A1F2B]/10 p-3">
+              <Shield className="h-6 w-6 text-[#7A1F2B]" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-slate-900">سجل نشاط المكتب</h1>
+              <p className="text-xs text-slate-500">
+                تتبع كل ما يُضاف أو يُعدّل في المكتب — عملاء، قضايا، مستندات، دفعات، سندات، وموظفين.
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-black text-slate-900">سجل نشاط المكتب</h1>
-            <p className="text-xs text-slate-500">
-              تتبع كل ما يُضاف أو يُعدّل في المكتب — عملاء، قضايا، مستندات، دفعات، سندات، وموظفين.
-            </p>
-          </div>
+          <select
+            value={tableFilter}
+            onChange={(e) => setTableFilter(e.target.value)}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#7A1F2B] focus:ring-2 focus:ring-[#7A1F2B]/20"
+          >
+            {ACTIVITY_FILTER_OPTIONS.map((opt) => (
+              <option key={opt.value || 'all'} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
-        <select
-          value={tableFilter}
-          onChange={(e) => setTableFilter(e.target.value)}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#7A1F2B] focus:ring-2 focus:ring-[#7A1F2B]/20"
-        >
-          {ACTIVITY_FILTER_OPTIONS.map((opt) => (
-            <option key={opt.value || 'all'} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      ) : (
+        <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-slate-500">سجل العمليات التي نفّذها الموظفون — إضافة عملاء، قضايا، مستندات، وغيرها.</p>
+          <select
+            value={tableFilter}
+            onChange={(e) => setTableFilter(e.target.value)}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#7A1F2B] focus:ring-2 focus:ring-[#7A1F2B]/20"
+          >
+            {ACTIVITY_FILTER_OPTIONS.map((opt) => (
+              <option key={opt.value || 'all'} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {!isLoading && logs.length > 0 ? (
         <div className="flex flex-wrap gap-2">

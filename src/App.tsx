@@ -34,7 +34,7 @@ import type { PageId } from './types/app';
 import { testSupabaseConnection } from './lib/testSupabaseConnection';
 import { SubscriptionGuard } from './components/SubscriptionGuard';
 import { QueryErrorBanner, toArabicQueryError } from './components/QueryErrorBanner';
-import { isBillingAdminAccess, isSuperAdminRole, resolvePageFromLocation, syncLocationForPage, syncCaseDetailLocation, clearCaseDetailLocation, stashCaseDetailTab } from './lib/appRoutes';
+import { isBillingAdminAccess, isSuperAdminRole, resolvePageFromLocation, syncLocationForPage, syncCaseDetailLocation, clearCaseDetailLocation, stashCaseDetailTab, stashArchiveTab } from './lib/appRoutes';
 import { supabase } from './lib/supabaseClient';
 import type { CaseDetailTab } from './types/app';
 import { useBillingAdmin } from './hooks/useBillingAdmin';
@@ -225,6 +225,13 @@ export default function App() {
       workspace.showAlert('صفحة قبول الاشتراكات متاحة لسوبر أدمن المنصة فقط.', 'error');
     }
   }, [currentPage, isBillingAdminDb, isBillingAdminLoading, workspace.showAlert, user]);
+
+  useEffect(() => {
+    if (currentPage !== 'audit-logs') return;
+    stashArchiveTab('activity');
+    setCurrentPage('archive');
+    syncLocationForPage('archive');
+  }, [currentPage]);
 
   useEffect(() => {
     if (!user || permissionsLoading) return;

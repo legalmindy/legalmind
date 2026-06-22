@@ -8,7 +8,7 @@ import { useFirmProfile } from '../../hooks/useSupabaseQueries';
 import { useFirmSettings, useFirmSettingsMutations } from '../../hooks/useFirmSettings';
 import type { Office } from '../../types/app';
 import type { SettingsPageProps } from './types';
-export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied, onOpenAuditLogs }: SettingsPageProps) {
+export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied }: SettingsPageProps) {
   const isAdmin = user.role === 'admin' || user.role === 'firm_manager' || user.role === 'super_admin';
   const { data: firmProfile } = useFirmProfile(isAdmin);
   const { data: firmSettings, isLoading: settingsLoading } = useFirmSettings(isAdmin);
@@ -134,15 +134,6 @@ export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied, onO
           <PlatformBankSettings
             onNotify={(message) => onFirmCodeCopied?.(message)}
           />
-        ) : null}
-        {isAdmin && onOpenAuditLogs ? (
-          <button
-            type="button"
-            onClick={onOpenAuditLogs}
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-[#7A1F2B] hover:bg-[#7A1F2B]/5"
-          >
-            فتح سجل نشاط المكتب
-          </button>
         ) : null}
         {isAdmin ? <SecurityEventsPanel /> : null}
       </div>
