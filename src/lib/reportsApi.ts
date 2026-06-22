@@ -91,40 +91,89 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** Opens a print-friendly window and triggers the system print dialog. */
-export function printHtml(title: string, html: string): void {
-  const win = window.open('', '_blank', 'width=900,height=900');
-  if (!win) {
-    throw new Error('تعذر فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع ثم أعد المحاولة.');
-  }
-
+function buildPrintDocument(title: string, html: string): string {
   const safeTitle = escapeHtml(title);
-  win.document.open();
-  win.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>${safeTitle}</title>
+  return `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>${safeTitle}</title>
     <style>
-      body{font-family:Tahoma,Arial,sans-serif;padding:24px;color:#111;line-height:1.5}
+      body{font-family:Tahoma,Arial,sans-serif;padding:24px;color:#111;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
       .header{text-align:center;border-bottom:2px solid #7A1F2B;padding-bottom:16px;margin-bottom:20px}
       .header h1{margin:0;font-size:1.35rem}
-      h2{font-size:1rem;margin:24px 0 8px;color:#334155}
-      table{width:100%;border-collapse:collapse;margin-top:12px;font-size:12px}
-      th,td{border:1px solid #cbd5e1;padding:8px;text-align:right}
-      th{background:#f1f5f9;font-weight:bold}
-      .print-actions{margin-top:28px;text-align:center}
-      .print-btn{background:#7A1F2B;color:#fff;border:none;padding:10px 28px;border-radius:8px;font:bold 14px Tahoma;cursor:pointer}
+      h2{font-size:1rem;margin:24px 0 8px;color:#334155;page-break-after:avoid}
+      table{width:100%;border-collapse:collapse;margin-top:12px;font-size:12px;page-break-inside:avoid}
+      th,td{border:1px solid #333;padding:8px;text-align:right}
+      th{background:#eee;font-weight:bold}
+      tr{page-break-inside:avoid}
+      @page{size:A4;margin:15mm}
       @media print{
-        .print-actions{display:none}
-        body{padding:10mm}
-        @page{margin:12mm}
+        body{padding:0}
+        .no-print{display:none!important}
       }
     </style></head><body>
       ${html}
-      <div class="print-actions">
-        <button type="button" class="print-btn" onclick="window.print()">طباعة</button>
-      </div>
-      <script>
-        window.onload=function(){window.focus();setTimeout(function(){window.print();},300);};
-        window.onafterprint=function(){window.close();};
-      </script>
-    </body></html>`);
+    </body></html>`;
+}
+
+/** Opens the system print dialog so the user can send the report to a printer. */
+export function printHtml(title: string, html: string): void {
+  const documentHtml = buildPrintDocument(title, html);
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+  document.body.appendChild(iframe);
+
+  const frameWindow = iframe.contentWindow;
+  const frameDoc = iframe.contentDocument ?? frameWindow?.document;
+  if (!frameWindow || !frameDoc) {
+    document.body.removeChild(iframe);
+    printHtmlViaPopup(title, documentHtml);
+    return;
+  }
+
+  frameDoc.open();
+  frameDoc.write(documentHtml);
+  frameDoc.close();
+
+  const cleanup = () => {
+    if (iframe.parentNode) document.body.removeChild(iframe);
+  };
+
+  const triggerPrint = () => {
+    try {
+      frameWindow.focus();
+      frameWindow.print();
+    } catch {
+      cleanup();
+      printHtmlViaPopup(title, documentHtml);
+      return;
+    }
+    window.setTimeout(cleanup, 1500);
+  };
+
+  if (frameDoc.readyState === 'complete') {
+    window.setTimeout(triggerPrint, 300);
+  } else {
+    iframe.onload = () => window.setTimeout(triggerPrint, 300);
+  }
+}
+
+function printHtmlViaPopup(_title: string, documentHtml: string): void {
+  const win = window.open('', '_blank', 'width=900,height=900');
+  if (!win) {
+    throw new Error('تعذر فتح الطباعة — اسمح بالنوافذ المنبثقة لهذا الموقع ثم أعد المحاولة.');
+  }
+
+  win.document.open();
+  win.document.write(
+    documentHtml.replace(
+      '</body>',
+      `<div class="no-print" style="margin-top:28px;text-align:center">
+        <button type="button" onclick="window.print()" style="background:#7A1F2B;color:#fff;border:none;padding:10px 28px;border-radius:8px;font:bold 14px Tahoma;cursor:pointer">
+          طباعة
+        </button>
+      </div></body>`
+    )
+  );
   win.document.close();
+  win.focus();
+  window.setTimeout(() => win.print(), 400);
 }

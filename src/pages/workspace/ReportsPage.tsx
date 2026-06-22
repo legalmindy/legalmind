@@ -216,7 +216,7 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
             className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold hover:bg-white/20 disabled:opacity-60"
           >
             {exporting === 'pdf' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-            PDF / طباعة
+            طباعة
           </button>
           <button
             type="button"
