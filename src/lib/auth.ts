@@ -309,7 +309,7 @@ export async function fetchInvitationPreview(token: string): Promise<InvitationP
     officeId: row.firm_id,
     officeName: row.office_name ?? row.firm_name,
     email: row.email,
-    fullName: row.full_name ?? undefined,
+    fullName: row.full_name?.trim() || undefined,
     phone: row.phone ?? undefined,
     role: row.role,
     roleName: row.role_name ?? undefined,
@@ -333,6 +333,8 @@ export async function registerInvitedUser(data: InvitedUserRegistrationData): Pr
     return { success: false, error: 'بريد الدعوة لا يطابق البريد المستخدم.' };
   }
 
+  const invitedFullName = data.fullName.trim() || preview.fullName?.trim() || '';
+
   const { error, data: authData } = await supabase.auth.signUp({
     email: preview.email,
     password: data.password,
@@ -340,7 +342,7 @@ export async function registerInvitedUser(data: InvitedUserRegistrationData): Pr
       data: {
         registration_flow: 'invite',
         invitation_token: data.invitationToken,
-        full_name: data.fullName,
+        full_name: invitedFullName,
         role: preview.role
       },
       emailRedirectTo: `${window.location.origin}/login`

@@ -611,7 +611,7 @@ export async function createEmployee(payload: Omit<Employee, 'id' | 'created_at'
 export interface InviteUserPayload {
   email: string;
   firmRoleId: string;
-  fullName?: string;
+  fullName: string;
   phone?: string;
 }
 
@@ -632,7 +632,7 @@ export async function inviteOfficeUser(payload: InviteUserPayload): Promise<Invi
     invite_email: payload.email.trim(),
     invite_role: null,
     app_origin: window.location.origin,
-    invite_full_name: payload.fullName?.trim() || null,
+    invite_full_name: payload.fullName.trim(),
     invite_phone: payload.phone?.trim() || null,
     invite_firm_role_id: payload.firmRoleId
   });

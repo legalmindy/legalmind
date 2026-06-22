@@ -57,12 +57,14 @@ export function AuthPages({
   const [invitePreview, setInvitePreview] = useState<InvitationPreview | null>(null);
   const [inviteStep, setInviteStep] = useState<'credentials' | 'confirm'>('credentials');
   const [inviteCredentials, setInviteCredentials] = useState({ email: '', password: '' });
+  const [inviteFullName, setInviteFullName] = useState('');
 
   useEffect(() => {
     if (currentPage !== 'invite') return;
     setInviteStep('credentials');
     setInvitePreview(null);
     setInviteCredentials({ email: '', password: '' });
+    setInviteFullName('');
     setError('');
     setSuccess('');
   }, [currentPage, inviteToken]);
@@ -541,6 +543,7 @@ export function AuthPages({
                   }
                   setInvitePreview(preview);
                   setInviteCredentials({ email, password });
+                  setInviteFullName(preview.fullName?.trim() ?? '');
                   setInviteStep('confirm');
                   return { success: true };
                 });
@@ -592,14 +595,15 @@ export function AuthPages({
             </form>
           ) : (
             <form
+              key={invitePreview?.id ?? 'invite-confirm'}
+              autoComplete="off"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!invitePreview) {
                   setError('تعذر تحميل بيانات الدعوة.');
                   return;
                 }
-                const data = new FormData(e.currentTarget);
-                const fullName = (data.get('fullName') as string).trim();
+                const fullName = inviteFullName.trim();
                 if (fullName.length < 2) {
                   setError('أدخل الاسم الكامل.');
                   return;
@@ -622,6 +626,11 @@ export function AuthPages({
                 <p className="text-[11px] text-indigo-700">
                   الدور: <strong>{inviteRoleLabel}</strong>
                 </p>
+                {inviteFullName ? (
+                  <p className="text-[11px] text-indigo-700">
+                    الاسم في الدعوة: <strong>{inviteFullName}</strong>
+                  </p>
+                ) : null}
                 <p className="text-[11px] text-indigo-700 font-mono" dir="ltr">
                   {inviteCredentials.email}
                 </p>
@@ -630,15 +639,21 @@ export function AuthPages({
                 <label htmlFor="invite-full-name" className="block text-xs font-bold text-slate-700 mb-1">الاسم الكامل</label>
                 <input
                   id="invite-full-name"
-                  name="fullName"
+                  name="invitedFullName"
                   type="text"
                   required
                   minLength={2}
-                  defaultValue={invitePreview?.fullName ?? ''}
+                  value={inviteFullName}
+                  onChange={(e) => setInviteFullName(e.target.value)}
+                  autoComplete="name"
                   className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-right outline-none"
-                  placeholder="الاسم كما في الدعوة"
+                  placeholder="الاسم كما سجّله مدير المكتب"
                 />
-                <p className="mt-1 text-[10px] text-slate-400">يمكنك تعديل الاسم قبل الدخول إلى حسابك.</p>
+                <p className="mt-1 text-[10px] text-slate-400">
+                  {invitePreview?.fullName
+                    ? 'يُعبَّأ تلقائياً من الدعوة — يمكنك تعديله قبل الدخول.'
+                    : 'لم يُسجَّل اسم في الدعوة — أدخل اسمك أو تواصل مع مدير المكتب.'}
+                </p>
               </div>
               {error && <p className="text-rose-600 text-xs font-bold" role="alert">{error}</p>}
               {success && <p className="text-emerald-600 text-xs font-bold" role="status">{success}</p>}
@@ -647,6 +662,7 @@ export function AuthPages({
                   type="button"
                   onClick={() => {
                     setInviteStep('credentials');
+                    setInviteFullName('');
                     setError('');
                     setSuccess('');
                   }}
