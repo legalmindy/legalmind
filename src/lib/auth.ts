@@ -112,7 +112,13 @@ function mapAuthError(error: AuthError): string {
       return 'كود المكتب غير موجود. تحقق من الكود مع مدير المكتب.';
     }
     if (/email already registered/i.test(raw)) {
-      return 'هذا البريد الإلكتروني مسجل مسبقاً في النظام.';
+      return 'هذا البريد الإلكتروني مسجل مسبقاً في النظام. جرّب تسجيل الدخول أو تواصل مع مدير المكتب.';
+    }
+    if (/invitation is invalid or expired/i.test(raw)) {
+      return 'انتهت صلاحية الدعوة أو لم تعد صالحة. اطلب دعوة جديدة من مدير المكتب.';
+    }
+    if (/profile_role_enum|employee_role_enum|cannot cast|type mismatch/i.test(raw)) {
+      return 'تعذر إكمال الحساب بسبب إعدادات قاعدة البيانات. طبّق آخر migrations ثم أعد المحاولة.';
     }
     if (/invalid yemeni phone|phone number/i.test(raw)) {
       return 'رقم الهاتف اليمني غير صالح. أدخل 9 أرقام تبدأ بـ 77 أو 73 أو 71 أو 70 (مثال: 770123456).';
@@ -330,6 +336,21 @@ function isExistingAccountAuthError(error: AuthError): boolean {
   return /already registered|already exists|user already/i.test(raw);
 }
 
+function isInviteProvisioningAuthError(error: AuthError): boolean {
+  const raw = error.message ?? '';
+  return /database error saving new user|signup provisioning failed/i.test(raw);
+}
+
+async function completeInvitedRegistration(
+  email: string,
+  password: string,
+  invitationToken: string
+): Promise<AuthResult> {
+  const loginResult = await signIn(email, password);
+  if (!loginResult.success) return loginResult;
+  return acceptInvitation(invitationToken);
+}
+
 export async function registerInvitedUser(data: InvitedUserRegistrationData): Promise<AuthResult> {
   const preview = await fetchInvitationPreview(data.invitationToken);
   if (preview.status !== 'pending' || new Date(preview.expiresAt).getTime() <= Date.now()) {
@@ -356,10 +377,9 @@ export async function registerInvitedUser(data: InvitedUserRegistrationData): Pr
   });
 
   if (error) {
-    if (isExistingAccountAuthError(error)) {
-      const loginResult = await signIn(data.email, data.password);
-      if (!loginResult.success) return loginResult;
-      return acceptInvitation(data.invitationToken);
+    if (isExistingAccountAuthError(error) || isInviteProvisioningAuthError(error)) {
+      const recovery = await completeInvitedRegistration(data.email, data.password, data.invitationToken);
+      if (recovery.success) return recovery;
     }
     return { success: false, error: mapAuthError(error) };
   }
