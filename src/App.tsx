@@ -364,6 +364,7 @@ export default function App() {
             dashboardPerformance={derived.dashboardPerformance}
             dashboardFinancials={derived.dashboardFinancials}
             dashboardStatHints={derived.dashboardStatHints}
+            permissions={myPermissions}
             activeChartTab={workspace.activeChartTab}
             hoveredDataPoint={workspace.hoveredDataPoint}
             searchQuery={workspace.searchQuery}

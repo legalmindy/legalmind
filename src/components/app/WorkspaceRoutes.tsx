@@ -101,6 +101,7 @@ export interface WorkspaceRoutesProps {
   dashboardPerformance: DashboardPerformance;
   dashboardFinancials: DashboardFinancials;
   dashboardStatHints: DashboardStatHints;
+  permissions?: Record<string, boolean>;
   activeChartTab: 'cases' | 'revenue';
   hoveredDataPoint: { month: string; cases: number; resolved: number; revenue: number } | null;
   searchQuery: string;
@@ -184,6 +185,7 @@ export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
     dashboardPerformance,
     dashboardFinancials,
     dashboardStatHints,
+    permissions,
     activeChartTab,
     hoveredDataPoint,
     searchQuery,
@@ -247,6 +249,8 @@ export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
       {currentPage === 'dashboard' && user && !pageLoading && (
         <DashboardPage
           user={user}
+          permissions={permissions}
+          role={user.role}
           sessions={sessions}
           documents={documents}
           activeChartTab={activeChartTab}
@@ -512,6 +516,7 @@ export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
       {currentPage === 'reports' && user && !pageLoading && (
         <ReportsPage
           role={user.role}
+          permissions={permissions}
           performance={dashboardPerformance}
           financials={dashboardFinancials}
           cases={cases}

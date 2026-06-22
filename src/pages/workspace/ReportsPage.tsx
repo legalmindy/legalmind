@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Briefcase, Lock, Plus, Printer, Trash2, TrendingUp, TrendingDown, Wallet, ChevronDown, ChevronUp, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { buildFinancialReport, formatPercent, formatYer } from '../../lib/dashboardAnalytics';
 import { exportToCsv, printHtml } from '../../lib/reportsApi';
+import { hasPermission } from '../../lib/permissions';
+import { isFirmManagerRole } from '../../lib/roleAccess';
 import { useArchivedCases, useExpenses, useExpenseMutations } from '../../hooks/useSupabaseQueries';
 import type { ReportsPageProps } from './types';
 
@@ -22,8 +24,12 @@ const EMPTY_EXPENSE_FORM: AddExpenseFormState = {
   title: '', amount: '', category: 'أخرى', expense_date: (new Date().toISOString().split('T')[0]) ?? '', notes: ''
 };
 
-export function ReportsPage({ role, performance, cases, year: propYear }: ReportsPageProps) {
-  const accessDenied = role !== 'admin' && role !== 'firm_manager' && role !== 'super_admin';
+export function ReportsPage({ role, permissions, performance, cases, year: propYear }: ReportsPageProps) {
+  const canViewFinancials = hasPermission(permissions, 'financials.view', role);
+  const canAddPayments = hasPermission(permissions, 'financials.add_payments', role);
+  const canPrintReports = hasPermission(permissions, 'financials.print_receipts', role) || canViewFinancials;
+  const canDeleteExpenses = isFirmManagerRole(role);
+  const accessDenied = !canViewFinancials;
   const currentYear = propYear ?? new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [expandedClient, setExpandedClient] = useState<string | null>(null);
@@ -193,7 +199,7 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
         <div className="bg-white p-12 rounded-2xl border border-red-100 text-center space-y-4">
           <Lock className="w-12 h-12 text-rose-500 mx-auto" />
           <h3 className="font-extrabold text-slate-800 text-base">عذراً، الوصول غير مصرح به</h3>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">التقارير المالية متاحة لمدراء المكاتب فقط.</p>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">التقارير المالية متاحة للمستخدمين الذين لديهم صلاحية «عرض المالية».</p>
         </div>
       </div>
     );
@@ -212,7 +218,7 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
           <button
             type="button"
             onClick={handleExportPdf}
-            disabled={exporting !== null}
+            disabled={exporting !== null || !canPrintReports}
             className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold hover:bg-white/20 disabled:opacity-60"
           >
             {exporting === 'pdf' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
@@ -406,14 +412,18 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
       {/* Office Expenses */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex items-center justify-between gap-4">
-          <button
-            type="button"
-            onClick={() => { setShowAddExpense((v) => !v); setExpenseError(''); setExpenseForm(EMPTY_EXPENSE_FORM); }}
-            className="flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            {showAddExpense ? 'إلغاء' : 'إضافة مصروف'}
-          </button>
+          {canAddPayments ? (
+            <button
+              type="button"
+              onClick={() => { setShowAddExpense((v) => !v); setExpenseError(''); setExpenseForm(EMPTY_EXPENSE_FORM); }}
+              className="flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              {showAddExpense ? 'إلغاء' : 'إضافة مصروف'}
+            </button>
+          ) : (
+            <div />
+          )}
           <div className="text-right">
             <h3 className="font-black text-slate-900 text-sm">المصروفات المكتبية</h3>
             <p className="text-[11px] text-slate-400 mt-0.5">الإيجار، الرواتب، المستلزمات — إجمالي: <strong className="text-rose-600 font-mono">{formatYer(report.totalExpenses)}</strong></p>
@@ -518,7 +528,7 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
                   <th className="px-4 py-3 font-extrabold text-slate-500 text-right">البيان</th>
                   <th className="px-4 py-3 font-extrabold text-slate-500 text-right">التصنيف</th>
                   <th className="px-4 py-3 font-extrabold text-slate-500 text-left font-mono">المبلغ</th>
-                  <th className="px-4 py-3 w-10" />
+                  {canDeleteExpenses ? <th className="px-4 py-3 w-10" /> : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -533,15 +543,17 @@ export function ReportsPage({ role, performance, cases, year: propYear }: Report
                       <span className="bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded-lg">{exp.category}</span>
                     </td>
                     <td className="px-4 py-3 text-left font-mono font-black text-rose-600">{formatYer(exp.amount)}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteExpense(exp.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-rose-50 text-rose-400 hover:text-rose-600 transition-all"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
+                    {canDeleteExpenses ? (
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteExpense(exp.id)}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-rose-50 text-rose-400 hover:text-rose-600 transition-all"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

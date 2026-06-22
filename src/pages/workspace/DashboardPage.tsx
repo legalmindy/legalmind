@@ -1,13 +1,16 @@
-import { Briefcase, Calendar, Clock, FileText, MapPin, Plus, Download, AlertCircle, User as UserIcon } from 'lucide-react';
+import { Briefcase, Calendar, Clock, FileText, MapPin, Plus, Download, AlertCircle, User as UserIcon, TrendingUp, Banknote } from 'lucide-react';
 import { SubscriptionStatusBanner } from '../../components/SubscriptionStatusBanner';
 import { StatCard } from '../../components/StatCard';
 import { FirmCodeCard } from '../../components/FirmCodeCard';
 import { useFirmProfile } from '../../hooks/useSupabaseQueries';
 import { useFirmSubscription } from '../../hooks/useSubscription';
 import { formatPercent, formatYer } from '../../lib/dashboardAnalytics';
+import { hasPermission } from '../../lib/permissions';
 import type { DashboardPageProps } from './types';
 export function DashboardPage({
   user,
+  permissions,
+  role,
   sessions,
   documents,
   activeChartTab,
@@ -27,7 +30,15 @@ export function DashboardPage({
   remindersEnabled = true,
   onFirmCodeCopied
 }: DashboardPageProps) {
-  const isAdmin = user.role === 'admin' || user.role === 'firm_manager' || user.role === 'super_admin';
+  const userRole = role ?? user.role;
+  const isAdmin = userRole === 'admin' || userRole === 'firm_manager' || userRole === 'super_admin';
+  const canCreateClient = hasPermission(permissions, 'clients.create', userRole);
+  const canCreateCase = hasPermission(permissions, 'cases.create', userRole);
+  const canCreateSession = hasPermission(permissions, 'sessions.create', userRole);
+  const canViewReports = hasPermission(permissions, 'financials.view', userRole);
+  const canAddPayments = hasPermission(permissions, 'financials.add_payments', userRole);
+  const canViewCases = hasPermission(permissions, 'cases.view', userRole);
+  const isFinancialFocus = canViewReports && !canCreateClient && !canCreateCase && !canCreateSession;
   const chartMaxCases = Math.max(1, ...monthlyData.map((d) => d.cases));
   const chartMaxRevenue = Math.max(1, ...monthlyData.map((d) => d.revenue));
   const currentYear = new Date().getFullYear();
@@ -51,20 +62,40 @@ export function DashboardPage({
         <div className="flex flex-col lg:flex-row justify-between items-start gap-6 relative z-10">
           <div className="space-y-1 text-right flex-1 min-w-0">
             <span className="bg-amber-400/20 text-amber-300 text-[10px] font-bold tracking-wider px-3 py-1 rounded-full border border-amber-500/30 uppercase">
-              بوابة المحامي المعتمدة لعام 2026
+              {isFinancialFocus ? 'بوابة المحاسب — LegalMind Yemen' : 'بوابة المحامي المعتمدة لعام 2026'}
             </span>
             <h1 className="text-2xl sm:text-3xl font-black mt-2">مرحباً بك، {user.name}</h1>
-            <p className="text-xs text-indigo-200 max-w-xl">مكتبك نشط ومحمي بالكامل. إليك تحليل الموقف القانوني وأعباء المرافعة الجارية.</p>
+            <p className="text-xs text-indigo-200 max-w-xl">
+              {isFinancialFocus
+                ? 'تابع التحصيلات والمديونيات والمصروفات المكتبية من لوحة واحدة.'
+                : 'مكتبك نشط ومحمي بالكامل. إليك تحليل الموقف القانوني وأعباء المرافعة الجارية.'}
+            </p>
             <div className="flex flex-wrap gap-2.5 mt-4">
-              <button type="button" onClick={() => { setShowClientModal(true); setCurrentPage('clients'); }} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all">
-                <Plus className="w-4 h-4 stroke-[2.5]" /> تسجيل عميل جديد
-              </button>
-              <button type="button" onClick={() => { setShowCaseModal(true); setCurrentPage('cases'); }} className="bg-indigo-800 hover:bg-indigo-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 border border-indigo-700/80 transition-all">
-                <Plus className="w-4 h-4 stroke-[2.5]" /> فتح قضية جديدة
-              </button>
-              <button type="button" onClick={() => { setShowSessionModal(true); setCurrentPage('sessions'); }} className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 border border-slate-800">
-                <Calendar className="w-4 h-4" /> جدولة جلسة
-              </button>
+              {canCreateClient ? (
+                <button type="button" onClick={() => { setShowClientModal(true); setCurrentPage('clients'); }} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all">
+                  <Plus className="w-4 h-4 stroke-[2.5]" /> تسجيل عميل جديد
+                </button>
+              ) : null}
+              {canCreateCase ? (
+                <button type="button" onClick={() => { setShowCaseModal(true); setCurrentPage('cases'); }} className="bg-indigo-800 hover:bg-indigo-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 border border-indigo-700/80 transition-all">
+                  <Plus className="w-4 h-4 stroke-[2.5]" /> فتح قضية جديدة
+                </button>
+              ) : null}
+              {canCreateSession ? (
+                <button type="button" onClick={() => { setShowSessionModal(true); setCurrentPage('sessions'); }} className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 border border-slate-800">
+                  <Calendar className="w-4 h-4" /> جدولة جلسة
+                </button>
+              ) : null}
+              {canViewReports ? (
+                <button type="button" onClick={() => setCurrentPage('reports')} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all">
+                  <TrendingUp className="w-4 h-4" /> التقارير المالية
+                </button>
+              ) : null}
+              {canAddPayments && canViewCases ? (
+                <button type="button" onClick={() => setCurrentPage('cases')} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all">
+                  <Banknote className="w-4 h-4" /> تسجيل دفعة على قضية
+                </button>
+              ) : null}
             </div>
           </div>
 

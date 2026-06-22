@@ -94,6 +94,16 @@ const LEGACY_ROLE_PERMISSIONS: Record<string, Partial<Record<PermissionKey, bool
     'sessions.view': true,
     'sessions.create': true,
     'sessions.edit': true
+  },
+  accountant: {
+    'cases.view': true,
+    'clients.view': true,
+    'documents.download': true,
+    'financials.view': true,
+    'financials.add_payments': true,
+    'financials.print_receipts': true,
+    'sessions.view': true,
+    'subscriptions.view': true
   }
 };
 

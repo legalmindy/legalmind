@@ -4,6 +4,8 @@ import type { DashboardFinancials, DashboardPerformance, DashboardStatHints } fr
 
 export interface DashboardPageProps {
   user: User;
+  permissions?: Record<string, boolean>;
+  role?: string;
   sessions: SessionItem[];
   documents: DocumentItem[];
   activeChartTab: 'cases' | 'revenue';
@@ -79,6 +81,7 @@ export interface LawyersPageProps {
 
 export interface ReportsPageProps {
   role: UserRole;
+  permissions?: Record<string, boolean>;
   performance: DashboardPerformance;
   financials: DashboardFinancials;
   cases: CaseRecord[];
