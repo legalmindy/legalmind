@@ -34,12 +34,12 @@ import type { PageId } from './types/app';
 import { testSupabaseConnection } from './lib/testSupabaseConnection';
 import { SubscriptionGuard } from './components/SubscriptionGuard';
 import { QueryErrorBanner, toArabicQueryError } from './components/QueryErrorBanner';
-import { isBillingAdminAccess, isSuperAdminRole, resolvePageFromLocation, syncLocationForPage, syncCaseDetailLocation, clearCaseDetailLocation } from './lib/appRoutes';
-import { isFirmManagerRole } from './lib/roleAccess';
+import { isBillingAdminAccess, isSuperAdminRole, resolvePageFromLocation, syncLocationForPage, syncCaseDetailLocation, clearCaseDetailLocation, stashCaseDetailTab } from './lib/appRoutes';
+import type { CaseDetailTab } from './types/app';
 import { useBillingAdmin } from './hooks/useBillingAdmin';
 import { PUBLIC_PAGES } from './app/workspaceForms';
 import { useMyPermissions } from './hooks/useMyPermissions';
-import { canAccessPage } from './lib/permissions';
+import { canAccessCaseDetail, canAccessPage } from './lib/permissions';
 import { useWorkspacePageFlags } from './hooks/useWorkspacePageFlags';
 import { useWorkspaceDerivedData } from './hooks/useWorkspaceDerivedData';
 import { useWorkspaceActions } from './hooks/useWorkspaceActions';
@@ -174,15 +174,16 @@ export default function App() {
   useNotificationPermission(pageFlags.needsHeaderAlerts);
   useSessionReminders(upcomingSessions, pageFlags.needsHeaderAlerts, workspace.showAlert);
 
-  const navigateToCaseDetail = useCallback((caseId: string) => {
-    if (!user || !isFirmManagerRole(user.role)) {
-      workspace.showAlert('صفحة بيانات القضية متاحة لمدير المكتب فقط.', 'error');
+  const navigateToCaseDetail = useCallback((caseId: string, initialTab?: CaseDetailTab) => {
+    if (!user || !canAccessCaseDetail(myPermissions, user.role)) {
+      workspace.showAlert('ليس لديك صلاحية الوصول لبيانات القضية المالية.', 'error');
       return;
     }
+    if (initialTab) stashCaseDetailTab(initialTab);
     setSelectedCaseId(caseId);
     setCurrentPage('case-detail');
     syncCaseDetailLocation(caseId);
-  }, [user, workspace.showAlert]);
+  }, [myPermissions, user, workspace.showAlert]);
 
   const currentUserLawyerId = useMemo(() => {
     if (!user || user.role !== 'lawyer') return '';
@@ -208,14 +209,14 @@ export default function App() {
   }, [currentPage, myPermissions, permissionsLoading, user, workspace]);
 
   useEffect(() => {
-    if (!user) return;
-    if (currentPage === 'case-detail' && !isFirmManagerRole(user.role)) {
+    if (!user || permissionsLoading) return;
+    if (currentPage === 'case-detail' && !canAccessCaseDetail(myPermissions, user.role)) {
       setCurrentPage('cases');
       setSelectedCaseId(null);
       clearCaseDetailLocation();
-      workspace.showAlert('صفحة بيانات القضية متاحة لمدير المكتب فقط.', 'error');
+      workspace.showAlert('ليس لديك صلاحية الوصول لبيانات القضية المالية.', 'error');
     }
-  }, [currentPage, workspace.showAlert, user]);
+  }, [currentPage, myPermissions, permissionsLoading, workspace.showAlert, user]);
 
   useEffect(() => {
     if (currentPage !== 'office-manager') return;

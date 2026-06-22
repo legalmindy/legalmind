@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight,
@@ -33,6 +33,8 @@ import {
 import { appendCaseNote, fetchCaseTimeline } from '../lib/caseTimeline';
 import { createReceiptVoucher, fetchCaseReceipts, reprintReceiptVoucher } from '../lib/receiptVoucher';
 import { hasPermission, fetchMyPermissions } from '../lib/permissions';
+import { isFirmManagerRole } from '../lib/roleAccess';
+import { consumeCaseDetailTab } from '../lib/appRoutes';
 import { printReceiptElement, ReceiptVoucherPrint } from '../components/case/ReceiptVoucherPrint';
 import { CaseExportToolbar } from '../components/case/CaseExportToolbar';
 import { RichTextContent } from '../components/ui/RichTextEditor';
@@ -79,7 +81,7 @@ export function CaseDetailPage({
   onCreateSession,
   onNotify
 }: CaseDetailPageProps) {
-  const [tab, setTab] = useState<CaseDetailTab>('overview');
+  const [tab, setTab] = useState<CaseDetailTab>(() => consumeCaseDetailTab() ?? 'overview');
   const [noteText, setNoteText] = useState('');
   const [paymentForm, setPaymentForm] = useState({
     amount: '',
@@ -135,6 +137,35 @@ export function CaseDetailPage({
 
   const canAddPayment = hasPermission(permissions, 'financials.add_payments', user.role);
   const canPrintReceipt = hasPermission(permissions, 'financials.print_receipts', user.role);
+  const canViewFinancials = hasPermission(permissions, 'financials.view', user.role);
+  const canViewSessions = hasPermission(permissions, 'sessions.view', user.role);
+  const canEditSessions = hasPermission(permissions, 'sessions.edit', user.role);
+  const canViewDocuments = hasPermission(permissions, 'documents.download', user.role);
+  const isManagerView = isFirmManagerRole(user.role);
+  const isFinancialFocus =
+    (canViewFinancials || canAddPayment || canPrintReceipt) &&
+    !hasPermission(permissions, 'cases.edit', user.role);
+
+  const visibleTabs = useMemo(() => {
+    if (isFinancialFocus) {
+      return TABS.filter((item) => ['overview', 'financials', 'payments', 'receipts'].includes(item.id));
+    }
+    return TABS.filter((item) => {
+      if (item.id === 'sessions') return canViewSessions;
+      if (item.id === 'documents') return canViewDocuments;
+      if (['financials', 'payments', 'receipts'].includes(item.id)) {
+        return canViewFinancials || canAddPayment || canPrintReceipt;
+      }
+      return true;
+    });
+  }, [canAddPayment, canPrintReceipt, canViewDocuments, canViewFinancials, canViewSessions, isFinancialFocus]);
+
+  useEffect(() => {
+    if (visibleTabs.length === 0) return;
+    if (!visibleTabs.some((item) => item.id === tab)) {
+      setTab(isFinancialFocus ? 'payments' : visibleTabs[0]!.id);
+    }
+  }, [isFinancialFocus, tab, visibleTabs]);
 
   const refreshFinancials = useCallback(() => {
     void refetchSummary();
@@ -305,7 +336,7 @@ export function CaseDetailPage({
 
       {/* Tabs */}
       <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-100 bg-white p-1 scrollbar-none">
-        {TABS.map(({ id, label, icon: Icon }) => (
+        {visibleTabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             type="button"
@@ -347,15 +378,17 @@ export function CaseDetailPage({
 
         {tab === 'sessions' && (
           <div className="space-y-3">
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => onCreateSession(caseId)}
-                className="rounded-lg bg-[#7A1F2B] px-3 py-1.5 text-xs font-bold text-white"
-              >
-                + جلسة
-              </button>
-            </div>
+            {canEditSessions ? (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => onCreateSession(caseId)}
+                  className="rounded-lg bg-[#7A1F2B] px-3 py-1.5 text-xs font-bold text-white"
+                >
+                  + جلسة
+                </button>
+              </div>
+            ) : null}
             {caseSessions.length === 0 ? (
               <EmptyState text="لا توجد جلسات." />
             ) : (
@@ -382,12 +415,14 @@ export function CaseDetailPage({
 
         {tab === 'documents' && (
           <div className="space-y-4">
-            <CaseExportToolbar
-              exporting={exportingCase}
-              printing={printingCase}
-              onDownload={() => void handleDownloadFullCase()}
-              onPrint={() => void handlePrintFullCase()}
-            />
+            {isManagerView ? (
+              <CaseExportToolbar
+                exporting={exportingCase}
+                printing={printingCase}
+                onDownload={() => void handleDownloadFullCase()}
+                onPrint={() => void handlePrintFullCase()}
+              />
+            ) : null}
 
             {caseDocuments.length === 0 ? (
               <EmptyState text="لا توجد مستندات." />
@@ -418,13 +453,15 @@ export function CaseDetailPage({
               ))
             )}
 
-            <CaseExportToolbar
-              variant="bottom"
-              exporting={exportingCase}
-              printing={printingCase}
-              onDownload={() => void handleDownloadFullCase()}
-              onPrint={() => void handlePrintFullCase()}
-            />
+            {isManagerView ? (
+              <CaseExportToolbar
+                variant="bottom"
+                exporting={exportingCase}
+                printing={printingCase}
+                onDownload={() => void handleDownloadFullCase()}
+                onPrint={() => void handlePrintFullCase()}
+              />
+            ) : null}
           </div>
         )}
 
@@ -447,6 +484,11 @@ export function CaseDetailPage({
 
         {tab === 'payments' && (
           <div className="space-y-4">
+            {canPrintReceipt ? (
+              <p className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
+                بعد تسجيل الدفعة، اضغط «سند قبض» بجانبها لإنشاء وطباعة السند الرسمي.
+              </p>
+            ) : null}
             {canAddPayment ? (
               <div className="rounded-xl border border-dashed border-slate-200 p-4 space-y-3">
                 <p className="text-sm font-black text-slate-800">إضافة دفعة</p>

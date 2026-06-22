@@ -1,6 +1,12 @@
-import { Search, Plus, Trash2, Archive, MessageCircle, AlertCircle } from 'lucide-react';
+import { Search, Plus, Trash2, Archive, MessageCircle, AlertCircle, Banknote } from 'lucide-react';
+import { hasPermission } from '../../lib/permissions';
 import type { CasesPageProps } from './types';
-export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, onSearch, onStatusFilterChange, onCategoryFilterChange, onCreateCase, onEditCase, onViewCase, onArchiveCase, onDeleteCase, onSendPaymentReminder, canSendPaymentReminder, canViewCase360 = false }: CasesPageProps) {
+export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, onSearch, onStatusFilterChange, onCategoryFilterChange, onCreateCase, onEditCase, onViewCase, onArchiveCase, onDeleteCase, onSendPaymentReminder, canSendPaymentReminder, canViewCase360 = false, permissions, userRole }: CasesPageProps) {
+  const canCreateCase = hasPermission(permissions, 'cases.create', userRole);
+  const canEditCase = hasPermission(permissions, 'cases.edit', userRole);
+  const canDeleteCase = hasPermission(permissions, 'cases.delete', userRole);
+  const canManagePayments = hasPermission(permissions, 'financials.add_payments', userRole);
+  const canPrintReceipt = hasPermission(permissions, 'financials.print_receipts', userRole);
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-right">
@@ -8,9 +14,11 @@ export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, on
           <h1 className="text-2xl font-black text-slate-900">أرشيف وإدارة ملفات القضايا</h1>
           <p className="text-xs text-slate-500 font-medium">افتح، راقب، وعدّل القضايا المعروضة أمام المحاكم اليمنية.</p>
         </div>
-        <button type="button" onClick={onCreateCase} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow">
-          <Plus className="w-4 h-4 stroke-[2.5]" /> فتح قضية جديدة
-        </button>
+        {canCreateCase ? (
+          <button type="button" onClick={onCreateCase} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow">
+            <Plus className="w-4 h-4 stroke-[2.5]" /> فتح قضية جديدة
+          </button>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -110,19 +118,34 @@ export function CasesPage({ cases, searchQuery, statusFilter, categoryFilter, on
                       تذكير واتساب
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => onArchiveCase(caseRecord)}
-                    className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 font-bold text-amber-800 transition-all hover:bg-amber-50"
-                  >
-                    <Archive className="h-3.5 w-3.5" />
-                    أرشفة
-                  </button>
-                  {canViewCase360 ? (
-                    <button type="button" onClick={() => onViewCase(caseRecord)} className="px-3 py-1.5 hover:bg-[#7A1F2B]/10 text-[#7A1F2B] rounded-lg font-bold transition-all">بيانات القضية</button>
+                  {canEditCase ? (
+                    <button
+                      type="button"
+                      onClick={() => onArchiveCase(caseRecord)}
+                      className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 font-bold text-amber-800 transition-all hover:bg-amber-50"
+                    >
+                      <Archive className="h-3.5 w-3.5" />
+                      أرشفة
+                    </button>
                   ) : null}
-                  <button type="button" onClick={() => onEditCase(caseRecord)} className="px-3 py-1.5 hover:bg-indigo-50 text-indigo-700 rounded-lg font-bold transition-all">تعديل الملف</button>
-                  <button type="button" onClick={() => onDeleteCase(caseRecord.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
+                  {canViewCase360 ? (
+                    <button type="button" onClick={() => onViewCase(caseRecord)} className="inline-flex items-center gap-1 px-3 py-1.5 hover:bg-[#7A1F2B]/10 text-[#7A1F2B] rounded-lg font-bold transition-all">
+                      {canManagePayments || canPrintReceipt ? (
+                        <>
+                          <Banknote className="h-3.5 w-3.5" />
+                          المالية وسند القبض
+                        </>
+                      ) : (
+                        'بيانات القضية'
+                      )}
+                    </button>
+                  ) : null}
+                  {canEditCase ? (
+                    <button type="button" onClick={() => onEditCase(caseRecord)} className="px-3 py-1.5 hover:bg-indigo-50 text-indigo-700 rounded-lg font-bold transition-all">تعديل الملف</button>
+                  ) : null}
+                  {canDeleteCase ? (
+                    <button type="button" onClick={() => onDeleteCase(caseRecord.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
+                  ) : null}
                 </div>
               </div>
             </div>

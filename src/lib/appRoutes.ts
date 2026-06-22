@@ -1,4 +1,4 @@
-import type { PageId } from '../types/app';
+import type { CaseDetailTab, PageId } from '../types/app';
 
 const PATH_TO_PAGE: Record<string, PageId> = {
   '/admin/billing': 'admin-billing',
@@ -23,6 +23,31 @@ const PAGE_TO_PATH: Partial<Record<PageId, string>> = {
 export function resolveCaseIdFromLocation(): string | null {
   const match = window.location.pathname.match(/^\/case\/([0-9a-f-]{36})$/i);
   return match?.[1] ?? null;
+}
+
+const CASE_DETAIL_TAB_KEY = 'legalmind:caseDetailTab';
+
+export function stashCaseDetailTab(tab: CaseDetailTab): void {
+  sessionStorage.setItem(CASE_DETAIL_TAB_KEY, tab);
+}
+
+export function consumeCaseDetailTab(): CaseDetailTab | null {
+  const stored = sessionStorage.getItem(CASE_DETAIL_TAB_KEY);
+  sessionStorage.removeItem(CASE_DETAIL_TAB_KEY);
+  if (
+    stored === 'overview' ||
+    stored === 'sessions' ||
+    stored === 'documents' ||
+    stored === 'financials' ||
+    stored === 'payments' ||
+    stored === 'receipts' ||
+    stored === 'timeline' ||
+    stored === 'notes' ||
+    stored === 'lawyers'
+  ) {
+    return stored;
+  }
+  return null;
 }
 
 export function syncCaseDetailLocation(caseId: string): void {

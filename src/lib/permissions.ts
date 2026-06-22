@@ -161,6 +161,19 @@ export function hasPermission(
   return false;
 }
 
+/** Case detail for payments/receipts — not limited to office managers */
+export function canAccessCaseDetail(
+  permissions: Record<string, boolean> | undefined,
+  fallbackRole?: string
+): boolean {
+  return (
+    hasPermission(permissions, 'cases.view', fallbackRole) ||
+    hasPermission(permissions, 'financials.view', fallbackRole) ||
+    hasPermission(permissions, 'financials.add_payments', fallbackRole) ||
+    hasPermission(permissions, 'financials.print_receipts', fallbackRole)
+  );
+}
+
 export function clearPermissionsCache(): void {
   cachedPermissions = null;
 }

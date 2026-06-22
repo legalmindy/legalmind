@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { PageLoader } from '../ui/LoadingSpinner';
 import { canManageOffice, getDocumentDownloadUrl } from '../../lib/api';
 import { toArabicQueryError } from '../QueryErrorBanner';
-import { isFirmManagerRole } from '../../lib/roleAccess';
+import { canAccessCaseDetail, hasPermission } from '../../lib/permissions';
 import { updateUserProfile, uploadProfileAvatar } from '../../lib/profileImage';
 import {
   initialCaseForm,
@@ -13,6 +13,7 @@ import {
 import type { AuthContextValue } from '../../contexts/AuthContext';
 import type {
   AlertState,
+  CaseDetailTab,
   CaseRecord,
   Client,
   DocumentItem,
@@ -128,7 +129,7 @@ export interface WorkspaceRoutesProps {
   setReportClient: (client: Client | null) => void;
   setPaymentReminderCase: (caseRecord: CaseRecord | null) => void;
   navigateToPage: (page: PageId) => void;
-  navigateToCaseDetail: (caseId: string) => void;
+  navigateToCaseDetail: (caseId: string, initialTab?: CaseDetailTab) => void;
   showAlert: (text: string, type?: AlertState['type']) => void;
   deleteClient: (id: string) => Promise<void>;
   deleteCase: (id: string) => Promise<void>;
@@ -342,16 +343,24 @@ export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
             });
             setShowCaseModal(true);
           }}
-          onViewCase={(cr) => navigateToCaseDetail(cr.id)}
+          onViewCase={(cr) => {
+            const financialOnly =
+              Boolean(user) &&
+              canAccessCaseDetail(permissions, user.role) &&
+              !hasPermission(permissions, 'cases.edit', user.role);
+            navigateToCaseDetail(cr.id, financialOnly ? 'payments' : undefined);
+          }}
           onArchiveCase={openArchiveCase}
           onDeleteCase={(id) => void deleteCase(id)}
           canSendPaymentReminder={whatsappReportsEnabled}
           onSendPaymentReminder={(cr) => setPaymentReminderCase(cr)}
-          canViewCase360={Boolean(user && isFirmManagerRole(user.role))}
+          canViewCase360={Boolean(user && canAccessCaseDetail(permissions, user.role))}
+          permissions={permissions}
+          userRole={user?.role}
         />
       )}
 
-      {currentPage === 'case-detail' && user && selectedCaseId && isFirmManagerRole(user.role) && (
+      {currentPage === 'case-detail' && user && selectedCaseId && canAccessCaseDetail(permissions, user.role) && (
         <CaseDetailPage
           caseId={selectedCaseId}
           user={user}
@@ -520,6 +529,7 @@ export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
           performance={dashboardPerformance}
           financials={dashboardFinancials}
           cases={cases}
+          onOpenCaseFinance={(caseId) => navigateToCaseDetail(caseId, 'payments')}
         />
       )}
 

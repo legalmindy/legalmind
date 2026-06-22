@@ -60,6 +60,8 @@ export interface CasesPageProps {
   onSendPaymentReminder?: (caseRecord: CaseRecord) => void;
   canSendPaymentReminder?: boolean;
   canViewCase360?: boolean;
+  permissions?: Record<string, boolean>;
+  userRole?: string;
 }
 
 export interface SessionsPageProps {
@@ -86,6 +88,7 @@ export interface ReportsPageProps {
   financials: DashboardFinancials;
   cases: CaseRecord[];
   year?: number;
+  onOpenCaseFinance?: (caseId: string) => void;
 }
 
 export interface ProfilePageProps {
