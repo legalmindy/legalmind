@@ -4,6 +4,7 @@ import {
   Download,
   FileSpreadsheet,
   FileArchive,
+  FileText,
   Filter,
   Loader2,
   Database
@@ -22,7 +23,7 @@ const ALL_ENTITIES = Object.keys(EXPORT_ENTITY_LABELS) as ExportEntity[];
 
 export function DataExportPage() {
   const [selected, setSelected] = useState<ExportEntity[]>([...ALL_ENTITIES]);
-  const [format, setFormat] = useState<ExportFormat>('xlsx');
+  const [format, setFormat] = useState<ExportFormat>('pdf');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [caseId, setCaseId] = useState('');
@@ -74,7 +75,7 @@ export function DataExportPage() {
           <div>
             <h1 className="text-2xl font-black text-slate-900">تصدير البيانات</h1>
             <p className="mt-1 text-xs text-slate-500">
-              جميع البيانات ملك للعميل — صدّر عملاءك وقضاياك ومدفوعاتك بصيغ Excel أو CSV أو ZIP.
+              جميع البيانات ملك للعميل — صدّر عملاءك وقضاياك ومدفوعاتك بصيغ PDF أو Excel أو CSV أو ZIP.
             </p>
           </div>
         </div>
@@ -141,7 +142,7 @@ export function DataExportPage() {
           <div>
             <label className="mb-2 block text-xs font-bold text-slate-500">صيغة التصدير</label>
             <div className="flex flex-wrap gap-2">
-              {(['xlsx', 'csv', 'zip'] as ExportFormat[]).map((f) => (
+              {(['pdf', 'xlsx', 'csv', 'zip'] as ExportFormat[]).map((f) => (
                 <button
                   key={f}
                   type="button"
@@ -150,7 +151,7 @@ export function DataExportPage() {
                     format === f ? 'bg-indigo-950 text-white' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
-                  {f}
+                  {f === 'pdf' ? 'PDF' : f}
                 </button>
               ))}
             </div>
@@ -165,7 +166,7 @@ export function DataExportPage() {
           onClick={() => void runExport(false)}
           className="inline-flex items-center gap-2 rounded-xl bg-[#7A1F2B] px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50"
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : format === 'pdf' ? <FileText className="h-4 w-4" /> : <FileSpreadsheet className="h-4 w-4" />}
           تصدير المحدد
         </button>
         <button

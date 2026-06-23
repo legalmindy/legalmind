@@ -6,6 +6,7 @@ import {
   fetchDocuments,
   fetchEmployees,
   fetchExpenses,
+  fetchOffice,
   fetchSessions,
   getCurrentFirmId,
   getDocumentDownloadUrl
@@ -15,6 +16,7 @@ import { throwIfSupabaseError } from './supabaseQueryHelpers';
 import { exportToCsv } from './reportsApi';
 import { registerFirmExport } from './securityApi';
 import { decryptFileBlob } from './fileEncryption';
+import { buildExportPdfHtml, downloadHtmlAsPdf } from './exportPdf';
 
 export type ExportEntity =
   | 'clients'
@@ -26,7 +28,7 @@ export type ExportEntity =
   | 'employees'
   | 'documents';
 
-export type ExportFormat = 'xlsx' | 'csv' | 'zip';
+export type ExportFormat = 'xlsx' | 'csv' | 'zip' | 'pdf';
 
 export interface ExportFilters {
   dateFrom?: string;
@@ -102,10 +104,11 @@ async function fetchReceipts(filters: ExportFilters): Promise<Record<string, unk
   const firmId = await getCurrentFirmId();
   let query = supabase
     .from('receipt_vouchers')
-    .select('id, case_id, receipt_number, amount, payment_date, payer_name, notes, created_at, cases(title)')
+    .select(
+      'id, case_id, receipt_number, amount, client_name, case_number, payment_method, notes, printed_at, created_at, cases(title)'
+    )
     .eq('firm_id', firmId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false });
+    .order('printed_at', { ascending: false });
 
   if (filters.caseId) query = query.eq('case_id', filters.caseId);
 
@@ -113,15 +116,17 @@ async function fetchReceipts(filters: ExportFilters): Promise<Record<string, unk
   throwIfSupabaseError(error);
 
   return (data ?? [])
-    .filter((row) => inDateRange(String(row.payment_date ?? row.created_at), filters))
+    .filter((row) => inDateRange(String(row.printed_at ?? row.created_at), filters))
     .map((row) => ({
       id: row.id,
       case_id: row.case_id,
       case_title: (row.cases as { title?: string } | null)?.title ?? '',
       receipt_number: row.receipt_number,
       amount: row.amount,
-      payment_date: row.payment_date,
-      payer_name: row.payer_name ?? '',
+      printed_at: row.printed_at,
+      client_name: row.client_name ?? '',
+      case_number: row.case_number ?? '',
+      payment_method: row.payment_method ?? '',
       notes: row.notes ?? ''
     }));
 }
@@ -307,6 +312,25 @@ export async function exportFirmData(
     const rows = await collectEntityRows(entity, filters);
     sheets[entity] = rows;
     recordCount += rows.length;
+  }
+
+  if (format === 'pdf') {
+    const office = await fetchOffice();
+    const sections: Array<{ entity: ExportEntity; rows: Record<string, unknown>[] }> = [];
+    for (const entity of entities) {
+      if (entity === 'documents') continue;
+      const rows = sheets[entity] ?? (await collectEntityRows(entity, filters));
+      sections.push({ entity, rows });
+    }
+    const html = buildExportPdfHtml(sections, {
+      firmName: office.name,
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo
+    });
+    const filename = `legalmind-export-${stamp}.pdf`;
+    await downloadHtmlAsPdf(filename, html);
+    await registerFirmExport(entities.join(','), 'pdf', filtersPayload(filters), recordCount);
+    return { recordCount, filename };
   }
 
   if (format === 'xlsx') {

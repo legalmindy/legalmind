@@ -18,6 +18,7 @@
     "@supabase/supabase-js": "^2.107.0",
     "@tanstack/react-query": "^5.0.0",
     "@tauri-apps/api": "^2.11.0",
+    "html2pdf.js": "^0.14.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.493.0",
     "react": "^19.0.0",
