@@ -7,12 +7,18 @@ import { mapEmployeeToUser } from './mappers';
 import { logError } from './errorLogger';
 import { isValidFirmCodeFormat, normalizeFirmCode, isEmailAvailableForRegistration } from './firmCode';
 import { clearFirmIdCache } from './api';
+import { clearEncryptionKeyCache } from './fileEncryption';
 import { clearPermissionsCache } from './permissions';
 import { clearAppQueryCache } from './queryClient';
 import { isValidYemeniPhone, normalizeYemeniPhoneForStorage } from '../utils/format';
 import { logSecurityEvent, logSecurityEventPublic } from './securityEvents';
 import { employeeStatusMessage, getEmployeeAccessStatus } from './memberRegistration';
 import { resolveRoleDisplayName } from './roleLabels';
+
+function clearSessionCaches(): void {
+  clearFirmIdCache();
+  clearEncryptionKeyCache();
+}
 
 /** Base URL for Supabase auth email redirects (VITE_APP_URL or current origin). */
 export function getAuthRedirectUrl(path: string): string {
@@ -193,7 +199,7 @@ export async function signIn(email: string, password: string): Promise<AuthResul
       await supabase.auth.signOut();
       clearAppQueryCache();
       clearPermissionsCache();
-      clearFirmIdCache();
+      clearSessionCaches();
       logSecurityEvent('permission_denied', 'high', { reason: 'employee_status_blocked' });
       return { success: false, error: blockMessage };
     }
@@ -423,7 +429,7 @@ export async function acceptInvitation(token: string): Promise<AuthResult> {
 
 export async function signOut(): Promise<void> {
   logSecurityEvent('logout', 'info');
-  clearFirmIdCache();
+  clearSessionCaches();
   clearPermissionsCache();
   clearAppQueryCache();
   const { error } = await supabase.auth.signOut();
@@ -468,7 +474,7 @@ export async function fetchCurrentUser(): Promise<User | null> {
       await signOutLocal();
       clearAppQueryCache();
       clearPermissionsCache();
-      clearFirmIdCache();
+      clearSessionCaches();
     }
     return null;
   }
@@ -478,7 +484,7 @@ export async function fetchCurrentUser(): Promise<User | null> {
     await supabase.auth.signOut();
     clearAppQueryCache();
     clearPermissionsCache();
-    clearFirmIdCache();
+    clearSessionCaches();
     return null;
   }
 
@@ -502,7 +508,7 @@ export async function fetchCurrentUserWithRepairDetails(): Promise<{
   await purgeInvalidSession(() => {
     clearAppQueryCache();
     clearPermissionsCache();
-    clearFirmIdCache();
+    clearSessionCaches();
   });
 
   let user = await fetchCurrentUser();
@@ -549,7 +555,7 @@ async function repairAuthProfileIfNeeded(): Promise<AuthRepairResult> {
       await signOutLocal();
       clearAppQueryCache();
       clearPermissionsCache();
-      clearFirmIdCache();
+      clearSessionCaches();
       return { ok: false, action: 'session_cleared', error: 'انتهت الجلسة. سجّل الدخول مجدداً.' };
     }
     if (/repair_current_user_profile|42883|does not exist/i.test(error.message)) {

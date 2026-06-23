@@ -102,4 +102,5 @@ export interface SettingsPageProps {
   office?: Office;
   onSaveOffice: (office: Office) => void;
   onFirmCodeCopied?: (message: string) => void;
+  onNavigate?: (page: import('../../types/app').PageId) => void;
 }

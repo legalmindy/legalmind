@@ -136,6 +136,7 @@ export interface DbDocument {
   uploaded_at: string;
   updated_at: string;
   deleted_at: string | null;
+  is_encrypted?: boolean;
   cases?: { title: string } | null;
 }
 

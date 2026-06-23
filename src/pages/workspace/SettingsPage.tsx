@@ -6,9 +6,9 @@ import { SecurityEventsPanel } from '../../components/SecurityEventsPanel';
 import { SettingsToggleRow } from '../../components/SettingsToggleRow';
 import { useFirmProfile } from '../../hooks/useSupabaseQueries';
 import { useFirmSettings, useFirmSettingsMutations } from '../../hooks/useFirmSettings';
-import type { Office } from '../../types/app';
+import type { Office, PageId } from '../../types/app';
 import type { SettingsPageProps } from './types';
-export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied }: SettingsPageProps) {
+export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied, onNavigate }: SettingsPageProps) {
   const isAdmin = user.role === 'admin' || user.role === 'firm_manager' || user.role === 'super_admin';
   const { data: firmProfile } = useFirmProfile(isAdmin);
   const { data: firmSettings, isLoading: settingsLoading } = useFirmSettings(isAdmin);
@@ -136,6 +136,27 @@ export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied }: S
           />
         ) : null}
         {isAdmin ? <SecurityEventsPanel /> : null}
+        {isAdmin ? (
+          <div className="rounded-xl border border-[#7A1F2B]/20 bg-[#7A1F2B]/5 p-4 space-y-3">
+            <h3 className="font-black text-[#7A1F2B] text-sm">الأمان والخصوصية — ملكية البيانات</h3>
+            <p className="text-xs leading-relaxed text-slate-600">
+              جميع البيانات المدخلة داخل النظام هي ملك للعميل بشكل كامل، ويمكن تصديرها أو طلب نسخة كاملة منها في أي وقت.
+            </p>
+            {user.role === 'firm_manager' && onNavigate ? (
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button type="button" onClick={() => onNavigate('trust-security' as PageId)} className="rounded-lg bg-white px-3 py-1.5 text-[10px] font-bold text-[#7A1F2B] border border-[#7A1F2B]/20">
+                  الأمان وحماية البيانات
+                </button>
+                <button type="button" onClick={() => onNavigate('data-export' as PageId)} className="rounded-lg bg-white px-3 py-1.5 text-[10px] font-bold text-slate-700 border border-slate-200">
+                  تصدير البيانات
+                </button>
+                <button type="button" onClick={() => onNavigate('backup' as PageId)} className="rounded-lg bg-white px-3 py-1.5 text-[10px] font-bold text-slate-700 border border-slate-200">
+                  النسخ الاحتياطي
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

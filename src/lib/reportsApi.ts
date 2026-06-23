@@ -67,11 +67,17 @@ export async function fetchAuditLogs(limit = 100): Promise<AuditLogRow[]> {
 
 export async function fetchFirmActivityLogs(
   limit = 200,
-  tableFilter?: string
+  tableFilter?: string,
+  dateFrom?: string,
+  dateTo?: string,
+  search?: string
 ): Promise<FirmActivityLogRow[]> {
   const { data, error } = await supabase.rpc('list_firm_activity_logs', {
     p_limit: limit,
-    p_table_filter: tableFilter?.trim() || null
+    p_table_filter: tableFilter?.trim() || null,
+    p_from: dateFrom ? new Date(dateFrom).toISOString() : null,
+    p_to: dateTo ? new Date(`${dateTo}T23:59:59`).toISOString() : null,
+    p_search: search?.trim() || null
   });
   throwIfSupabaseError(error);
   return (data ?? []).map((row: Record<string, unknown>) => ({

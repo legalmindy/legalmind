@@ -15,7 +15,10 @@ import {
   TrendingUp,
   User,
   Users,
-  X
+  X,
+  Database,
+  HardDrive,
+  ShieldCheck
 } from 'lucide-react';
 import { AppLogo } from './AppLogo';
 import { FirmCodeCard } from './FirmCodeCard';
@@ -251,6 +254,43 @@ export const HeaderBar = memo(function HeaderBar({
                     <CreditCard className="h-4 w-4 text-amber-300" />
                     <span>قبول الاشتراكات</span>
                   </button>
+                ) : null}
+                {isFirmManagerRole(role) ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChangePage('trust-security');
+                        setShowUserDropdown(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-right text-xs text-slate-700 hover:bg-indigo-50"
+                    >
+                      <ShieldCheck className="h-4 w-4 text-[#7A1F2B]" />
+                      <span>الأمان وحماية البيانات</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChangePage('data-export');
+                        setShowUserDropdown(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-right text-xs text-slate-700 hover:bg-indigo-50"
+                    >
+                      <Database className="h-4 w-4 text-slate-400" />
+                      <span>تصدير البيانات</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChangePage('backup');
+                        setShowUserDropdown(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-right text-xs text-slate-700 hover:bg-indigo-50"
+                    >
+                      <HardDrive className="h-4 w-4 text-slate-400" />
+                      <span>النسخ الاحتياطي</span>
+                    </button>
+                  </>
                 ) : null}
                 <button
                   type="button"

@@ -46,6 +46,9 @@ const DocumentsPage = lazy(() => import('../../pages/workspace/DocumentsPage').t
 const LawyersPage = lazy(() => import('../../pages/workspace/LawyersPage').then((m) => ({ default: m.LawyersPage })));
 const ReportsPage = lazy(() => import('../../pages/workspace/ReportsPage').then((m) => ({ default: m.ReportsPage })));
 const SubscriptionPage = lazy(() => import('../../pages/workspace/SubscriptionPage').then((m) => ({ default: m.SubscriptionPage })));
+const DataExportPage = lazy(() => import('../../pages/DataExportPage').then((m) => ({ default: m.DataExportPage })));
+const BackupPage = lazy(() => import('../../pages/BackupPage').then((m) => ({ default: m.BackupPage })));
+const TrustSecurityPage = lazy(() => import('../../pages/TrustSecurityPage').then((m) => ({ default: m.TrustSecurityPage })));
 const ProfilePage = lazy(() => import('../../pages/workspace/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const SettingsPage = lazy(() => import('../../pages/workspace/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 type WorkspaceAuthHandlers = Pick<
@@ -563,7 +566,14 @@ export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
               .catch((err) => showAlert(toArabicQueryError(err, 'تحديث بيانات المكتب'), 'error'))
           }
           onFirmCodeCopied={(msg) => showAlert(msg, 'success')}
+          onNavigate={navigateToPage}
         />
+      )}
+
+      {currentPage === 'data-export' && user && user.role === 'firm_manager' && <DataExportPage />}
+      {currentPage === 'backup' && user && user.role === 'firm_manager' && <BackupPage />}
+      {currentPage === 'trust-security' && user && user.role === 'firm_manager' && (
+        <TrustSecurityPage onNavigate={navigateToPage} />
       )}
     </Suspense>
   );

@@ -1,4 +1,5 @@
-import { Briefcase, Calendar, Clock, FileText, MapPin, Plus, Download, AlertCircle, User as UserIcon, TrendingUp, Banknote } from 'lucide-react';
+import { Briefcase, Calendar, Clock, FileText, MapPin, Plus, Download, AlertCircle, User as UserIcon, TrendingUp, Banknote, HardDrive, Database, History, Lock } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { SubscriptionStatusBanner } from '../../components/SubscriptionStatusBanner';
 import { StatCard } from '../../components/StatCard';
 import { FirmCodeCard } from '../../components/FirmCodeCard';
@@ -6,6 +7,8 @@ import { useFirmProfile } from '../../hooks/useSupabaseQueries';
 import { useFirmSubscription } from '../../hooks/useSubscription';
 import { formatPercent, formatYer } from '../../lib/dashboardAnalytics';
 import { hasPermission } from '../../lib/permissions';
+import { fetchFirmSecurityStats } from '../../lib/securityApi';
+import { formatActivityDateTime } from '../../lib/auditLogLabels';
 import type { DashboardPageProps } from './types';
 export function DashboardPage({
   user,
@@ -32,6 +35,12 @@ export function DashboardPage({
 }: DashboardPageProps) {
   const userRole = role ?? user.role;
   const isAdmin = userRole === 'admin' || userRole === 'firm_manager' || userRole === 'super_admin';
+  const isFirmManager = userRole === 'firm_manager';
+  const { data: securityStats } = useQuery({
+    queryKey: ['firm-security-stats'],
+    queryFn: fetchFirmSecurityStats,
+    enabled: isFirmManager
+  });
   const canCreateClient = hasPermission(permissions, 'clients.create', userRole);
   const canCreateCase = hasPermission(permissions, 'cases.create', userRole);
   const canCreateSession = hasPermission(permissions, 'sessions.create', userRole);
@@ -118,6 +127,47 @@ export function DashboardPage({
         <StatCard title="الجلسات المجدولة" value={stats.upcomingSessions} desc="أجندة الحضور بالمحاكم" change={statHints.weeklySessionsLabel} icon={Calendar} iconBg="bg-emerald-500/5" iconText="text-emerald-500" borderStyle="border-emerald-500/10" />
         <StatCard title="الوثائق والأدلة" value={stats.totalDocuments} desc="مؤرشفة ومشفرة بالكامل" change={statHints.documentsStorageLabel} icon={FileText} iconBg="bg-rose-500/5" iconText="text-rose-500" borderStyle="border-rose-500/10" />
       </div>
+
+      {isFirmManager && securityStats ? (
+        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+          <h2 className="mb-4 text-sm font-black text-slate-900">إحصائيات الأمان والإدارة</h2>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <div className="rounded-xl bg-slate-50 p-3 text-center">
+              <HardDrive className="mx-auto mb-1 h-5 w-5 text-indigo-700" />
+              <p className="text-lg font-black text-slate-900">{securityStats.backupCount}</p>
+              <p className="text-[10px] font-bold text-slate-500">نسخ احتياطية</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3 text-center">
+              <Clock className="mx-auto mb-1 h-5 w-5 text-amber-600" />
+              <p className="text-[10px] font-black text-slate-800 leading-tight">
+                {securityStats.lastBackupAt ? formatActivityDateTime(securityStats.lastBackupAt).split(' ')[0] : '—'}
+              </p>
+              <p className="text-[10px] font-bold text-slate-500">آخر نسخة</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3 text-center">
+              <Database className="mx-auto mb-1 h-5 w-5 text-[#7A1F2B]" />
+              <p className="text-lg font-black text-slate-900">{securityStats.exportCount}</p>
+              <p className="text-[10px] font-bold text-slate-500">عمليات تصدير</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3 text-center">
+              <Lock className="mx-auto mb-1 h-5 w-5 text-emerald-700" />
+              <p className="text-lg font-black text-slate-900">{securityStats.encryptedFilesCount}</p>
+              <p className="text-[10px] font-bold text-slate-500">ملفات مشفرة</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3 text-center">
+              <History className="mx-auto mb-1 h-5 w-5 text-slate-600" />
+              <p className="text-lg font-black text-slate-900">{securityStats.auditLogCount}</p>
+              <p className="text-[10px] font-bold text-slate-500">سجلات تدقيق</p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={() => setCurrentPage('trust-security')} className="rounded-lg bg-[#7A1F2B]/10 px-3 py-1.5 text-[10px] font-bold text-[#7A1F2B]">الأمان وحماية البيانات</button>
+            <button type="button" onClick={() => setCurrentPage('data-export')} className="rounded-lg bg-slate-100 px-3 py-1.5 text-[10px] font-bold text-slate-700">تصدير البيانات</button>
+            <button type="button" onClick={() => setCurrentPage('backup')} className="rounded-lg bg-slate-100 px-3 py-1.5 text-[10px] font-bold text-slate-700">النسخ الاحتياطي</button>
+            <button type="button" onClick={() => { setCurrentPage('archive'); }} className="rounded-lg bg-slate-100 px-3 py-1.5 text-[10px] font-bold text-slate-700">سجل النشاط</button>
+          </div>
+        </div>
+      ) : null}
 
       {showReminderStrip && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3" dir="rtl">

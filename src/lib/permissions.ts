@@ -52,7 +52,7 @@ export function canAccessPage(
   page: PageId,
   fallbackRole?: string
 ): boolean {
-  if (page === 'audit-logs') {
+  if (page === 'audit-logs' || page === 'data-export' || page === 'backup' || page === 'trust-security') {
     return fallbackRole === 'firm_manager';
   }
   const required = PAGE_PERMISSIONS[page];

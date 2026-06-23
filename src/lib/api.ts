@@ -10,6 +10,7 @@ import {
   mapDbNotification,
   mapDbSession
 } from './mappers';
+import { decryptFileBlob, encryptFileBlob, isSensitiveDocument } from './fileEncryption';
 import { sanitizeFileName, validateFile } from './fileValidation';
 import { logError } from './errorLogger';
 import { throwIfSupabaseError } from './supabaseQueryHelpers';
@@ -525,9 +526,18 @@ export async function uploadDocumentFile(
   const safeName = sanitizeFileName(file.name);
   const path = `${caseId}/${Date.now()}-${safeName}`;
 
+  const docTitle = cleanText(title || safeName, 300) || safeName;
+  const docCategory = cleanText(category || 'مستند قانوني', 100);
+  const shouldEncrypt = isSensitiveDocument(docTitle, docCategory);
+
+  let uploadBody: Blob | File = file;
+  if (shouldEncrypt) {
+    uploadBody = await encryptFileBlob(file);
+  }
+
   const { error: storageError } = await supabase.storage
     .from('case-documents')
-    .upload(path, file, { cacheControl: '3600', upsert: false });
+    .upload(path, uploadBody, { cacheControl: '3600', upsert: false, contentType: shouldEncrypt ? 'application/octet-stream' : file.type });
 
   if (storageError) {
     void logError(storageError.message, { caseId, fileName: safeName });
@@ -540,9 +550,6 @@ export async function uploadDocumentFile(
 
   if (signedError) throw signedError;
 
-  const docTitle = cleanText(title || safeName, 300) || safeName;
-  const docCategory = cleanText(category || 'مستند قانوني', 100);
-
   const { data, error } = await supabase
     .from('documents')
     .insert({
@@ -552,7 +559,8 @@ export async function uploadDocumentFile(
       file_type: validation.documentType,
       file_size: file.size,
       storage_path: path,
-      url: signedData.signedUrl
+      url: signedData.signedUrl,
+      is_encrypted: shouldEncrypt
     })
     .select(DOC_SELECT)
     .single();
@@ -564,7 +572,7 @@ export async function uploadDocumentFile(
 export async function getDocumentDownloadUrl(documentId: string): Promise<string> {
   const { data: doc, error } = await supabase
     .from('documents')
-    .select('storage_path')
+    .select('storage_path, is_encrypted')
     .eq('id', documentId)
     .single();
   if (error || !doc) throw new Error('المستند غير موجود');
@@ -575,6 +583,31 @@ export async function getDocumentDownloadUrl(documentId: string): Promise<string
 
   if (signedError) throw signedError;
   return signed.signedUrl;
+}
+
+/** Fetch document blob, decrypting sensitive files when needed. */
+export async function getDocumentBlob(documentId: string): Promise<Blob> {
+  const { data: doc, error } = await supabase
+    .from('documents')
+    .select('storage_path, is_encrypted')
+    .eq('id', documentId)
+    .single();
+  if (error || !doc) throw new Error('المستند غير موجود');
+
+  const { data: signed, error: signedError } = await supabase.storage
+    .from('case-documents')
+    .createSignedUrl(doc.storage_path as string, 300);
+  if (signedError) throw signedError;
+
+  const response = await fetch(signed.signedUrl);
+  if (!response.ok) throw new Error('فشل تحميل المستند');
+  let blob = await response.blob();
+
+  if (doc.is_encrypted) {
+    blob = await decryptFileBlob(blob);
+  }
+
+  return blob;
 }
 
 // ─── Employees ────────────────────────────────────────────────

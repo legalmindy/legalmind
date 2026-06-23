@@ -26,7 +26,10 @@ export type PageId =
   | 'admin-billing'
   | 'case-detail'
   | 'audit-logs'
-  | 'office-manager';
+  | 'office-manager'
+  | 'data-export'
+  | 'backup'
+  | 'trust-security';
 
 export type CaseDetailTab =
   | 'overview'

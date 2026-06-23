@@ -21,7 +21,8 @@
     "jszip": "^3.10.1",
     "lucide-react": "^0.493.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.2",
