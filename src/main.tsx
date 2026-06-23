@@ -7,6 +7,11 @@ import { PageLoader } from './components/ui/LoadingSpinner';
 import { queryClient } from './lib/queryClient';
 import App from './App';
 import './styles/index.css';
+import '@fontsource/cairo/400.css';
+import '@fontsource/cairo/600.css';
+import '@fontsource/cairo/700.css';
+import '@fontsource/cairo/800.css';
+import '@fontsource/cairo/900.css';
 import { reportWebVitals } from './lib/monitoring';
 
 reportWebVitals();

@@ -20,6 +20,9 @@ import {
   Users
 } from 'lucide-react';
 import { AppLogo } from '../components/AppLogo';
+import { AnimatedAppBackground } from '../components/AnimatedAppBackground';
+import { PhoneShowcase } from '../components/marketing/PhoneShowcase';
+import { MarketingAdsGallery } from '../components/marketing/MarketingAdsGallery';
 
 interface LandingPageProps {
   onNavigate: (page: 'login' | 'register-office' | 'register-lawyer') => void;
@@ -179,9 +182,10 @@ function MiniStars({ count }: { count: number }) {
 
 export function LandingPage({ onNavigate }: LandingPageProps) {
   return (
-    <div className="min-h-screen bg-white text-slate-900" dir="rtl">
+    <div className="relative min-h-screen bg-white text-slate-900" dir="rtl">
+      <AnimatedAppBackground variant="landing" />
       {/* ─── Header ─── */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#7A1F2B]/95 backdrop-blur-md">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#7A1F2B]/95 backdrop-blur-md relative">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-8 lg:px-10">
           <div className="flex items-center gap-2.5 min-w-0">
             <AppLogo variant="law" size="md" tone="inverted" className="shrink-0 shadow-lg shadow-black/10" />
@@ -400,6 +404,10 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
           </div>
         </div>
       </section>
+
+      <PhoneShowcase />
+
+      <MarketingAdsGallery />
 
       {/* ─── Testimonials ─── */}
       <section className="border-y border-slate-100 bg-slate-50 py-14 sm:py-16">

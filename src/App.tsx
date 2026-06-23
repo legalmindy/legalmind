@@ -46,6 +46,7 @@ import { useWorkspaceDerivedData } from './hooks/useWorkspaceDerivedData';
 import { useWorkspaceActions } from './hooks/useWorkspaceActions';
 import { WorkspaceRoutes } from './components/app/WorkspaceRoutes';
 import { WorkspaceModals } from './components/app/WorkspaceModals';
+import { AnimatedAppBackground } from './components/AnimatedAppBackground';
 
 export default function App() {
   const auth = useAuth();
@@ -367,7 +368,9 @@ export default function App() {
         onNavigate={navigateToPage}
         onLogout={() => void handleLogout()}
       >
-        <main className="pb-16">
+        <main className="workspace-shell relative pb-16 min-h-[calc(100vh-4rem)]">
+          {isAuth && currentPage !== 'landing' ? <AnimatedAppBackground variant="workspace" /> : null}
+          <div className="relative z-10">
           <WorkspaceRoutes
             currentPage={currentPage}
             isAuth={isAuth}
@@ -438,6 +441,7 @@ export default function App() {
             employeeMutations={employeeMutations}
             officeMutations={officeMutations}
           />
+          </div>
         </main>
       </SubscriptionGuard>
 
