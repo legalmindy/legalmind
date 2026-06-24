@@ -83,16 +83,9 @@ export interface FirmCodeValidationResult {
   error?: string;
 }
 
-/** Validates format + existence in Supabase (lawyer registration). */
-export async function isEmailAvailableForRegistration(email: string): Promise<boolean> {
-  const normalized = email.trim().toLowerCase();
-  if (!normalized) return false;
-
-  const { data, error } = await callPublicRpc('is_email_available_for_registration', {
-    check_email: normalized
-  });
-  if (error) throw error;
-  return Boolean(data);
+/** @deprecated Registration relies on auth.signUp duplicate-email errors (no public RPC). */
+export async function isEmailAvailableForRegistration(_email: string): Promise<boolean> {
+  return true;
 }
 
 export async function validateFirmCodeForRegistration(code: string): Promise<FirmCodeValidationResult> {

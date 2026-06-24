@@ -5,7 +5,7 @@ import type { Invitation, User, UserRole } from '../types/app';
 import type { DbEmployee, DbInvitationPreview } from '../types/database';
 import { mapEmployeeToUser } from './mappers';
 import { logError } from './errorLogger';
-import { isValidFirmCodeFormat, normalizeFirmCode, isEmailAvailableForRegistration } from './firmCode';
+import { isValidFirmCodeFormat, normalizeFirmCode } from './firmCode';
 import { clearFirmIdCache } from './api';
 import { clearEncryptionKeyCache } from './fileEncryption';
 import { clearPermissionsCache } from './permissions';
@@ -231,15 +231,6 @@ export async function registerOffice(data: OfficeRegistrationData): Promise<Auth
     };
   }
 
-  try {
-    const emailAvailable = await isEmailAvailableForRegistration(normalizedEmail);
-    if (!emailAvailable) {
-      return { success: false, error: 'هذا البريد الإلكتروني مسجل مسبقاً في النظام. جرّب تسجيل الدخول أو استخدم بريداً آخر.' };
-    }
-  } catch (err) {
-    console.warn('[AUTH] Email availability check failed:', err);
-  }
-
   const { error, data: authData } = await supabase.auth.signUp({
     email: normalizedEmail,
     password: data.password,
@@ -302,18 +293,8 @@ export async function registerLawyer(data: LawyerRegistrationData): Promise<Auth
     return { success: false, error: 'يرجى اختيار نوع الصلاحية في المكتب.' };
   }
 
-  const normalizedEmail = data.email.trim().toLowerCase();
-  try {
-    const emailAvailable = await isEmailAvailableForRegistration(normalizedEmail);
-    if (!emailAvailable) {
-      return { success: false, error: 'هذا البريد الإلكتروني مسجل مسبقاً في النظام. جرّب تسجيل الدخول أو استخدم بريداً آخر.' };
-    }
-  } catch (err) {
-    console.warn('[AUTH] Email availability check failed:', err);
-  }
-
   const { error, data: authData } = await supabase.auth.signUp({
-    email: data.email,
+    email: data.email.trim().toLowerCase(),
     password: data.password,
     options: {
       data: {
