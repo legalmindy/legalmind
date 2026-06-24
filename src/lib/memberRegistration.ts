@@ -58,15 +58,16 @@ export async function rejectMemberRegistration(employeeId: string): Promise<void
 export async function getEmployeeAccessStatus(authUserId: string): Promise<string | null> {
   const { data, error } = await supabase
     .from('employees')
-    .select('status')
+    .select('status, deleted_at')
     .eq('auth_uid', authUserId)
-    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (error) return null;
-  return data?.status ?? null;
+  if (!data) return null;
+  if (data.deleted_at != null) return 'disabled';
+  return data.status ?? null;
 }
 
 export function employeeStatusMessage(status: string | null): string | null {
@@ -77,7 +78,7 @@ export function employeeStatusMessage(status: string | null): string | null {
     return 'تم تعليق حسابك. تواصل مع مدير المكتب.';
   }
   if (status === 'disabled') {
-    return 'حسابك غير مفعّل. تواصل مع مدير المكتب.';
+    return 'تم رفض طلب انضمامك أو تعطيل حسابك. تواصل مع مدير المكتب إذا كان ذلك خطأ.';
   }
   return null;
 }

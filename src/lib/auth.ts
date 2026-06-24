@@ -113,6 +113,9 @@ function mapAuthError(error: AuthError): string {
     if (/invitation is invalid or expired/i.test(raw)) {
       return 'انتهت صلاحية الدعوة أو لم تعد صالحة. اطلب دعوة جديدة من مدير المكتب.';
     }
+    if (/previous membership request was rejected/i.test(raw)) {
+      return 'تم رفض طلب انضمامك سابقاً لهذا المكتب. اطلب دعوة جديدة من مالك المكتب.';
+    }
     return 'تعذر إنشاء الحساب. تأكد أن البريد غير مستخدم مسبقاً، ثم أعد المحاولة أو تواصل مع مدير المكتب.';
   }
 
@@ -147,6 +150,9 @@ function mapAuthError(error: AuthError): string {
     }
     if (/invitation is invalid or expired/i.test(raw)) {
       return 'انتهت صلاحية الدعوة أو لم تعد صالحة. اطلب دعوة جديدة من مدير المكتب.';
+    }
+    if (/previous membership request was rejected/i.test(raw)) {
+      return 'تم رفض طلب انضمامك سابقاً لهذا المكتب. اطلب دعوة جديدة من مالك المكتب.';
     }
     if (/profile_role_enum|employee_role_enum|cannot cast|type mismatch/i.test(raw)) {
       return 'تعذر إكمال الحساب بسبب إعدادات قاعدة البيانات. طبّق آخر migrations ثم أعد المحاولة.';
@@ -664,6 +670,11 @@ async function loadUserFromProfileContext(): Promise<User | null> {
     email: ctx.email ?? authUser.email ?? null
   });
 
+  const accessStatus = await getEmployeeAccessStatus(authUser.id);
+  if (employeeStatusMessage(accessStatus) || !employee) {
+    return null;
+  }
+
   return {
     id: ctx.profile_id,
     name: ctx.full_name ?? authUser.email ?? '',
@@ -702,6 +713,26 @@ async function mapProfileRowToUser(
   };
 }
 
+async function assertProfileOfficeAccess(
+  authUser: SupabaseUser,
+  profile: Record<string, unknown>
+): Promise<boolean> {
+  const accessStatus = await getEmployeeAccessStatus(authUser.id);
+  if (employeeStatusMessage(accessStatus)) {
+    return false;
+  }
+
+  const linkedEmployee = await loadEmployeeForAuthUser(authUser.id, {
+    employeeId: (profile.employee_id as string | null) ?? null,
+    email: (profile.email as string | null) ?? authUser.email ?? null
+  });
+  if ((profile.employee_id as string | null) && !linkedEmployee) {
+    return false;
+  }
+
+  return true;
+}
+
 async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
   const loadProfile = async () => {
     const { data: profile, error: profileError } = await supabase
@@ -725,6 +756,9 @@ async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
   }
 
   if (profile) {
+    if (!(await assertProfileOfficeAccess(authUser, profile as Record<string, unknown>))) {
+      return null;
+    }
     return mapProfileRowToUser(authUser, profile as Record<string, unknown>);
   }
 
@@ -757,6 +791,9 @@ async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
   await repairAuthProfileIfNeeded();
   ({ profile, profileError } = await loadProfile());
   if (profile) {
+    if (!(await assertProfileOfficeAccess(authUser, profile as Record<string, unknown>))) {
+      return null;
+    }
     return mapProfileRowToUser(authUser, profile as Record<string, unknown>);
   }
 
