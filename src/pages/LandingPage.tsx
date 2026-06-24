@@ -15,12 +15,12 @@ import {
   Receipt,
   Scale,
   Shield,
-  Star,
   TrendingUp,
   Users
 } from 'lucide-react';
 import { AppLogo } from '../components/AppLogo';
 import { AnimatedAppBackground } from '../components/AnimatedAppBackground';
+import { TestimonialsSection } from '../components/marketing/TestimonialsSection';
 interface LandingPageProps {
   onNavigate: (page: 'login' | 'register-office' | 'register-lawyer') => void;
 }
@@ -145,37 +145,6 @@ const DEMO_MODULES = [
     )
   }
 ];
-
-const TESTIMONIALS = [
-  {
-    name: 'أ. محمد الحميري',
-    role: 'مدير مكتب — صنعاء',
-    text: 'وفّر علينا ساعات يومية في متابعة الجلسات والتحصيلات. النظام عملي جداً لمكتبنا.',
-    stars: 5
-  },
-  {
-    name: 'أ. سارة العولقي',
-    role: 'محامية — عدن',
-    text: 'أخيراً نظام يفهم طبيعة المحاكم اليمنية. التصدير PDF والأمان أعطانا ثقة كاملة.',
-    stars: 5
-  },
-  {
-    name: 'مكتب الشر partners',
-    role: 'مكتب ناشئ — تعز',
-    text: 'من أفضل قراراتنا التشغيلية. الفريق يرى فقط ما يخصه — والمالك يرى كل شيء.',
-    stars: 5
-  }
-];
-
-function MiniStars({ count }: { count: number }) {
-  return (
-    <div className="flex gap-0.5">
-      {Array.from({ length: count }).map((_, i) => (
-        <Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-      ))}
-    </div>
-  );
-}
 
 export function LandingPage({ onNavigate }: LandingPageProps) {
   return (
@@ -402,27 +371,7 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
         </div>
       </section>
 
-      {/* ─── Testimonials ─── */}
-      <section className="border-y border-slate-100 bg-slate-50 py-14 sm:py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-8 lg:px-10">
-          <div className="mb-8 text-center">
-            <h2 className="text-2xl font-black text-slate-900 sm:text-3xl">ماذا يقول المحامون؟</h2>
-            <p className="mt-2 text-sm text-slate-500">تقييمات من مكاتب تستخدم LegalMind</p>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
-            {TESTIMONIALS.map((t) => (
-              <div key={t.name} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                <MiniStars count={t.stars} />
-                <p className="mt-4 text-sm leading-relaxed text-slate-600">&ldquo;{t.text}&rdquo;</p>
-                <div className="mt-4 border-t border-slate-100 pt-4">
-                  <p className="text-sm font-black text-slate-900">{t.name}</p>
-                  <p className="text-xs text-slate-400">{t.role}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <TestimonialsSection />
 
       {/* ─── Features ─── */}
       <section className="bg-gradient-to-b from-[#641923] to-[#3F1118] py-16 sm:py-24 text-white">
