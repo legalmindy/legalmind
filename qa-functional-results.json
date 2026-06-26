@@ -1,0 +1,82 @@
+{
+  "passed": [
+    {
+      "title": "تسجيل مكتب اختبار A",
+      "detail": "qa.func.a.1782487471524@legalmind-qa.test"
+    },
+    {
+      "title": "صلاحيات get_my_permissions (A)",
+      "detail": ""
+    },
+    {
+      "title": "إنشاء عميل",
+      "detail": ""
+    },
+    {
+      "title": "إنشاء قضية",
+      "detail": ""
+    },
+    {
+      "title": "تعديل قضية",
+      "detail": ""
+    },
+    {
+      "title": "بحث القضايا (ilike)",
+      "detail": ""
+    },
+    {
+      "title": "إنشاء جلسة",
+      "detail": ""
+    },
+    {
+      "title": "إضافة دفعة (فاتورة/دفعة)",
+      "detail": ""
+    },
+    {
+      "title": "حذف قضية (soft delete)",
+      "detail": ""
+    },
+    {
+      "title": "استعلام Dashboard (عدد القضايا)",
+      "detail": ""
+    },
+    {
+      "title": "تسجيل مكتب اختبار B",
+      "detail": "qa.func.b.1782487471524@legalmind-qa.test"
+    },
+    {
+      "title": "JWT مزوّر مرفوض",
+      "detail": ""
+    },
+    {
+      "title": "تحقق امتداد الملفات (منطق العميل)",
+      "detail": ""
+    },
+    {
+      "title": "تسجيل يتيم بدون flow مرفوض",
+      "detail": ""
+    }
+  ],
+  "critical": [],
+  "medium": [],
+  "minor": [],
+  "functional": {
+    "firmId": "374bc7d1-628a-4802-97fc-cc0c4f30ef08",
+    "clientCount": 1
+  },
+  "timings": [
+    {
+      "name": "register_office_A",
+      "ms": 560
+    },
+    {
+      "name": "dashboard_cases_count",
+      "ms": 151
+    },
+    {
+      "name": "register_office_B",
+      "ms": 552
+    }
+  ],
+  "info": "تخطي IDOR — لا مكتب QA آخر"
+}

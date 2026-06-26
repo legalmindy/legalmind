@@ -16,7 +16,7 @@
       "detail": ""
     },
     {
-      "title": "RLS يحمي cases (401)",
+      "title": "RLS يمنع بيانات cases (200 فارغ)",
       "detail": ""
     },
     {
@@ -24,7 +24,7 @@
       "detail": ""
     },
     {
-      "title": "RLS يحمي documents (401)",
+      "title": "RLS يمنع بيانات documents (200 فارغ)",
       "detail": ""
     },
     {
@@ -68,23 +68,23 @@
       "detail": ""
     },
     {
-      "title": "PostgREST رفض/عالج الحمولة بأمان (115ms)",
+      "title": "PostgREST رفض/عالج الحمولة بأمان (111ms)",
       "detail": ""
     },
     {
-      "title": "PostgREST رفض/عالج الحمولة بأمان (55ms)",
+      "title": "PostgREST رفض/عالج الحمولة بأمان (67ms)",
       "detail": ""
     },
     {
-      "title": "PostgREST رفض/عالج الحمولة بأمان (62ms)",
+      "title": "PostgREST رفض/عالج الحمولة بأمان (57ms)",
       "detail": ""
     },
     {
-      "title": "PostgREST رفض/عالج الحمولة بأمان (65ms)",
+      "title": "PostgREST رفض/عالج الحمولة بأمان (58ms)",
       "detail": ""
     },
     {
-      "title": "لا IDOR anon على cases (401)",
+      "title": "لا IDOR anon على cases (200)",
       "detail": ""
     },
     {
@@ -128,15 +128,15 @@
       "detail": ""
     },
     {
-      "title": "ضغط 100 طلب: RLS يحجب 100/100 (835ms)",
+      "title": "ضغط 100 طلب: RLS يحجب 100/100 (1597ms)",
       "detail": ""
     },
     {
-      "title": "ضغط 500 طلب: RLS يحجب 500/500 (3203ms)",
+      "title": "ضغط 500 طلب: RLS يحجب 500/500 (7956ms)",
       "detail": ""
     },
     {
-      "title": "ضغط 1000 طلب: RLS يحجب 1000/1000 (4234ms)",
+      "title": "ضغط 1000 طلب: RLS يحجب 1000/1000 (3584ms)",
       "detail": ""
     }
   ],
@@ -159,38 +159,38 @@
   "loadTests": [
     {
       "concurrency": 100,
-      "elapsedMs": 835,
+      "elapsedMs": 1597,
       "rlsBlocked": 100,
       "serverErrors": 0,
-      "rps": 119.7,
-      "memDeltaMb": "5.86",
+      "rps": 62.6,
+      "memDeltaMb": "5.75",
       "note": ""
     },
     {
       "concurrency": 500,
-      "elapsedMs": 3203,
+      "elapsedMs": 7956,
       "rlsBlocked": 500,
       "serverErrors": 0,
-      "rps": 156.1,
-      "memDeltaMb": "9.04",
+      "rps": 62.8,
+      "memDeltaMb": "11.09",
       "note": ""
     },
     {
       "concurrency": 1000,
-      "elapsedMs": 4234,
+      "elapsedMs": 3584,
       "rlsBlocked": 1000,
       "serverErrors": 0,
-      "rps": 236.2,
-      "memDeltaMb": "31.46",
+      "rps": 279,
+      "memDeltaMb": "25.17",
       "note": "محاكاة من عميل واحد — ليس 5000 مستخدم حقيقي متزامن"
     },
     {
       "concurrency": 5000,
-      "elapsedMs": 33494,
-      "rlsBlocked": 2633,
+      "elapsedMs": 93466,
+      "rlsBlocked": 3588,
       "serverErrors": 0,
-      "rps": 149.3,
-      "memDeltaMb": "-33.09",
+      "rps": 53.5,
+      "memDeltaMb": "-36.53",
       "note": "محاكاة من عميل واحد — ليس 5000 مستخدم حقيقي متزامن"
     }
   ],

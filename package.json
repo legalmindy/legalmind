@@ -13,6 +13,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "qa:audit": "node scripts/qa-audit.mjs",
+    "qa:functional": "node scripts/qa-functional.mjs",
+    "qa:seed:sql": "supabase db query --linked -f supabase/seed_qa_bulk.sql",
+    "qa:full": "npm run qa:seed:sql && npm run qa:functional && npm run qa:audit",
     "qa:seed": "node scripts/qa-seed.mjs"
   },
   "dependencies": {
