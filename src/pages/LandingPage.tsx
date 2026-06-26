@@ -28,9 +28,9 @@ interface LandingPageProps {
 const TRUST_ITEMS = [
   {
     icon: Lock,
-    title: 'بيانات مشفرة بالكامل',
-    subtitle: 'End-to-End Encryption',
-    desc: 'حماية العقود والمذكرات والأحكام بتشفير متقدم وروابط محمية.'
+    title: 'تشفير للمستندات الحساسة',
+    subtitle: 'AES-GCM at Rest',
+    desc: 'تشفير تلقائي للعقود والمذكرات والأحكام الحساسة مع روابط تحميل محمية وعزل بيانات لكل مكتب.'
   },
   {
     icon: Cloud,
