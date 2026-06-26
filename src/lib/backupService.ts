@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { fetchOffice, getCurrentFirmId } from './api';
+import { restoreFirmBackupData } from './backupRestore';
 import {
   collectEntityRows,
   downloadDocumentsZip,
@@ -20,6 +21,90 @@ const BACKUP_ENTITIES: ExportEntity[] = [
   'employees',
   'documents'
 ];
+
+async function collectRawEntityRows(entity: ExportEntity, firmId: string): Promise<Record<string, unknown>[]> {
+  switch (entity) {
+    case 'clients': {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('firm_id', firmId)
+        .is('deleted_at', null);
+      throwIfSupabaseError(error);
+      return (data ?? []) as Record<string, unknown>[];
+    }
+    case 'cases': {
+      const { data, error } = await supabase
+        .from('cases')
+        .select(
+          'id, firm_id, client_id, assigned_lawyer_id, court_case_number, title, case_type, case_stage, category, court, description, total_amount, paid_amount, status, contract_currency, contract_date, notes, created_at'
+        )
+        .eq('firm_id', firmId)
+        .is('deleted_at', null);
+      throwIfSupabaseError(error);
+      return (data ?? []) as Record<string, unknown>[];
+    }
+    case 'sessions': {
+      const { data: cases, error: casesError } = await supabase
+        .from('cases')
+        .select('id')
+        .eq('firm_id', firmId)
+        .is('deleted_at', null);
+      throwIfSupabaseError(casesError);
+      const caseIds = (cases ?? []).map((c) => c.id as string);
+      if (!caseIds.length) return [];
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .in('case_id', caseIds)
+        .is('deleted_at', null);
+      throwIfSupabaseError(error);
+      return (data ?? []) as Record<string, unknown>[];
+    }
+    case 'payments': {
+      const { data, error } = await supabase
+        .from('case_payments')
+        .select('*')
+        .eq('firm_id', firmId)
+        .is('deleted_at', null);
+      throwIfSupabaseError(error);
+      return (data ?? []) as Record<string, unknown>[];
+    }
+    case 'receipts': {
+      const { data, error } = await supabase.from('receipt_vouchers').select('*').eq('firm_id', firmId);
+      throwIfSupabaseError(error);
+      return (data ?? []) as Record<string, unknown>[];
+    }
+    case 'expenses': {
+      const { data, error } = await supabase
+        .from('office_expenses')
+        .select('*')
+        .eq('firm_id', firmId)
+        .is('deleted_at', null);
+      throwIfSupabaseError(error);
+      return (data ?? []) as Record<string, unknown>[];
+    }
+    case 'documents': {
+      const { data: cases, error: casesError } = await supabase
+        .from('cases')
+        .select('id')
+        .eq('firm_id', firmId)
+        .is('deleted_at', null);
+      throwIfSupabaseError(casesError);
+      const caseIds = (cases ?? []).map((c) => c.id as string);
+      if (!caseIds.length) return [];
+      const { data, error } = await supabase
+        .from('documents')
+        .select('id, case_id, title, category, file_type, file_size, storage_path, is_encrypted, uploaded_at')
+        .in('case_id', caseIds)
+        .is('deleted_at', null);
+      throwIfSupabaseError(error);
+      return (data ?? []) as Record<string, unknown>[];
+    }
+    default:
+      return [];
+  }
+}
 
 function triggerDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -41,7 +126,7 @@ export async function createFirmBackup(): Promise<{ backupId: string; filename: 
   const tablesIncluded: string[] = [];
 
   const manifest = {
-    version: 1,
+    version: 2,
     firm_id: firmId,
     firm_name: office.name,
     created_at: new Date().toISOString(),
@@ -84,12 +169,19 @@ export async function createFirmBackup(): Promise<{ backupId: string; filename: 
     }
 
     const rows = await collectEntityRows(entity, {});
-    if (!rows.length) continue;
+    const rawRows = entity === 'employees' ? [] : await collectRawEntityRows(entity, firmId);
+    if (!rows.length && !rawRows.length) continue;
 
-    zip.file(`data/${entity}.json`, JSON.stringify(rows, null, 2));
-    const sheet = XLSX.utils.json_to_sheet(rows);
-    zip.file(`data/${entity}.csv`, '\uFEFF' + XLSX.utils.sheet_to_csv(sheet));
-    fileCount += 2;
+    if (rows.length) {
+      zip.file(`data/${entity}.json`, JSON.stringify(rows, null, 2));
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      zip.file(`data/${entity}.csv`, '\uFEFF' + XLSX.utils.sheet_to_csv(sheet));
+      fileCount += 2;
+    }
+    if (rawRows.length) {
+      zip.file(`data/raw/${entity}.json`, JSON.stringify(rawRows, null, 2));
+      fileCount += 1;
+    }
     tablesIncluded.push(entity);
   }
 
@@ -160,6 +252,18 @@ export async function restoreFirmBackup(file: File): Promise<{ restored: string[
     restored.push('settings');
   }
 
-  await registerFirmBackup(file.size, restored.length, restored, `استعادة جزئية — ${preview.firmName ?? 'مكتب'}`);
+  const dataRestored = await restoreFirmBackupData(zip);
+  restored.push(...dataRestored);
+
+  if (restored.length <= 1 && !dataRestored.length) {
+    throw new Error('لم يُعثر على بيانات قابلة للاستعادة في هذا الملف.');
+  }
+
+  await registerFirmBackup(
+    file.size,
+    restored.length,
+    restored.map((item) => item.split(' ')[0] ?? item),
+    `استعادة — ${preview.firmName ?? 'مكتب'}`
+  );
   return { restored };
 }

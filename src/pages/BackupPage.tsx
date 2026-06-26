@@ -50,6 +50,7 @@ export function BackupPage() {
 
   const handleRestore = async () => {
     if (!restoreFile) return;
+    if (!window.confirm('سيتم دمج البيانات من النسخة الاحتياطية مع بيانات المكتب الحالية. هل تريد المتابعة؟')) return;
     setBusy(true);
     setError(null);
     try {
@@ -57,7 +58,16 @@ export function BackupPage() {
       setMessage(`تمت الاستعادة: ${result.restored.join('، ') || '—'}`);
       setPreview(null);
       setRestoreFile(null);
-      await queryClient.invalidateQueries({ queryKey: ['firm-backups'] });
+      if (fileRef.current) fileRef.current.value = '';
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['firm-backups'] }),
+        queryClient.invalidateQueries({ queryKey: ['clients'] }),
+        queryClient.invalidateQueries({ queryKey: ['cases'] }),
+        queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+        queryClient.invalidateQueries({ queryKey: ['documents'] }),
+        queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+        queryClient.invalidateQueries({ queryKey: ['firm-security-stats'] })
+      ]);
     } catch (err) {
       setError(toArabicQueryError(err, 'استعادة النسخة'));
     } finally {
@@ -96,7 +106,7 @@ export function BackupPage() {
         <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-4">
           <h2 className="text-sm font-black text-slate-800">استعادة نسخة احتياطية</h2>
           <p className="text-xs text-slate-500">
-            ارفع ملف ZIP الذي أنشأته من LegalMind. تُستعاد إعدادات المكتب تلقائياً بعد التحقق من تطابق المكتب.
+            ارفع ملف ZIP الذي أنشأته من LegalMind. تُستعاد العملاء والقضايا والجلسات والمدفوعات والمصروفات والملفات والإعدادات بعد التحقق من تطابق المكتب.
           </p>
           <input
             ref={fileRef}
@@ -126,7 +136,7 @@ export function BackupPage() {
                 onClick={() => void handleRestore()}
                 className="mt-2 rounded-xl bg-emerald-600 px-4 py-2 font-bold text-white disabled:opacity-50"
               >
-                استعادة الإعدادات
+                استعادة البيانات
               </button>
             </div>
           ) : null}
