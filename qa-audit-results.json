@@ -68,19 +68,19 @@
       "detail": ""
     },
     {
-      "title": "PostgREST رفض/عالج الحمولة بأمان (111ms)",
+      "title": "PostgREST رفض/عالج الحمولة بأمان (118ms)",
       "detail": ""
     },
     {
-      "title": "PostgREST رفض/عالج الحمولة بأمان (67ms)",
+      "title": "PostgREST رفض/عالج الحمولة بأمان (62ms)",
       "detail": ""
     },
     {
-      "title": "PostgREST رفض/عالج الحمولة بأمان (57ms)",
+      "title": "PostgREST رفض/عالج الحمولة بأمان (91ms)",
       "detail": ""
     },
     {
-      "title": "PostgREST رفض/عالج الحمولة بأمان (58ms)",
+      "title": "PostgREST رفض/عالج الحمولة بأمان (206ms)",
       "detail": ""
     },
     {
@@ -128,15 +128,15 @@
       "detail": ""
     },
     {
-      "title": "ضغط 100 طلب: RLS يحجب 100/100 (1597ms)",
+      "title": "ضغط 100 طلب: RLS يحجب 100/100 (1934ms)",
       "detail": ""
     },
     {
-      "title": "ضغط 500 طلب: RLS يحجب 500/500 (7956ms)",
+      "title": "ضغط 500 طلب: RLS يحجب 500/500 (3334ms)",
       "detail": ""
     },
     {
-      "title": "ضغط 1000 طلب: RLS يحجب 1000/1000 (3584ms)",
+      "title": "ضغط 1000 طلب: RLS يحجب 1000/1000 (2572ms)",
       "detail": ""
     }
   ],
@@ -159,38 +159,38 @@
   "loadTests": [
     {
       "concurrency": 100,
-      "elapsedMs": 1597,
+      "elapsedMs": 1934,
       "rlsBlocked": 100,
       "serverErrors": 0,
-      "rps": 62.6,
-      "memDeltaMb": "5.75",
+      "rps": 51.7,
+      "memDeltaMb": "5.87",
       "note": ""
     },
     {
       "concurrency": 500,
-      "elapsedMs": 7956,
+      "elapsedMs": 3334,
       "rlsBlocked": 500,
       "serverErrors": 0,
-      "rps": 62.8,
-      "memDeltaMb": "11.09",
+      "rps": 150,
+      "memDeltaMb": "10.14",
       "note": ""
     },
     {
       "concurrency": 1000,
-      "elapsedMs": 3584,
+      "elapsedMs": 2572,
       "rlsBlocked": 1000,
       "serverErrors": 0,
-      "rps": 279,
-      "memDeltaMb": "25.17",
+      "rps": 388.9,
+      "memDeltaMb": "29.35",
       "note": "محاكاة من عميل واحد — ليس 5000 مستخدم حقيقي متزامن"
     },
     {
       "concurrency": 5000,
-      "elapsedMs": 93466,
-      "rlsBlocked": 3588,
+      "elapsedMs": 22545,
+      "rlsBlocked": 4308,
       "serverErrors": 0,
-      "rps": 53.5,
-      "memDeltaMb": "-36.53",
+      "rps": 221.8,
+      "memDeltaMb": "14.84",
       "note": "محاكاة من عميل واحد — ليس 5000 مستخدم حقيقي متزامن"
     }
   ],
