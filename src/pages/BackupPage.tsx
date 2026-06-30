@@ -2,9 +2,14 @@ import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Archive, Download, HardDrive, Loader2, RefreshCcw, Upload } from 'lucide-react';
 import { createFirmBackup, previewBackupRestore, restoreFirmBackup } from '../lib/backupService';
+import { BACKUP_TABLE_LABELS, type BackupTable } from '../lib/backupTypes';
 import { fetchFirmBackups, formatBytes } from '../lib/securityApi';
 import { formatActivityDateTime } from '../lib/auditLogLabels';
 import { toArabicQueryError } from '../components/QueryErrorBanner';
+
+function formatTableLabel(table: string): string {
+  return BACKUP_TABLE_LABELS[table as BackupTable] ?? table;
+}
 
 export function BackupPage() {
   const queryClient = useQueryClient();
@@ -26,7 +31,9 @@ export function BackupPage() {
     setMessage(null);
     try {
       const result = await createFirmBackup();
-      setMessage(`تم إنشاء النسخة الاحتياطية (${formatBytes(result.sizeBytes)}) — ${result.filename}`);
+      setMessage(
+        `تم إنشاء النسخة الاحتياطية (${formatBytes(result.sizeBytes)}) — ${result.filename} — ${result.totalRecords} سجل`
+      );
       await queryClient.invalidateQueries({ queryKey: ['firm-backups'] });
       await queryClient.invalidateQueries({ queryKey: ['firm-security-stats'] });
     } catch (err) {
@@ -55,7 +62,9 @@ export function BackupPage() {
     setError(null);
     try {
       const result = await restoreFirmBackup(restoreFile);
-      setMessage(`تمت الاستعادة: ${result.restored.join('، ') || '—'}`);
+      const warningText = [...result.warnings, ...result.documentFailures].filter(Boolean);
+      const base = `تمت الاستعادة: ${result.restored.join('، ') || '—'}`;
+      setMessage(warningText.length ? `${base}\nتحذيرات: ${warningText.slice(0, 5).join('؛ ')}` : base);
       setPreview(null);
       setRestoreFile(null);
       if (fileRef.current) fileRef.current.value = '';
@@ -106,7 +115,7 @@ export function BackupPage() {
         <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-4">
           <h2 className="text-sm font-black text-slate-800">استعادة نسخة احتياطية</h2>
           <p className="text-xs text-slate-500">
-            ارفع ملف ZIP الذي أنشأته من LegalMind. تُستعاد العملاء والقضايا والجلسات والمدفوعات والمصروفات والملفات والإعدادات بعد التحقق من تطابق المكتب.
+            ارفع ملف ZIP الذي أنشأته من LegalMind. تُستعاد البيانات بالدمج (upsert) دون حذف السجلات الحالية — يشمل العملاء والقضايا والجلسات والمدفوعات وسندات القبض والمصروفات والأدوار والصلاحيات والإشعارات والاشتراكات والملفات.
           </p>
           <input
             ref={fileRef}
@@ -129,10 +138,18 @@ export function BackupPage() {
             <div className="rounded-xl bg-slate-50 p-4 text-xs space-y-2">
               <p><strong>المكتب:</strong> {preview.firmName ?? '—'}</p>
               <p><strong>التاريخ:</strong> {preview.createdAt ? formatActivityDateTime(preview.createdAt) : '—'}</p>
-              <p><strong>الجداول:</strong> {preview.tables.join('، ')}</p>
+              <p><strong>الإصدار:</strong> {preview.version ?? '—'}</p>
+              <p><strong>إجمالي السجلات:</strong> {preview.totalRecords ?? '—'}</p>
+              <p><strong>الجداول:</strong> {preview.tables.map(formatTableLabel).join('، ')}</p>
+              {preview.integrity?.warnings.length ? (
+                <p className="text-amber-700"><strong>تحذيرات:</strong> {preview.integrity.warnings.join('؛ ')}</p>
+              ) : null}
+              {preview.integrity && !preview.integrity.valid ? (
+                <p className="text-rose-700"><strong>أخطاء:</strong> {preview.integrity.errors.join('؛ ')}</p>
+              ) : null}
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || (preview.integrity != null && !preview.integrity.valid)}
                 onClick={() => void handleRestore()}
                 className="mt-2 rounded-xl bg-emerald-600 px-4 py-2 font-bold text-white disabled:opacity-50"
               >

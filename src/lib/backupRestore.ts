@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { getCurrentFirmId } from './api';
-import type { ExportEntity } from './dataExport';
+import { backupLog } from './backupValidation';
 import { supabase } from './supabaseClient';
 import { throwIfSupabaseError } from './supabaseQueryHelpers';
 
@@ -8,18 +8,16 @@ const CASE_TYPES = ['مدنية', 'تجارية', 'أحوال شخصية', 'عم
 const CASE_STAGES = ['ابتدائي مدني', 'ابتدائي شخصي', 'ابتدائي جنائي', 'استئناف', 'نقض'] as const;
 const CASE_STATUSES = ['active', 'archived', 'closed'] as const;
 const PAYMENT_METHODS = ['نقداً', 'تحويل بنكي', 'شيك', 'محفظة إلكترونية', 'أخرى'] as const;
-
-const RESTORE_ORDER: ExportEntity[] = [
-  'clients',
-  'cases',
-  'sessions',
-  'payments',
-  'expenses',
-  'receipts',
-  'documents'
-];
+const EMPLOYEE_ROLES = ['super_admin', 'admin', 'lawyer', 'assistant', 'firm_manager'] as const;
+const EMPLOYEE_STATUSES = ['active', 'suspended', 'disabled', 'pending_approval'] as const;
 
 const BATCH_SIZE = 80;
+
+export interface RestoreResult {
+  restored: string[];
+  warnings: string[];
+  documentFailures: string[];
+}
 
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -68,6 +66,27 @@ function normalizeCaseStatus(value: unknown): (typeof CASE_STATUSES)[number] {
   return 'active';
 }
 
+export function normalizePaymentMethod(value: unknown): (typeof PAYMENT_METHODS)[number] {
+  const s = asString(value, 'نقداً');
+  return (PAYMENT_METHODS as readonly string[]).includes(s)
+    ? (s as (typeof PAYMENT_METHODS)[number])
+    : 'نقداً';
+}
+
+function normalizeEmployeeRole(value: unknown): (typeof EMPLOYEE_ROLES)[number] {
+  const s = asString(value, 'assistant');
+  return (EMPLOYEE_ROLES as readonly string[]).includes(s)
+    ? (s as (typeof EMPLOYEE_ROLES)[number])
+    : 'assistant';
+}
+
+function normalizeEmployeeStatus(value: unknown): (typeof EMPLOYEE_STATUSES)[number] {
+  const s = asString(value, 'active');
+  return (EMPLOYEE_STATUSES as readonly string[]).includes(s)
+    ? (s as (typeof EMPLOYEE_STATUSES)[number])
+    : 'active';
+}
+
 function inferDocumentType(title: string, value: unknown): string {
   const allowed = ['pdf', 'docx', 'xlsx', 'jpg', 'png', 'webp'];
   const fromField = asString(value).toLowerCase();
@@ -100,6 +119,61 @@ function isRawClientRow(row: Record<string, unknown>): boolean {
 
 function isRawCaseRow(row: Record<string, unknown>): boolean {
   return 'firm_id' in row && 'client_id' in row && 'court_case_number' in row;
+}
+
+function mapFirmRoleRow(row: Record<string, unknown>, firmId: string): Record<string, unknown> | null {
+  const id = asUuid(row.id);
+  const name = asString(row.name);
+  const slug = asString(row.slug);
+  if (!id || !name || !slug) return null;
+  return {
+    id,
+    firm_id: firmId,
+    name,
+    slug,
+    is_template: Boolean(row.is_template),
+    permissions: row.permissions ?? {},
+    created_at: row.created_at ?? new Date().toISOString(),
+    updated_at: row.updated_at ?? new Date().toISOString()
+  };
+}
+
+function mapEmployeeRow(row: Record<string, unknown>, firmId: string): Record<string, unknown> | null {
+  const id = asUuid(row.id);
+  const fullName = asString(row.full_name ?? row.fullName);
+  const email = asString(row.email);
+  if (!id || fullName.length < 2 || !email) return null;
+
+  return {
+    id,
+    firm_id: firmId,
+    full_name: fullName,
+    email,
+    phone: normalizePhone(row.phone),
+    role: normalizeEmployeeRole(row.role),
+    status: normalizeEmployeeStatus(row.status),
+    firm_role_id: asUuid(row.firm_role_id) ?? null,
+    individual_permissions: row.individual_permissions ?? null,
+    profile_image: asString(row.profile_image) || null,
+    deleted_at: null
+  };
+}
+
+function mapLawyerRow(row: Record<string, unknown>): Record<string, unknown> | null {
+  const id = asUuid(row.id);
+  const employeeId = asUuid(row.employee_id);
+  if (!id || !employeeId) return null;
+  return {
+    id,
+    employee_id: employeeId,
+    specialization: asString(row.specialization, 'عام'),
+    success_rate: asNumber(row.success_rate),
+    attendance_rate: asNumber(row.attendance_rate),
+    total_cases: Math.max(0, asNumber(row.total_cases)),
+    won_cases: Math.max(0, asNumber(row.won_cases)),
+    attended_sessions: Math.max(0, asNumber(row.attended_sessions)),
+    missed_sessions: Math.max(0, asNumber(row.missed_sessions))
+  };
 }
 
 function mapClientRow(row: Record<string, unknown>, firmId: string): Record<string, unknown> | null {
@@ -142,6 +216,8 @@ function mapCaseRow(row: Record<string, unknown>, firmId: string): Record<string
   const title = asString(row.title);
   if (!id || !clientId || title.length < 2) return null;
 
+  const assignedLawyerId = asUuid(row.assigned_lawyer_id);
+
   if (isRawCaseRow(row)) {
     const total = asNumber(row.total_amount);
     const paid = Math.min(asNumber(row.paid_amount), total);
@@ -149,7 +225,7 @@ function mapCaseRow(row: Record<string, unknown>, firmId: string): Record<string
       id,
       firm_id: firmId,
       client_id: clientId,
-      assigned_lawyer_id: null,
+      assigned_lawyer_id: assignedLawyerId,
       court_case_number: asString(row.court_case_number, `CASE-${id.slice(0, 8)}`),
       title,
       case_type: normalizeCaseType(row.case_type),
@@ -175,7 +251,7 @@ function mapCaseRow(row: Record<string, unknown>, firmId: string): Record<string
     id,
     firm_id: firmId,
     client_id: clientId,
-    assigned_lawyer_id: null,
+    assigned_lawyer_id: assignedLawyerId,
     court_case_number: caseNumber,
     title,
     case_type: normalizeCaseType(row.type ?? row.case_type),
@@ -207,6 +283,9 @@ function mapSessionRow(row: Record<string, unknown>): Record<string, unknown> | 
       session_time: asString(row.session_time, '09:00:00'),
       status: asString(row.status, 'مجدولة'),
       session_type: asString(row.session_type) || null,
+      judge_name: asString(row.judge_name) || null,
+      next_session_date: row.next_session_date ?? null,
+      session_outcome: asString(row.session_outcome) || null,
       notes: asString(row.notes) || null,
       deleted_at: null
     };
@@ -239,7 +318,37 @@ function mapPaymentRow(row: Record<string, unknown>, firmId: string): Record<str
     payment_date: asString(row.payment_date ?? row.created_at, new Date().toISOString()).slice(0, 10),
     payment_method: normalizePaymentMethod(row.payment_method),
     notes: asString(row.notes) || null,
+    receipt_storage_path: asString(row.receipt_storage_path) || null,
+    receipt_file_name: asString(row.receipt_file_name) || null,
     deleted_at: null
+  };
+}
+
+function mapReceiptRow(row: Record<string, unknown>, firmId: string): Record<string, unknown> | null {
+  const id = asUuid(row.id);
+  const caseId = asUuid(row.case_id);
+  const paymentId = asUuid(row.case_payment_id);
+  const receiptNumber = asString(row.receipt_number);
+  const amount = asNumber(row.amount);
+  if (!id || !caseId || !paymentId || !receiptNumber || amount <= 0) return null;
+
+  return {
+    id,
+    firm_id: firmId,
+    case_id: caseId,
+    case_payment_id: paymentId,
+    receipt_number: receiptNumber,
+    amount,
+    client_name: asString(row.client_name) || null,
+    case_number: asString(row.case_number) || null,
+    contract_total: row.contract_total != null ? asNumber(row.contract_total) : null,
+    remaining_balance: row.remaining_balance != null ? asNumber(row.remaining_balance) : null,
+    payment_method: asString(row.payment_method) || null,
+    notes: asString(row.notes) || null,
+    qr_payload: asString(row.qr_payload) || null,
+    printed_at: row.printed_at ?? new Date().toISOString(),
+    printed_by: asUuid(row.printed_by),
+    reprint_count: Math.max(0, asNumber(row.reprint_count))
   };
 }
 
@@ -260,6 +369,145 @@ function mapExpenseRow(row: Record<string, unknown>, firmId: string): Record<str
   };
 }
 
+function mapTimelineRow(row: Record<string, unknown>, firmId: string): Record<string, unknown> | null {
+  const id = asUuid(row.id);
+  const caseId = asUuid(row.case_id);
+  const eventType = asString(row.event_type);
+  const title = asString(row.title);
+  if (!id || !caseId || !eventType || !title) return null;
+
+  return {
+    id,
+    firm_id: firmId,
+    case_id: caseId,
+    event_type: eventType,
+    title,
+    details: asString(row.details) || null,
+    metadata: row.metadata ?? {},
+    actor_id: asUuid(row.actor_id),
+    created_at: row.created_at ?? new Date().toISOString()
+  };
+}
+
+function mapNotificationRow(row: Record<string, unknown>, firmId: string): Record<string, unknown> | null {
+  const id = asUuid(row.id);
+  const title = asString(row.title);
+  const message = asString(row.message);
+  if (!id || !title || !message) return null;
+
+  return {
+    id,
+    firm_id: firmId,
+    employee_id: asUuid(row.employee_id),
+    title,
+    message,
+    type: asString(row.type, 'system'),
+    read: Boolean(row.read),
+    created_at: row.created_at ?? new Date().toISOString()
+  };
+}
+
+function mapExecutionRequestRow(row: Record<string, unknown>, firmId: string): Record<string, unknown> | null {
+  const id = asUuid(row.id);
+  const title = asString(row.title);
+  if (!id || title.length < 2) return null;
+
+  return {
+    id,
+    firm_id: firmId,
+    client_id: asUuid(row.client_id),
+    case_id: asUuid(row.case_id),
+    title,
+    court: asString(row.court),
+    request_number: asString(row.request_number),
+    status: asString(row.status, 'pending'),
+    notes: asString(row.notes) || null,
+    due_date: row.due_date ?? null,
+    created_by: asUuid(row.created_by),
+    deleted_at: null
+  };
+}
+
+function mapSubscriptionRow(row: Record<string, unknown>, firmId: string): Record<string, unknown> | null {
+  const id = asUuid(row.id);
+  const planType = asString(row.plan_type);
+  if (!id || !planType) return null;
+
+  return {
+    id,
+    firm_id: firmId,
+    plan_type: planType,
+    status: asString(row.status, 'pending'),
+    start_date: row.start_date ?? null,
+    end_date: row.end_date ?? null,
+    created_at: row.created_at ?? new Date().toISOString()
+  };
+}
+
+function mapSubscriptionRequestRow(row: Record<string, unknown>, firmId: string): Record<string, unknown> | null {
+  const id = asUuid(row.id);
+  if (!id) return null;
+
+  return {
+    id,
+    firm_id: firmId,
+    plan: asString(row.plan) || null,
+    amount_yer: row.amount_yer != null ? asNumber(row.amount_yer) : null,
+    transfer_reference: asString(row.transfer_reference) || null,
+    receipt_path: asString(row.receipt_path) || null,
+    receipt_url: asString(row.receipt_url) || null,
+    status: asString(row.status, 'pending'),
+    subscription_id: asUuid(row.subscription_id),
+    payment_id: asUuid(row.payment_id),
+    admin_notes: asString(row.admin_notes) || null,
+    created_at: row.created_at ?? new Date().toISOString()
+  };
+}
+
+function mapInvitationRow(row: Record<string, unknown>, firmId: string): Record<string, unknown> | null {
+  const id = asUuid(row.id);
+  const email = asString(row.email);
+  const tokenHash = asString(row.token_hash);
+  if (!id || !email || !tokenHash) return null;
+
+  return {
+    id,
+    firm_id: firmId,
+    email,
+    role: row.role ?? 'assistant',
+    firm_role_id: asUuid(row.firm_role_id),
+    full_name: asString(row.full_name) || null,
+    phone: normalizePhone(row.phone),
+    status: asString(row.status, 'pending'),
+    token_hash: tokenHash,
+    invited_by: asUuid(row.invited_by),
+    employee_id: asUuid(row.employee_id),
+    expires_at: row.expires_at ?? new Date(Date.now() + 7 * 86400000).toISOString(),
+    accepted_at: row.accepted_at ?? null
+  };
+}
+
+function mapCaseAttachmentRow(row: Record<string, unknown>): Record<string, unknown> | null {
+  const id = asUuid(row.id);
+  const caseId = asUuid(row.case_id);
+  const fileName = asString(row.file_name);
+  const storagePath = asString(row.storage_path);
+  if (!id || !caseId || !fileName || !storagePath) return null;
+
+  return {
+    id,
+    case_id: caseId,
+    file_name: fileName,
+    file_type: inferDocumentType(fileName, row.file_type),
+    file_size: Math.max(1, asNumber(row.file_size, 1)),
+    storage_path: storagePath,
+    uploaded_by: asUuid(row.uploaded_by),
+    version: Math.max(1, asNumber(row.version, 1)),
+    notes: asString(row.notes) || null,
+    deleted_at: null
+  };
+}
+
 async function upsertBatches(table: string, rows: Record<string, unknown>[]): Promise<number> {
   if (!rows.length) return 0;
   let count = 0;
@@ -269,6 +517,49 @@ async function upsertBatches(table: string, rows: Record<string, unknown>[]): Pr
     count += batch.length;
   }
   return count;
+}
+
+async function upsertEmployees(rows: Record<string, unknown>[]): Promise<{ count: number; warnings: string[] }> {
+  const warnings: string[] = [];
+  let count = 0;
+
+  for (const row of rows) {
+    const id = asUuid(row.id);
+    if (!id) continue;
+
+    const { data: existing } = await supabase.from('employees').select('id, auth_uid').eq('id', id).maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase
+        .from('employees')
+        .update({
+          full_name: row.full_name,
+          phone: row.phone,
+          role: row.role,
+          status: row.status,
+          firm_role_id: row.firm_role_id,
+          individual_permissions: row.individual_permissions,
+          profile_image: row.profile_image,
+          deleted_at: null
+        })
+        .eq('id', id);
+      if (!error) count += 1;
+      else warnings.push(`تعذر تحديث الموظف ${id}: ${error.message}`);
+    } else {
+      const { error } = await supabase.from('employees').insert({
+        ...row,
+        auth_uid: null
+      });
+      if (!error) {
+        count += 1;
+        warnings.push(`تمت إضافة موظف ${row.email} بدون حساب دخول — يحتاج دعوة جديدة`);
+      } else {
+        warnings.push(`تعذر إضافة الموظف ${row.email}: ${error.message}`);
+      }
+    }
+  }
+
+  return { count, warnings };
 }
 
 async function findDocumentBlob(
@@ -293,9 +584,10 @@ async function restoreDocuments(
   zip: JSZip,
   rows: Record<string, unknown>[],
   caseTitles: Map<string, string>
-): Promise<number> {
+): Promise<{ count: number; failures: string[] }> {
   const manifest = await loadJsonArray(zip, 'documents/manifest.json');
   const metaById = new Map<string, Record<string, unknown>>();
+  const failures: string[] = [];
 
   for (const row of rows) {
     const id = asUuid(row.id);
@@ -310,30 +602,31 @@ async function restoreDocuments(
   for (const [id, entry] of metaById) {
     const caseId = asUuid(entry.case_id ?? entry.caseId);
     const title = asString(entry.title);
-    if (!caseId || !title) continue;
+    if (!caseId || !title) {
+      failures.push(`مستند ${id}: بيانات ناقصة`);
+      continue;
+    }
 
-    const caseTitle =
-      asString(entry.case_title) ||
-      caseTitles.get(caseId) ||
-      'عام';
-
+    const caseTitle = asString(entry.case_title) || caseTitles.get(caseId) || 'عام';
     const blob = await findDocumentBlob(zip, title, caseTitle);
-    if (!blob) continue;
+    if (!blob) {
+      failures.push(`مستند ${title}: الملف غير موجود في الأرشيف`);
+      continue;
+    }
 
     const storagePath = `${caseId}/${Date.now()}-restore-${id.slice(0, 8)}`;
     const isEncrypted = Boolean(entry.encrypted ?? entry.is_encrypted);
 
-    const { error: storageError } = await supabase.storage
-      .from('case-documents')
-      .upload(storagePath, blob, {
-        upsert: true,
-        contentType: isEncrypted ? 'application/octet-stream' : blob.type || 'application/octet-stream'
-      });
-    if (storageError) continue;
+    const { error: storageError } = await supabase.storage.from('case-documents').upload(storagePath, blob, {
+      upsert: true,
+      contentType: isEncrypted ? 'application/octet-stream' : blob.type || 'application/octet-stream'
+    });
+    if (storageError) {
+      failures.push(`مستند ${title}: فشل الرفع — ${storageError.message}`);
+      continue;
+    }
 
-    const { data: signed } = await supabase.storage
-      .from('case-documents')
-      .createSignedUrl(storagePath, 3600);
+    const { data: signed } = await supabase.storage.from('case-documents').createSignedUrl(storagePath, 3600);
 
     const { error } = await supabase.from('documents').upsert(
       {
@@ -350,16 +643,46 @@ async function restoreDocuments(
       },
       { onConflict: 'id' }
     );
-    if (!error) restored += 1;
+    if (error) failures.push(`مستند ${title}: فشل حفظ السجل — ${error.message}`);
+    else restored += 1;
   }
 
-  return restored;
+  return { count: restored, failures };
 }
 
-export async function restoreFirmBackupData(zip: JSZip): Promise<string[]> {
+export async function restoreFirmBackupData(zip: JSZip): Promise<RestoreResult> {
   const firmId = await getCurrentFirmId();
   const restored: string[] = [];
+  const warnings: string[] = [];
+  const documentFailures: string[] = [];
   const caseTitles = new Map<string, string>();
+
+  backupLog('restore', 'start');
+
+  const firmRoleRows = (await loadEntityRows(zip, 'firm_roles'))
+    .map((row) => mapFirmRoleRow(row, firmId))
+    .filter((row): row is Record<string, unknown> => row !== null);
+  if (firmRoleRows.length) {
+    const count = await upsertBatches('firm_roles', firmRoleRows);
+    if (count) restored.push(`firm_roles (${count})`);
+  }
+
+  const employeeRows = (await loadEntityRows(zip, 'employees'))
+    .map((row) => mapEmployeeRow(row, firmId))
+    .filter((row): row is Record<string, unknown> => row !== null);
+  if (employeeRows.length) {
+    const { count, warnings: empWarnings } = await upsertEmployees(employeeRows);
+    if (count) restored.push(`employees (${count})`);
+    warnings.push(...empWarnings);
+  }
+
+  const lawyerRows = (await loadEntityRows(zip, 'lawyers'))
+    .map((row) => mapLawyerRow(row))
+    .filter((row): row is Record<string, unknown> => row !== null);
+  if (lawyerRows.length) {
+    const count = await upsertBatches('lawyers', lawyerRows);
+    if (count) restored.push(`lawyers (${count})`);
+  }
 
   const clientRows = (await loadEntityRows(zip, 'clients'))
     .map((row) => mapClientRow(row, firmId))
@@ -396,6 +719,14 @@ export async function restoreFirmBackupData(zip: JSZip): Promise<string[]> {
     if (count) restored.push(`payments (${count})`);
   }
 
+  const receiptRows = (await loadEntityRows(zip, 'receipts'))
+    .map((row) => mapReceiptRow(row, firmId))
+    .filter((row): row is Record<string, unknown> => row !== null);
+  if (receiptRows.length) {
+    const count = await upsertBatches('receipt_vouchers', receiptRows);
+    if (count) restored.push(`receipts (${count})`);
+  }
+
   const expenseRows = (await loadEntityRows(zip, 'expenses'))
     .map((row) => mapExpenseRow(row, firmId))
     .filter((row): row is Record<string, unknown> => row !== null);
@@ -404,11 +735,78 @@ export async function restoreFirmBackupData(zip: JSZip): Promise<string[]> {
     if (count) restored.push(`expenses (${count})`);
   }
 
-  const docRows = await loadEntityRows(zip, 'documents');
-  const docCount = await restoreDocuments(zip, docRows, caseTitles);
-  if (docCount) restored.push(`documents (${docCount})`);
+  const executionRows = (await loadEntityRows(zip, 'execution_requests'))
+    .map((row) => mapExecutionRequestRow(row, firmId))
+    .filter((row): row is Record<string, unknown> => row !== null);
+  if (executionRows.length) {
+    const count = await upsertBatches('execution_requests', executionRows);
+    if (count) restored.push(`execution_requests (${count})`);
+  }
 
-  return restored;
+  const timelineRows = (await loadEntityRows(zip, 'timeline'))
+    .map((row) => mapTimelineRow(row, firmId))
+    .filter((row): row is Record<string, unknown> => row !== null);
+  if (timelineRows.length) {
+    const count = await upsertBatches('case_timeline_events', timelineRows);
+    if (count) restored.push(`timeline (${count})`);
+  }
+
+  const notificationRows = (await loadEntityRows(zip, 'notifications'))
+    .map((row) => mapNotificationRow(row, firmId))
+    .filter((row): row is Record<string, unknown> => row !== null);
+  if (notificationRows.length) {
+    const count = await upsertBatches('notifications', notificationRows);
+    if (count) restored.push(`notifications (${count})`);
+  }
+
+  const subscriptionRows = (await loadEntityRows(zip, 'subscriptions'))
+    .map((row) => mapSubscriptionRow(row, firmId))
+    .filter((row): row is Record<string, unknown> => row !== null);
+  if (subscriptionRows.length) {
+    const count = await upsertBatches('subscriptions', subscriptionRows);
+    if (count) restored.push(`subscriptions (${count})`);
+  }
+
+  const subRequestRows = (await loadEntityRows(zip, 'subscription_requests'))
+    .map((row) => mapSubscriptionRequestRow(row, firmId))
+    .filter((row): row is Record<string, unknown> => row !== null);
+  if (subRequestRows.length) {
+    const count = await upsertBatches('subscription_requests', subRequestRows);
+    if (count) restored.push(`subscription_requests (${count})`);
+  }
+
+  const invitationRows = (await loadEntityRows(zip, 'invitations'))
+    .map((row) => mapInvitationRow(row, firmId))
+    .filter((row): row is Record<string, unknown> => row !== null);
+  if (invitationRows.length) {
+    try {
+      const count = await upsertBatches('invitations', invitationRows);
+      if (count) restored.push(`invitations (${count})`);
+    } catch (err) {
+      warnings.push(`تعذر استعادة بعض الدعوات: ${err instanceof Error ? err.message : 'خطأ'}`);
+    }
+  }
+
+  const docRows = await loadEntityRows(zip, 'documents');
+  const { count: docCount, failures } = await restoreDocuments(zip, docRows, caseTitles);
+  if (docCount) restored.push(`documents (${docCount})`);
+  documentFailures.push(...failures);
+
+  const attachmentRows = (await loadEntityRows(zip, 'case_attachments'))
+    .map((row) => mapCaseAttachmentRow(row))
+    .filter((row): row is Record<string, unknown> => row !== null);
+  if (attachmentRows.length) {
+    try {
+      const count = await upsertBatches('case_attachments', attachmentRows);
+      if (count) restored.push(`case_attachments (${count})`);
+      warnings.push('مرفقات القضايا: تمت استعادة البيانات الوصفية فقط (الملفات غير مضمّنة)');
+    } catch {
+      warnings.push('تعذر استعادة مرفقات القضايا');
+    }
+  }
+
+  backupLog('restore', `done — ${restored.join(', ')}`);
+  return { restored, warnings, documentFailures };
 }
 
-export { RESTORE_ORDER };
+export { RESTORE_ORDER } from './backupTypes';

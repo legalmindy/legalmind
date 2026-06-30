@@ -1,17 +1,29 @@
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { fetchOffice, getCurrentFirmId } from './api';
+import { collectRawBackupRows } from './backupCollect';
 import { restoreFirmBackupData } from './backupRestore';
 import {
-  collectEntityRows,
-  downloadDocumentsZip,
-  type ExportEntity
-} from './dataExport';
+  BACKUP_MANIFEST_VERSION,
+  BACKUP_TABLES,
+  type BackupIntegrityResult,
+  type BackupManifestV3,
+  type BackupTable
+} from './backupTypes';
+import {
+  backupLog,
+  computeBackupChecksum,
+  countBackupRecords,
+  parseManifest,
+  validateBackupZip,
+  validateRestoredData
+} from './backupValidation';
+import { collectEntityRows, downloadDocumentsZip, type ExportEntity } from './dataExport';
 import { registerFirmBackup } from './securityApi';
 import { supabase } from './supabaseClient';
 import { throwIfSupabaseError } from './supabaseQueryHelpers';
 
-const BACKUP_ENTITIES: ExportEntity[] = [
+const DISPLAY_EXPORT_ENTITIES: ExportEntity[] = [
   'clients',
   'cases',
   'sessions',
@@ -21,90 +33,6 @@ const BACKUP_ENTITIES: ExportEntity[] = [
   'employees',
   'documents'
 ];
-
-async function collectRawEntityRows(entity: ExportEntity, firmId: string): Promise<Record<string, unknown>[]> {
-  switch (entity) {
-    case 'clients': {
-      const { data, error } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('firm_id', firmId)
-        .is('deleted_at', null);
-      throwIfSupabaseError(error);
-      return (data ?? []) as Record<string, unknown>[];
-    }
-    case 'cases': {
-      const { data, error } = await supabase
-        .from('cases')
-        .select(
-          'id, firm_id, client_id, assigned_lawyer_id, court_case_number, title, case_type, case_stage, category, court, description, total_amount, paid_amount, status, contract_currency, contract_date, notes, created_at'
-        )
-        .eq('firm_id', firmId)
-        .is('deleted_at', null);
-      throwIfSupabaseError(error);
-      return (data ?? []) as Record<string, unknown>[];
-    }
-    case 'sessions': {
-      const { data: cases, error: casesError } = await supabase
-        .from('cases')
-        .select('id')
-        .eq('firm_id', firmId)
-        .is('deleted_at', null);
-      throwIfSupabaseError(casesError);
-      const caseIds = (cases ?? []).map((c) => c.id as string);
-      if (!caseIds.length) return [];
-      const { data, error } = await supabase
-        .from('sessions')
-        .select('*')
-        .in('case_id', caseIds)
-        .is('deleted_at', null);
-      throwIfSupabaseError(error);
-      return (data ?? []) as Record<string, unknown>[];
-    }
-    case 'payments': {
-      const { data, error } = await supabase
-        .from('case_payments')
-        .select('*')
-        .eq('firm_id', firmId)
-        .is('deleted_at', null);
-      throwIfSupabaseError(error);
-      return (data ?? []) as Record<string, unknown>[];
-    }
-    case 'receipts': {
-      const { data, error } = await supabase.from('receipt_vouchers').select('*').eq('firm_id', firmId);
-      throwIfSupabaseError(error);
-      return (data ?? []) as Record<string, unknown>[];
-    }
-    case 'expenses': {
-      const { data, error } = await supabase
-        .from('office_expenses')
-        .select('*')
-        .eq('firm_id', firmId)
-        .is('deleted_at', null);
-      throwIfSupabaseError(error);
-      return (data ?? []) as Record<string, unknown>[];
-    }
-    case 'documents': {
-      const { data: cases, error: casesError } = await supabase
-        .from('cases')
-        .select('id')
-        .eq('firm_id', firmId)
-        .is('deleted_at', null);
-      throwIfSupabaseError(casesError);
-      const caseIds = (cases ?? []).map((c) => c.id as string);
-      if (!caseIds.length) return [];
-      const { data, error } = await supabase
-        .from('documents')
-        .select('id, case_id, title, category, file_type, file_size, storage_path, is_encrypted, uploaded_at')
-        .in('case_id', caseIds)
-        .is('deleted_at', null);
-      throwIfSupabaseError(error);
-      return (data ?? []) as Record<string, unknown>[];
-    }
-    default:
-      return [];
-  }
-}
 
 function triggerDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -117,23 +45,24 @@ function triggerDownload(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-export async function createFirmBackup(): Promise<{ backupId: string; filename: string; sizeBytes: number }> {
+export interface BackupCreateResult {
+  backupId: string;
+  filename: string;
+  sizeBytes: number;
+  recordCounts: Partial<Record<BackupTable, number>>;
+  totalRecords: number;
+  integrity: BackupIntegrityResult;
+}
+
+export async function createFirmBackup(): Promise<BackupCreateResult> {
+  backupLog('create', 'start');
   const firmId = await getCurrentFirmId();
   const office = await fetchOffice();
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const zip = new JSZip();
   let fileCount = 0;
   const tablesIncluded: string[] = [];
-
-  const manifest = {
-    version: 2,
-    firm_id: firmId,
-    firm_name: office.name,
-    created_at: new Date().toISOString(),
-    tables: BACKUP_ENTITIES
-  };
-  zip.file('manifest.json', JSON.stringify(manifest, null, 2));
-  fileCount += 1;
+  const recordCounts: Partial<Record<BackupTable, number>> = {};
 
   zip.file(
     'settings/office.json',
@@ -142,6 +71,8 @@ export async function createFirmBackup(): Promise<{ backupId: string; filename: 
         name: office.name,
         license_no: office.licenseNo,
         plan: office.plan,
+        subscription_status: office.subscriptionStatus,
+        subscription_plan: office.subscriptionPlan,
         reminders_enabled: office.remindersEnabled,
         whatsapp_reports_enabled: office.whatsappReportsEnabled,
         sms_reports_enabled: office.smsReportsEnabled,
@@ -154,8 +85,9 @@ export async function createFirmBackup(): Promise<{ backupId: string; filename: 
   fileCount += 1;
   tablesIncluded.push('settings');
 
-  for (const entity of BACKUP_ENTITIES) {
+  for (const entity of BACKUP_TABLES) {
     if (entity === 'documents') {
+      backupLog('create', 'documents');
       const { blob, count } = await downloadDocumentsZip({});
       const inner = await JSZip.loadAsync(blob);
       for (const [path, file] of Object.entries(inner.files)) {
@@ -164,52 +96,115 @@ export async function createFirmBackup(): Promise<{ backupId: string; filename: 
           fileCount += 1;
         }
       }
-      if (count > 0) tablesIncluded.push(entity);
+      const rawDocs = await collectRawBackupRows('documents', firmId);
+      if (rawDocs.length) {
+        zip.file('data/raw/documents.json', JSON.stringify(rawDocs, null, 2));
+        fileCount += 1;
+      }
+      recordCounts.documents = count;
+      if (count > 0 || rawDocs.length) tablesIncluded.push(entity);
       continue;
     }
 
-    const rows = await collectEntityRows(entity, {});
-    const rawRows = entity === 'employees' ? [] : await collectRawEntityRows(entity, firmId);
-    if (!rows.length && !rawRows.length) continue;
+    const rawRows = await collectRawBackupRows(entity, firmId);
+    recordCounts[entity] = rawRows.length;
+    if (!rawRows.length) continue;
 
-    if (rows.length) {
-      zip.file(`data/${entity}.json`, JSON.stringify(rows, null, 2));
-      const sheet = XLSX.utils.json_to_sheet(rows);
-      zip.file(`data/${entity}.csv`, '\uFEFF' + XLSX.utils.sheet_to_csv(sheet));
-      fileCount += 2;
+    zip.file(`data/raw/${entity}.json`, JSON.stringify(rawRows, null, 2));
+    fileCount += 1;
+
+    if (DISPLAY_EXPORT_ENTITIES.includes(entity as ExportEntity)) {
+      const rows = await collectEntityRows(entity as ExportEntity, {});
+      if (rows.length) {
+        zip.file(`data/${entity}.json`, JSON.stringify(rows, null, 2));
+        const sheet = XLSX.utils.json_to_sheet(rows);
+        zip.file(`data/${entity}.csv`, '\uFEFF' + XLSX.utils.sheet_to_csv(sheet));
+        fileCount += 2;
+      }
     }
-    if (rawRows.length) {
-      zip.file(`data/raw/${entity}.json`, JSON.stringify(rawRows, null, 2));
-      fileCount += 1;
-    }
+
     tablesIncluded.push(entity);
+    backupLog('create', `${entity}: ${rawRows.length} rows`);
   }
 
+  const totalRecords = Object.values(recordCounts).reduce((sum, n) => sum + (n ?? 0), 0);
+
+  const preManifest: BackupManifestV3 = {
+    version: BACKUP_MANIFEST_VERSION,
+    firm_id: firmId,
+    firm_name: office.name,
+    created_at: new Date().toISOString(),
+    tables: BACKUP_TABLES,
+    record_counts: recordCounts,
+    total_records: totalRecords,
+    checksum: '',
+    settings_included: true,
+    documents_included: (recordCounts.documents ?? 0) > 0
+  };
+
+  zip.file('manifest.json', JSON.stringify(preManifest, null, 2));
+  fileCount += 1;
+
+  const preBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  const preZip = await JSZip.loadAsync(preBlob);
+  const checksum = await computeBackupChecksum(preZip, BACKUP_TABLES);
+
+  const manifest: BackupManifestV3 = { ...preManifest, checksum };
+  zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+
   const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  const integrityZip = await JSZip.loadAsync(blob);
+  const integrity = await validateBackupZip(integrityZip, blob.size);
+
+  if (!integrity.valid) {
+    backupLog('create', `integrity failed: ${integrity.errors.join('; ')}`);
+    throw new Error(`فشل التحقق من سلامة النسخة: ${integrity.errors.join(' — ')}`);
+  }
+
   const filename = `legalmind-backup-${office.name.replace(/[/\\?%*:|"<>]/g, '-')}-${stamp.slice(0, 10)}.zip`;
   triggerDownload(blob, filename);
 
-  const backupId = await registerFirmBackup(blob.size, fileCount, tablesIncluded, `نسخة احتياطية — ${office.name}`);
-  return { backupId, filename, sizeBytes: blob.size };
+  const backupId = await registerFirmBackup(
+    blob.size,
+    fileCount,
+    tablesIncluded,
+    `نسخة احتياطية — ${office.name} (${totalRecords} سجل)`
+  );
+
+  backupLog('create', `complete — ${filename} (${blob.size} bytes, ${totalRecords} records)`);
+
+  return {
+    backupId,
+    filename,
+    sizeBytes: blob.size,
+    recordCounts,
+    totalRecords,
+    integrity
+  };
 }
 
 export interface BackupRestorePreview {
   firmName?: string;
+  firmId?: string;
   createdAt?: string;
+  version?: number;
   tables: string[];
+  recordCounts?: Partial<Record<BackupTable, number>>;
+  totalRecords?: number;
   settings?: Record<string, unknown>;
+  integrity?: BackupIntegrityResult;
 }
 
 export async function previewBackupRestore(file: File): Promise<BackupRestorePreview> {
+  backupLog('preview', file.name);
   const zip = await JSZip.loadAsync(file);
+  const integrity = await validateBackupZip(zip, file.size);
+
   const manifestFile = zip.file('manifest.json');
   if (!manifestFile) throw new Error('ملف النسخة الاحتياطية غير صالح — manifest.json مفقود');
 
-  const manifest = JSON.parse(await manifestFile.async('string')) as {
-    firm_name?: string;
-    created_at?: string;
-    tables?: string[];
-  };
+  const manifest = parseManifest(JSON.parse(await manifestFile.async('string')));
+  if (!manifest) throw new Error('إصدار النسخة الاحتياطية غير مدعوم');
 
   let settings: Record<string, unknown> | undefined;
   const settingsFile = zip.file('settings/office.json');
@@ -217,53 +212,98 @@ export async function previewBackupRestore(file: File): Promise<BackupRestorePre
     settings = JSON.parse(await settingsFile.async('string')) as Record<string, unknown>;
   }
 
+  const tables = manifest.tables?.length ? manifest.tables : BACKUP_TABLES;
+  const recordCounts = integrity.recordCounts ?? (await countBackupRecords(zip, tables));
+
   return {
     firmName: manifest.firm_name,
+    firmId: manifest.firm_id,
     createdAt: manifest.created_at,
-    tables: manifest.tables ?? [],
-    settings
+    version: manifest.version,
+    tables,
+    recordCounts,
+    totalRecords: integrity.totalRecords,
+    settings,
+    integrity
   };
 }
 
-export async function restoreFirmBackup(file: File): Promise<{ restored: string[] }> {
+export interface RestoreFirmBackupResult {
+  restored: string[];
+  warnings: string[];
+  documentFailures: string[];
+  validation: Awaited<ReturnType<typeof validateRestoredData>>;
+}
+
+export async function restoreFirmBackup(file: File): Promise<RestoreFirmBackupResult> {
+  backupLog('restore', file.name);
   const preview = await previewBackupRestore(file);
+
+  if (preview.integrity && !preview.integrity.valid) {
+    throw new Error(`النسخة الاحتياطية غير صالحة: ${preview.integrity.errors.join(' — ')}`);
+  }
+
   const currentFirmId = await getCurrentFirmId();
   const zip = await JSZip.loadAsync(file);
   const manifestFile = zip.file('manifest.json');
-  const manifest = JSON.parse((await manifestFile!.async('string')) as string) as { firm_id?: string };
+  const manifest = parseManifest(JSON.parse((await manifestFile!.async('string')) as string));
 
-  if (manifest.firm_id && manifest.firm_id !== currentFirmId) {
+  if (manifest?.firm_id && manifest.firm_id !== currentFirmId) {
     throw new Error('هذه النسخة الاحتياطية تخص مكتباً آخر ولا يمكن استعادتها هنا.');
   }
 
-  const restored: string[] = [];
+  const restoredSections: string[] = [];
 
   if (preview.settings) {
-    const { error } = await supabase
-      .from('firms')
-      .update({
-        reminders_enabled: preview.settings.reminders_enabled,
-        whatsapp_reports_enabled: preview.settings.whatsapp_reports_enabled,
-        sms_reports_enabled: preview.settings.sms_reports_enabled,
-        hide_financials_from_trainees: preview.settings.hide_financials_from_trainees
-      })
-      .eq('id', currentFirmId);
-    throwIfSupabaseError(error);
-    restored.push('settings');
+    const update: Record<string, unknown> = {};
+    if (preview.settings.reminders_enabled !== undefined) update.reminders_enabled = preview.settings.reminders_enabled;
+    if (preview.settings.whatsapp_reports_enabled !== undefined) {
+      update.whatsapp_reports_enabled = preview.settings.whatsapp_reports_enabled;
+    }
+    if (preview.settings.sms_reports_enabled !== undefined) update.sms_reports_enabled = preview.settings.sms_reports_enabled;
+    if (preview.settings.hide_financials_from_trainees !== undefined) {
+      update.hide_financials_from_trainees = preview.settings.hide_financials_from_trainees;
+    }
+
+    if (Object.keys(update).length) {
+      const { error } = await supabase.from('firms').update(update).eq('id', currentFirmId);
+      throwIfSupabaseError(error);
+      restoredSections.push('settings');
+    }
   }
 
-  const dataRestored = await restoreFirmBackupData(zip);
-  restored.push(...dataRestored);
+  const { restored, warnings, documentFailures } = await restoreFirmBackupData(zip);
+  restoredSections.push(...restored);
 
-  if (restored.length <= 1 && !dataRestored.length) {
+  if (!restoredSections.length) {
     throw new Error('لم يُعثر على بيانات قابلة للاستعادة في هذا الملف.');
   }
 
+  const restoredCounts: Record<string, number> = {};
+  for (const item of restored) {
+    const match = item.match(/^(\w+)\s*\((\d+)\)$/);
+    if (match) restoredCounts[match[1]!] = Number(match[2]);
+  }
+
+  const validation = await validateRestoredData(
+    currentFirmId,
+    preview.recordCounts ?? {},
+    restoredCounts
+  );
+
   await registerFirmBackup(
     file.size,
-    restored.length,
-    restored.map((item) => item.split(' ')[0] ?? item),
+    restoredSections.length,
+    restoredSections.map((item) => item.split(' ')[0] ?? item),
     `استعادة — ${preview.firmName ?? 'مكتب'}`
   );
-  return { restored };
+
+  backupLog('restore', `complete — ${restoredSections.join(', ')}`);
+
+  return {
+    restored: restoredSections,
+    warnings: [...warnings, ...validation.warnings, ...(preview.integrity?.warnings ?? [])],
+    documentFailures,
+    validation
+  };
 }
