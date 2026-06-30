@@ -91,7 +91,7 @@ export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied, onN
           حفظ بيانات المكتب
         </button>
         <div className="p-4 bg-slate-50 rounded-xl">
-          <MfaSettings />
+          <MfaSettings requiredForOwner={user.role === 'firm_manager' || user.role === 'admin' || user.role === 'super_admin'} />
         </div>
         {isAdmin ? (
           <div className="rounded-xl border border-slate-100 px-4 bg-white">

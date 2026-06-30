@@ -50,7 +50,12 @@ export async function submitPublicTestimonial(input: SubmitTestimonialInput): Pr
     p_body: input.body.trim(),
     p_stars: input.stars
   });
-  throwIfSupabaseError(error);
+  if (error) {
+    if (/rate_limited/i.test(error.message)) {
+      throw new Error('تم تجاوز الحد المسموح. حاول لاحقاً.');
+    }
+    throwIfSupabaseError(error);
+  }
   if (!data) throw new Error('تعذر حفظ التعليق.');
   return String(data);
 }

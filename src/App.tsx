@@ -32,6 +32,7 @@ import {
 import { useNotificationPermission, useSessionReminders } from './hooks/useSessionReminders';
 import type { PageId } from './types/app';
 import { testSupabaseConnection } from './lib/testSupabaseConnection';
+import { hasVerifiedMfaFactor, isOfficeOwnerRole } from './lib/auth';
 import { SubscriptionGuard } from './components/SubscriptionGuard';
 import { QueryErrorBanner, toArabicQueryError } from './components/QueryErrorBanner';
 import { isBillingAdminAccess, isSuperAdminRole, resolvePageFromLocation, syncLocationForPage, syncCaseDetailLocation, clearCaseDetailLocation, stashCaseDetailTab, stashArchiveTab } from './lib/appRoutes';
@@ -227,6 +228,20 @@ export default function App() {
       workspace.showAlert('صفحة قبول الاشتراكات متاحة لسوبر أدمن المنصة فقط.', 'error');
     }
   }, [currentPage, isBillingAdminDb, isBillingAdminLoading, workspace.showAlert, user]);
+
+  useEffect(() => {
+    if (!user || auth.isLoading) return;
+    if (!isOfficeOwnerRole(user.role)) return;
+    if (PUBLIC_PAGES.includes(currentPage)) return;
+    if (currentPage === 'settings' || currentPage === 'profile') return;
+
+    void hasVerifiedMfaFactor().then((verified) => {
+      if (!verified) {
+        workspace.showAlert('مطلوب تفعيل التحقق بخطوتين (2FA) لمالك المكتب — من الإعدادات.', 'error');
+        setCurrentPage('settings');
+      }
+    });
+  }, [auth.isLoading, currentPage, user, workspace]);
 
   useEffect(() => {
     if (currentPage !== 'audit-logs') return;

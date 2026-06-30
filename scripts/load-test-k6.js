@@ -31,7 +31,11 @@ export default function () {
     'Content-Type': 'application/json'
   };
 
-  const health = http.get(`${base}/rest/v1/public_testimonials?select=id&limit=5`, { headers });
+  const health = http.post(
+    `${base}/rest/v1/rpc/list_approved_testimonials`,
+    JSON.stringify({ p_limit: 5 }),
+    { headers }
+  );
   check(health, { 'public testimonials 200': (r) => r.status === 200 });
 
   if (__ENV.TEST_EMAIL && __ENV.TEST_PASSWORD) {
