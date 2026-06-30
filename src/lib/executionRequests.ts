@@ -101,5 +101,13 @@ export async function updateExecutionRequest(id: string, input: Partial<Executio
 
 export async function deleteExecutionRequest(id: string): Promise<void> {
   const { error } = await supabase.rpc('delete_execution_request', { p_request_id: id });
-  if (error) throw error;
+  if (error) {
+    if (/not_authorized/i.test(error.message)) {
+      throw new Error('غير مصرح — لا تملك صلاحية حذف طلبات التنفيذ.');
+    }
+    if (/not_found/i.test(error.message)) {
+      throw new Error('طلب التنفيذ غير موجود أو تم حذفه مسبقاً.');
+    }
+    throw error;
+  }
 }
