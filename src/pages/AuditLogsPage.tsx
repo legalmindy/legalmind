@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { History, Loader2, Printer, Search, Shield, User, Download } from 'lucide-react';
 import { fetchFirmActivityLogs, exportToCsv, printHtml } from '../lib/reportsApi';
+import { escapeHtml } from '../lib/sanitize';
 import {
   ACTIVITY_FILTER_OPTIONS,
   formatActivityDateTime,
@@ -47,7 +48,7 @@ export function AuditLogsPage({ embedded = false }: { embedded?: boolean }) {
     const rows = logs
       .map(
         (log) =>
-          `<tr><td>${formatActivityDateTime(log.createdAt)}</td><td>${log.employeeName ?? '—'}</td><td>${formatActivityTable(log.tableName)}</td><td>${formatActivityOperation(log.operation)}</td><td>${log.ipAddress ?? '—'}</td><td>${log.entitySummary ?? ''}</td></tr>`
+          `<tr><td>${escapeHtml(formatActivityDateTime(log.createdAt))}</td><td>${escapeHtml(log.employeeName ?? '—')}</td><td>${escapeHtml(formatActivityTable(log.tableName))}</td><td>${escapeHtml(formatActivityOperation(log.operation))}</td><td>${escapeHtml(log.ipAddress ?? '—')}</td><td>${escapeHtml(log.entitySummary ?? '')}</td></tr>`
       )
       .join('');
     printHtml(

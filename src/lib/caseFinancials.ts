@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { getCurrentFirmId } from './api';
+import { validateReceiptFile } from './subscription';
 import { throwIfSupabaseError } from './supabaseQueryHelpers';
 import type { CaseFinancialSummary, CasePayment } from '../types/app';
 
@@ -83,6 +84,10 @@ export async function uploadPaymentReceipt(
   paymentId: string,
   file: File
 ): Promise<{ path: string; fileName: string }> {
+  const validation = validateReceiptFile(file);
+  if (!validation.valid) {
+    throw new Error(validation.error ?? 'ملف الإيصال غير صالح.');
+  }
   const ext = file.name.split('.').pop() ?? 'bin';
   const path = `${caseId}/${paymentId}/${Date.now()}.${ext}`;
   const { error } = await supabase.storage.from('case-payment-receipts').upload(path, file, {
