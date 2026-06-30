@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { callPublicRpc } from './supabaseClient';
 import { throwIfSupabaseError } from './supabaseQueryHelpers';
 
 export interface PublicTestimonial {
@@ -31,7 +31,7 @@ function mapRow(row: TestimonialRow): PublicTestimonial {
 }
 
 export async function fetchApprovedTestimonials(limit = 24): Promise<PublicTestimonial[]> {
-  const { data, error } = await supabase.rpc('list_approved_testimonials', { p_limit: limit });
+  const { data, error } = await callPublicRpc('list_approved_testimonials', { p_limit: limit });
   throwIfSupabaseError(error);
   return ((data ?? []) as TestimonialRow[]).map(mapRow);
 }
@@ -44,13 +44,18 @@ export interface SubmitTestimonialInput {
 }
 
 export async function submitPublicTestimonial(input: SubmitTestimonialInput): Promise<string> {
-  const { data, error } = await supabase.rpc('submit_public_testimonial', {
+  const { data, error } = await callPublicRpc('submit_public_testimonial', {
     p_author_name: input.authorName.trim(),
     p_author_role: input.authorRole.trim(),
     p_body: input.body.trim(),
     p_stars: input.stars
   });
-  throwIfSupabaseError(error);
+  if (error) {
+    if (/rate_limited/i.test(error.message)) {
+      throw new Error('تم تجاوز الحد المسموح. حاول لاحقاً.');
+    }
+    throwIfSupabaseError(error);
+  }
   if (!data) throw new Error('تعذر حفظ التعليق.');
   return String(data);
 }

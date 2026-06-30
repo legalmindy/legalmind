@@ -1,4 +1,3 @@
-import html2pdf from 'html2pdf.js';
 import { EXPORT_ENTITY_LABELS, type ExportEntity } from './dataExport';
 
 const COLUMN_LABELS: Record<string, string> = {
@@ -256,6 +255,7 @@ export async function downloadHtmlAsPdf(filename: string, html: string): Promise
       }
     };
 
+    const html2pdf = (await import('html2pdf.js')).default;
     await html2pdf()
       .set({ ...pdfOptions, html2canvas: html2canvasOptions })
       .from(body)

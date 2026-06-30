@@ -131,6 +131,31 @@ function buildPaginated<T>(data: T[], total: number, page: number, pageSize: num
   return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
 }
 
+const MAX_FETCH_ALL_PAGE_SIZE = 500;
+
+/** Strip PostgREST filter metacharacters from user search input. */
+function sanitizeSearchFilter(value: string): string {
+  return value.trim().replace(/[%_,().\\]/g, '').slice(0, 100);
+}
+
+async function fetchAllPaginated<T>(
+  fetchPage: (page: number, pageSize: number) => Promise<PaginatedResult<T>>
+): Promise<T[]> {
+  const pageSize = MAX_FETCH_ALL_PAGE_SIZE;
+  let page = 1;
+  const all: T[] = [];
+  let totalPages = 1;
+
+  while (page <= totalPages) {
+    const result = await fetchPage(page, pageSize);
+    all.push(...result.data);
+    totalPages = result.totalPages;
+    page += 1;
+  }
+
+  return all;
+}
+
 // ─── Clients ──────────────────────────────────────────────────
 export async function fetchClients(params: PaginationParams = {}): Promise<PaginatedResult<Client>> {
   const firmId = await getCurrentFirmId();
@@ -148,7 +173,10 @@ export async function fetchClients(params: PaginationParams = {}): Promise<Pagin
     .range(from, to);
 
   if (params.search) {
-    query = query.or(`name.ilike.%${params.search}%,phone.ilike.%${params.search}%,email.ilike.%${params.search}%`);
+    const q = sanitizeSearchFilter(params.search);
+    if (q) {
+      query = query.or(`name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`);
+    }
   }
 
   const { data, error, count } = await query;
@@ -157,11 +185,7 @@ export async function fetchClients(params: PaginationParams = {}): Promise<Pagin
 }
 
 export async function fetchAllClients(): Promise<Client[]> {
-  const result = await fetchClients({ pageSize: 2000 });
-  if (result.total > result.data.length) {
-    console.warn(`[fetchAllClients] Loaded ${result.data.length} of ${result.total} clients — pagination recommended`);
-  }
-  return result.data;
+  return fetchAllPaginated((page, pageSize) => fetchClients({ page, pageSize }));
 }
 
 export async function createClient(payload: Omit<Client, 'id' | 'casesCount' | 'createdAt'>): Promise<Client> {
@@ -204,13 +228,32 @@ export async function updateClientRecord(payload: Client): Promise<Client> {
 }
 
 export async function softDeleteClient(clientId: string): Promise<void> {
-  const firmId = await getCurrentFirmId();
-  const { error } = await supabase
-    .from('clients')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', clientId)
-    .eq('firm_id', firmId);
-  if (error) throw error;
+  const { error } = await supabase.rpc('delete_client', { p_client_id: clientId });
+  if (!error) return;
+
+  if (/not_authorized/i.test(error.message)) {
+    throw new Error('غير مصرح — لا تملك صلاحية حذف العملاء.');
+  }
+  if (/subscription_inactive/i.test(error.message)) {
+    throw new Error('انتهى اشتراك المكتب — جدّد الاشتراك ثم أعد المحاولة.');
+  }
+  if (/client_has_active_cases/i.test(error.message)) {
+    throw new Error('لا يمكن حذف العميل لأنه مرتبط بقضية حالية.');
+  }
+  if (/not_found/i.test(error.message)) {
+    throw new Error('العميل غير موجود أو تم حذفه مسبقاً.');
+  }
+  if (/Could not find the function|42883|PGRST202/i.test(error.message)) {
+    const firmId = await getCurrentFirmId();
+    const { error: patchError } = await supabase
+      .from('clients')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', clientId)
+      .eq('firm_id', firmId);
+    if (patchError) throw patchError;
+    return;
+  }
+  throw error;
 }
 
 // ─── Cases ────────────────────────────────────────────────────
@@ -235,7 +278,10 @@ export async function fetchCases(params: PaginationParams = {}): Promise<Paginat
     .range(from, to);
 
   if (params.search) {
-    query = query.or(`title.ilike.%${params.search}%,court_case_number.ilike.%${params.search}%`);
+    const q = sanitizeSearchFilter(params.search);
+    if (q) {
+      query = query.or(`title.ilike.%${q}%,court_case_number.ilike.%${q}%`);
+    }
   }
 
   const { data, error, count } = await query;
@@ -244,11 +290,7 @@ export async function fetchCases(params: PaginationParams = {}): Promise<Paginat
 }
 
 export async function fetchAllCases(): Promise<CaseRecord[]> {
-  const result = await fetchCases({ pageSize: 2000 });
-  if (result.total > result.data.length) {
-    console.warn(`[fetchAllCases] Loaded ${result.data.length} of ${result.total} cases — pagination recommended`);
-  }
-  return result.data;
+  return fetchAllPaginated((page, pageSize) => fetchCases({ page, pageSize }));
 }
 
 export async function fetchArchivedCases(): Promise<CaseRecord[]> {

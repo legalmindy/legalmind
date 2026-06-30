@@ -1,0 +1,239 @@
+{
+  "critical": [],
+  "medium": [],
+  "minor": [],
+  "passed": [
+    {
+      "title": "RLS يحمي firms (401)",
+      "detail": ""
+    },
+    {
+      "title": "RLS يحمي employees (401)",
+      "detail": ""
+    },
+    {
+      "title": "RLS يحمي clients (401)",
+      "detail": ""
+    },
+    {
+      "title": "RLS يمنع بيانات cases (200 فارغ)",
+      "detail": ""
+    },
+    {
+      "title": "RLS يحمي sessions (401)",
+      "detail": ""
+    },
+    {
+      "title": "RLS يمنع بيانات documents (200 فارغ)",
+      "detail": ""
+    },
+    {
+      "title": "RLS يحمي case_attachments (401)",
+      "detail": ""
+    },
+    {
+      "title": "RLS يحمي audit_logs (401)",
+      "detail": ""
+    },
+    {
+      "title": "RLS يحمي case_payments (401)",
+      "detail": ""
+    },
+    {
+      "title": "RLS يحمي receipt_vouchers (401)",
+      "detail": ""
+    },
+    {
+      "title": "RLS يحمي office_expenses (401)",
+      "detail": ""
+    },
+    {
+      "title": "RLS يحمي profiles (401)",
+      "detail": ""
+    },
+    {
+      "title": "RLS يمنع بيانات invitations (200 فارغ)",
+      "detail": ""
+    },
+    {
+      "title": "RLS يحمي security_events (401)",
+      "detail": ""
+    },
+    {
+      "title": "RLS يمنع بيانات firm_backups (200 فارغ)",
+      "detail": ""
+    },
+    {
+      "title": "firms_registration_public محمي أو غير مطبّق بعد",
+      "detail": ""
+    },
+    {
+      "title": "PostgREST رفض/عالج الحمولة بأمان (118ms)",
+      "detail": ""
+    },
+    {
+      "title": "PostgREST رفض/عالج الحمولة بأمان (62ms)",
+      "detail": ""
+    },
+    {
+      "title": "PostgREST رفض/عالج الحمولة بأمان (91ms)",
+      "detail": ""
+    },
+    {
+      "title": "PostgREST رفض/عالج الحمولة بأمان (206ms)",
+      "detail": ""
+    },
+    {
+      "title": "لا IDOR anon على cases (200)",
+      "detail": ""
+    },
+    {
+      "title": "لا IDOR anon على clients (401)",
+      "detail": ""
+    },
+    {
+      "title": "لا IDOR anon على employees (401)",
+      "detail": ""
+    },
+    {
+      "title": "رفض تسجيل دخول ببريد مشبوه",
+      "detail": ""
+    },
+    {
+      "title": "التسجيل العشوائي مرفوض: Database error saving new user",
+      "detail": ""
+    },
+    {
+      "title": "RPC get_my_permissions محمي (401)",
+      "detail": ""
+    },
+    {
+      "title": "RPC repair_current_user_profile محمي (401)",
+      "detail": ""
+    },
+    {
+      "title": "RPC create_office_admin_profile محمي (404)",
+      "detail": ""
+    },
+    {
+      "title": "RPC purge_old_audit_logs محمي (401)",
+      "detail": ""
+    },
+    {
+      "title": "RPC repair_all_orphan_auth_profiles محمي (401)",
+      "detail": ""
+    },
+    {
+      "title": "RPC get_financial_report محمي (401)",
+      "detail": ""
+    },
+    {
+      "title": "ضغط 100 طلب: RLS يحجب 100/100 (1934ms)",
+      "detail": ""
+    },
+    {
+      "title": "ضغط 500 طلب: RLS يحجب 500/500 (3334ms)",
+      "detail": ""
+    },
+    {
+      "title": "ضغط 1000 طلب: RLS يحجب 1000/1000 (2572ms)",
+      "detail": ""
+    }
+  ],
+  "info": [
+    {
+      "title": "عدّ البيانات الكاملة",
+      "detail": "يتطلب SUPABASE_SERVICE_ROLE_KEY — غير موجود في .env.local"
+    },
+    {
+      "title": "اختبار وظيفي مصادق",
+      "detail": "أعد التشغيل مع --email و --password لاختبار CRUD و IDOR"
+    }
+  ],
+  "metrics": {
+    "unitTests": "24/24 passed (vitest)",
+    "score": 97,
+    "readyForSale": "مشروط"
+  },
+  "dataCounts": {},
+  "loadTests": [
+    {
+      "concurrency": 100,
+      "elapsedMs": 1934,
+      "rlsBlocked": 100,
+      "serverErrors": 0,
+      "rps": 51.7,
+      "memDeltaMb": "5.87",
+      "note": ""
+    },
+    {
+      "concurrency": 500,
+      "elapsedMs": 3334,
+      "rlsBlocked": 500,
+      "serverErrors": 0,
+      "rps": 150,
+      "memDeltaMb": "10.14",
+      "note": ""
+    },
+    {
+      "concurrency": 1000,
+      "elapsedMs": 2572,
+      "rlsBlocked": 1000,
+      "serverErrors": 0,
+      "rps": 388.9,
+      "memDeltaMb": "29.35",
+      "note": "محاكاة من عميل واحد — ليس 5000 مستخدم حقيقي متزامن"
+    },
+    {
+      "concurrency": 5000,
+      "elapsedMs": 22545,
+      "rlsBlocked": 4308,
+      "serverErrors": 0,
+      "rps": 221.8,
+      "memDeltaMb": "14.84",
+      "note": "محاكاة من عميل واحد — ليس 5000 مستخدم حقيقي متزامن"
+    }
+  ],
+  "missingFeatures": [
+    {
+      "feature": "المهام (Tasks)",
+      "status": "غير موجود كوحدة مستقلة"
+    },
+    {
+      "feature": "التقويم (Calendar)",
+      "status": "مدمج في صفحة الجلسات فقط"
+    },
+    {
+      "feature": "المواعيد (Appointments)",
+      "status": "غير موجود — الجلسات فقط"
+    },
+    {
+      "feature": "الفواتير (Invoices)",
+      "status": "لا يوجد جدول invoices — يستخدم case_payments + receipt_vouchers"
+    },
+    {
+      "feature": "سندات الصرف",
+      "status": "office_expenses فقط — لا سند صرف رسمي منفصل"
+    },
+    {
+      "feature": "العقود",
+      "status": "حقول contract_date/contract_currency على القضية فقط"
+    },
+    {
+      "feature": "الوكالات",
+      "status": "غير موجود كوحدة"
+    },
+    {
+      "feature": "البريد الإلكتروني الداخلي",
+      "status": "إشعارات فقط — لا صندوق بريد"
+    },
+    {
+      "feature": "E2E tests",
+      "status": "غير موجود (Playwright/Cypress)"
+    },
+    {
+      "feature": "Load test CI",
+      "status": "غير موجود"
+    }
+  ]
+}

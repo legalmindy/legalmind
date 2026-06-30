@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Briefcase, Lock, Plus, Printer, Trash2, TrendingUp, TrendingDown, Wallet, ChevronDown, ChevronUp, FileSpreadsheet, Loader2, Receipt } from 'lucide-react';
 import { buildFinancialReport, formatPercent, formatYer } from '../../lib/dashboardAnalytics';
 import { exportToCsv, printHtml } from '../../lib/reportsApi';
+import { escapeHtml } from '../../lib/sanitize';
 import { hasPermission } from '../../lib/permissions';
 import { isFirmManagerRole } from '../../lib/roleAccess';
 import { useArchivedCases, useExpenses, useExpenseMutations, useReceiptVouchers } from '../../hooks/useSupabaseQueries';
@@ -186,7 +187,7 @@ export function ReportsPage({ role, permissions, performance, cases, year: propY
       const clientRows = report.clientBreakdown
         .map(
           (c) =>
-            `<tr><td>${c.clientName}</td><td>${c.caseCount}</td><td>${formatYer(c.totalContract)}</td><td>${formatYer(c.totalContract - c.totalPending)}</td><td>${formatYer(c.totalPending)}</td></tr>`
+            `<tr><td>${escapeHtml(c.clientName)}</td><td>${c.caseCount}</td><td>${formatYer(c.totalContract)}</td><td>${formatYer(c.totalContract - c.totalPending)}</td><td>${formatYer(c.totalPending)}</td></tr>`
         )
         .join('');
 

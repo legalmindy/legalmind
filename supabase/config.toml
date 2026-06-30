@@ -2,3 +2,6 @@
 
 [functions.invite-user]
 verify_jwt = false
+
+[functions.firm-backup]
+verify_jwt = false

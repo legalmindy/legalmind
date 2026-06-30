@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Briefcase, FileText, Plus, Download, Loader2, Printer } from 'lucide-react';
+import { escapeHtml } from '../../lib/sanitize';
 import type { DocumentItem } from '../../types/app';
 import type { DocumentsPageProps } from './types';
 
@@ -80,16 +81,18 @@ function DocCard({
       if (isImg) {
         const win = window.open('', '_blank', 'width=900,height=700');
         if (win) {
+          const safeTitle = escapeHtml(doc.title);
+          const safeUrl = escapeHtml(url);
           win.document.write(
-            `<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"/><title>${doc.title}</title>` +
+            `<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"/><title>${safeTitle}</title>` +
             `<style>*{margin:0;padding:0;box-sizing:border-box}` +
             `body{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#fff;font-family:sans-serif;gap:12px}` +
             `h2{font-size:14px;color:#333;padding:8px}` +
             `img{max-width:100%;max-height:90vh;object-fit:contain;box-shadow:0 2px 12px rgba(0,0,0,.15)}` +
             `@media print{h2{display:none}}` +
             `</style></head><body>` +
-            `<h2>${doc.title}</h2>` +
-            `<img src="${url}" onload="setTimeout(function(){window.print();},400)" onerror="document.body.innerHTML='<p>تعذر تحميل الصورة</p>'" />` +
+            `<h2>${safeTitle}</h2>` +
+            `<img src="${safeUrl}" onload="setTimeout(function(){window.print();},400)" onerror="document.body.textContent='تعذر تحميل الصورة'" />` +
             `</body></html>`
           );
           win.document.close();

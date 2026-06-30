@@ -10,3 +10,9 @@ yarn-error.log*
 # Supabase environment
 .env.local
 supabase/.temp/
+.vercel
+.env*
+
+# Playwright
+test-results/
+playwright-report/

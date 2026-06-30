@@ -41,7 +41,10 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const siteUrl = Deno.env.get('SITE_URL') ?? req.headers.get('origin') ?? '';
+  const siteUrl = (Deno.env.get('SITE_URL') ?? '').replace(/\/$/, '');
+  if (!siteUrl) {
+    return jsonResponse({ error: 'SITE_URL is not configured for invite redirects' }, 500);
+  }
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey) {
     return jsonResponse({ error: 'Supabase function environment is not configured' }, 500);

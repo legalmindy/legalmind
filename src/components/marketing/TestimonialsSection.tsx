@@ -78,7 +78,7 @@ export function TestimonialsSection() {
       setBody('');
       setStars(5);
       setFormOpen(false);
-      setSuccess('شكراً! تم نشر تعليقك بنجاح.');
+      setSuccess('شكراً! تم استلام تعليقك وسيُعرض بعد المراجعة.');
       await queryClient.invalidateQueries({ queryKey: ['public-testimonials'] });
     }
   });

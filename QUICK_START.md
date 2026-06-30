@@ -13,7 +13,7 @@ Two beautiful, fully-functional forms have been added to your LegalMind Yemen ap
 
 ### Add a New Client
 
-1. Open the application at **http://localhost:5174/**
+1. Open the application at **http://localhost:5173/**
 2. Navigate to **"إدارة دليل الموكلين والعملاء"** (Clients page)
 3. Click the yellow button **"إضافة عميل / موكل جديد"**
 4. Fill in the form:

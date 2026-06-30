@@ -16,11 +16,14 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          supabase: ['@supabase/supabase-js'],
-          query: ['@tanstack/react-query'],
-          icons: ['lucide-react']
+        manualChunks(id) {
+          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) return 'vendor';
+          if (id.includes('node_modules/@supabase')) return 'supabase';
+          if (id.includes('node_modules/@tanstack/react-query')) return 'query';
+          if (id.includes('node_modules/lucide-react')) return 'icons';
+          if (id.includes('html2pdf')) return 'pdfExport';
+          if (id.includes('node_modules/xlsx')) return 'xlsx';
+          if (id.includes('node_modules/jszip')) return 'jszip';
         }
       }
     },

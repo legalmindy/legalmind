@@ -11,7 +11,15 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "qa:audit": "node scripts/qa-audit.mjs",
+    "qa:functional": "node scripts/qa-functional.mjs",
+    "qa:seed:sql": "supabase db query --linked -f supabase/seed_qa_bulk.sql",
+    "qa:full": "npm run qa:seed:sql && npm run qa:functional && npm run qa:audit",
+    "qa:seed": "node scripts/qa-seed.mjs",
+    "qa:backup-live": "node scripts/backup-restore-live.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@fontsource/cairo": "^5.2.7",
@@ -36,6 +44,7 @@
     "@vitest/coverage-v8": "^4.1.9",
     "autoprefixer": "^10.4.19",
     "jsdom": "^29.1.1",
+    "@playwright/test": "^1.52.0",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.6.2",

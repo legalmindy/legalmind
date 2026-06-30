@@ -290,6 +290,70 @@ export async function downloadDocumentsZip(filters: ExportFilters): Promise<{ bl
   return { blob, count: filtered.length };
 }
 
+export async function downloadCaseAttachmentsZip(): Promise<{ blob: Blob; count: number }> {
+  const firmId = await getCurrentFirmId();
+  const { data: cases, error: casesError } = await supabase
+    .from('cases')
+    .select('id, title')
+    .eq('firm_id', firmId)
+    .is('deleted_at', null);
+  throwIfSupabaseError(casesError);
+  const caseIds = (cases ?? []).map((c) => c.id as string);
+  const caseTitles = new Map((cases ?? []).map((c) => [c.id as string, c.title as string]));
+
+  if (!caseIds.length) {
+    const empty = new JSZip();
+    empty.file('attachments/manifest.json', '[]');
+    return { blob: await empty.generateAsync({ type: 'blob' }), count: 0 };
+  }
+
+  const { data: attachments, error } = await supabase
+    .from('case_attachments')
+    .select('id, case_id, file_name, file_type, file_size, storage_path, version, notes')
+    .in('case_id', caseIds)
+    .is('deleted_at', null);
+  throwIfSupabaseError(error);
+
+  const zip = new JSZip();
+  const manifest: Record<string, unknown>[] = [];
+  let count = 0;
+
+  for (const row of attachments ?? []) {
+    try {
+      const { data: signed, error: signError } = await supabase.storage
+        .from('case-documents')
+        .createSignedUrl(row.storage_path as string, 300);
+      if (signError || !signed?.signedUrl) continue;
+
+      const response = await fetch(signed.signedUrl);
+      if (!response.ok) continue;
+
+      const blob = await response.blob();
+      const caseTitle = (caseTitles.get(row.case_id as string) ?? 'عام').replace(/[/\\?%*:|"<>]/g, '-').trim();
+      const fileName = (row.file_name as string).replace(/[/\\?%*:|"<>]/g, '-').trim() || row.id;
+      zip.file(`attachments/${caseTitle}/${fileName}`, blob);
+      manifest.push({
+        id: row.id,
+        case_id: row.case_id,
+        file_name: row.file_name,
+        file_type: row.file_type,
+        file_size: row.file_size,
+        storage_path: row.storage_path,
+        version: row.version,
+        notes: row.notes
+      });
+      count += 1;
+    } catch {
+      manifest.push({ id: row.id, file_name: row.file_name, error: 'تعذر التحميل' });
+    }
+  }
+
+  zip.file('attachments/manifest.json', JSON.stringify(manifest, null, 2));
+  zip.file('meta/firm_id.txt', firmId);
+  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  return { blob, count };
+}
+
 export async function exportFirmData(
   entities: ExportEntity[],
   format: ExportFormat,

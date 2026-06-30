@@ -100,9 +100,25 @@ export async function updateExecutionRequest(id: string, input: Partial<Executio
 }
 
 export async function deleteExecutionRequest(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('execution_requests')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id);
-  if (error) throw error;
+  const { error } = await supabase.rpc('delete_execution_request', { p_request_id: id });
+  if (!error) return;
+
+  if (/not_authorized/i.test(error.message)) {
+    throw new Error('غير مصرح — لا تملك صلاحية حذف طلبات التنفيذ.');
+  }
+  if (/subscription_inactive/i.test(error.message)) {
+    throw new Error('انتهى اشتراك المكتب — جدّد الاشتراك ثم أعد المحاولة.');
+  }
+  if (/not_found/i.test(error.message)) {
+    throw new Error('طلب التنفيذ غير موجود أو تم حذفه مسبقاً.');
+  }
+  if (/Could not find the function|42883|PGRST202/i.test(error.message)) {
+    const { error: patchError } = await supabase
+      .from('execution_requests')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
+    if (patchError) throw patchError;
+    return;
+  }
+  throw error;
 }

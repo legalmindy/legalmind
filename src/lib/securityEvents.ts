@@ -67,6 +67,9 @@ export function logSecurityEventPublic(
 
 export async function fetchSecurityEvents(limit = 100): Promise<SecurityEventRow[]> {
   const { data, error } = await supabase.rpc('list_firm_security_events', { p_limit: limit });
-  if (error) throw error;
+  if (error) {
+    if (/401|403|not_authorized|JWT/i.test(error.message)) return [];
+    throw error;
+  }
   return (data ?? []) as SecurityEventRow[];
 }

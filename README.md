@@ -57,7 +57,7 @@ npm run dev        # تشغيل خادم التطوير
 ```
 
 **يعمل على:**
-- Local: http://localhost:5174/
+- Local: http://localhost:5173/
 - Network: http://192.168.1.14:5174/
 
 ### 2️⃣ إضافة عميل جديد
@@ -237,7 +237,7 @@ CREATE TABLE cases (
 npm run dev
 
 # 2. فتح المتصفح
-open http://localhost:5174
+open http://localhost:5173
 
 # 3. اختبار إضافة عميل
 # 4. اختبار إضافة قضية

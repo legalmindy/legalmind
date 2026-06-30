@@ -12,7 +12,7 @@
 
 ## Supabase — Database migrations
 
-Run all migrations in order (`001` → `070`) in **SQL Editor** or via CLI:
+Run all migrations in order (`001` → `086`) in **SQL Editor** or via CLI:
 
 ```bash
 supabase db push
@@ -30,6 +30,7 @@ Critical recent migrations:
 | `063_security_hardening_fixes.sql` | Privilege escalation + audit hardening |
 | `064`–`069` | Office member registration + per-employee permissions |
 | `070_expert_security_hardening.sql` | Security events, error-log RPC gate, CSP headers |
+| `086_qa_security_fixes.sql` | Close firms anon enumeration + block orphan signups |
 
 ## Supabase — Auth settings
 

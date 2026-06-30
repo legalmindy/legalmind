@@ -51,6 +51,31 @@ export async function registerFirmBackup(
   return data as string;
 }
 
+export async function registerFirmBackupStorage(
+  storagePath: string,
+  sizeBytes: number,
+  fileCount: number,
+  tablesIncluded: string[],
+  notes?: string
+): Promise<string> {
+  const { data, error } = await supabase.rpc('register_firm_backup_storage', {
+    p_storage_path: storagePath,
+    p_size_bytes: sizeBytes,
+    p_file_count: fileCount,
+    p_tables_included: tablesIncluded,
+    p_notes: notes ?? null
+  });
+  throwIfSupabaseError(error);
+  return data as string;
+}
+
+export async function getFirmBackupSignedUrl(storagePath: string): Promise<string> {
+  const { data, error } = await supabase.storage.from('firm-backups').createSignedUrl(storagePath, 3600);
+  if (error) throw error;
+  if (!data?.signedUrl) throw new Error('تعذر إنشاء رابط تنزيل النسخة الاحتياطية');
+  return data.signedUrl;
+}
+
 export async function registerFirmExport(
   exportType: string,
   exportFormat: string,

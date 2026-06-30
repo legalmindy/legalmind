@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import { Shield, Loader2 } from 'lucide-react';
 import { enrollMfa, getMfaFactors, unenrollMfa, verifyMfaEnrollment } from '../lib/auth';
 
-export function MfaSettings() {
+interface MfaSettingsProps {
+  requiredForOwner?: boolean;
+}
+
+export function MfaSettings({ requiredForOwner = false }: MfaSettingsProps) {
   const [factors, setFactors] = useState<Awaited<ReturnType<typeof getMfaFactors>>>([]);
   const [enrolling, setEnrolling] = useState(false);
   const [qrCode, setQrCode] = useState<string | undefined>();
@@ -56,6 +60,12 @@ export function MfaSettings() {
         <Shield className="w-5 h-5 text-indigo-700" aria-hidden="true" />
         <h3 className="text-sm font-bold text-slate-900">التحقق بخطوتين (2FA)</h3>
       </div>
+
+      {requiredForOwner && !hasMfa ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
+          تفعيل التحقق بخطوتين إلزامي لمالك المكتب قبل استخدام النظام.
+        </p>
+      ) : null}
 
       {hasMfa ? (
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">

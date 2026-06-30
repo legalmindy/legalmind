@@ -884,6 +884,15 @@ export async function getMfaFactors(): Promise<Factor[]> {
   return data?.totp ?? [];
 }
 
+export function isOfficeOwnerRole(role: UserRole): boolean {
+  return role === 'firm_manager' || role === 'admin' || role === 'super_admin';
+}
+
+export async function hasVerifiedMfaFactor(): Promise<boolean> {
+  const factors = await getMfaFactors();
+  return factors.some((f) => f.status === 'verified');
+}
+
 export function onAuthStateChange(callback: (user: User | null) => void) {
   return supabase.auth.onAuthStateChange(async (_event, session) => {
     if (session?.user) {
