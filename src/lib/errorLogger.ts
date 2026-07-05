@@ -29,6 +29,9 @@ export async function logError(
   }
 
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
     await supabase.rpc('submit_client_error_log', {
       p_message: entry.message,
       p_stack: entry.stack?.slice(0, 4000) ?? null,

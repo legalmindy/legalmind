@@ -128,9 +128,9 @@ export function AdminSubscriptionPage({ onNotify }: AdminSubscriptionPageProps) 
   const handleApprove = async (payment: PaymentRecord) => {
     try {
       await review.mutateAsync({
-        paymentId: payment.id,
+        paymentId: payment.requestId ?? payment.id,
         action: 'approve',
-        requestId: payment.requestId
+        requestId: payment.requestId ?? payment.id
       });
       onNotify('تمت الموافقة وتفعيل الاشتراك.', 'success');
     } catch (err) {
@@ -141,10 +141,10 @@ export function AdminSubscriptionPage({ onNotify }: AdminSubscriptionPageProps) 
   const handleReject = async (reason: string) => {
     if (!rejectTarget) return;
     await review.mutateAsync({
-      paymentId: rejectTarget.id,
+      paymentId: rejectTarget.requestId ?? rejectTarget.id,
       action: 'reject',
       rejectionReason: reason,
-      requestId: rejectTarget.requestId
+      requestId: rejectTarget.requestId ?? rejectTarget.id
     });
     onNotify('تم رفض الطلب.', 'info');
   };

@@ -306,8 +306,9 @@ function mapAdminPendingRpcRows(rows: unknown[]): PaymentRecord[] {
     const r = row as Record<string, unknown>;
     const plan = r.plan as SubscriptionPlanId;
     const planType = (r.plan_type as SaasPlanType) ?? mapPlanIdToSaasPlanType(plan);
+    const requestId = String(r.request_id ?? r.payment_id ?? '');
     return {
-      id: r.payment_id as string,
+      id: requestId,
       firmId: r.firm_id as string,
       subscriptionId: (r.subscription_id as string) ?? '',
       amount: Number(r.amount_yer),
@@ -321,7 +322,7 @@ function mapAdminPendingRpcRows(rows: unknown[]): PaymentRecord[] {
       planLabel: getPlanLabel(plan),
       transferReference: r.transfer_reference as string,
       receiptPath: r.receipt_path as string,
-      requestId: r.request_id as string
+      requestId
     };
   });
 }
@@ -345,8 +346,9 @@ function mapAdminPendingRequestRow(
 ): PaymentRecord {
   const firms = row.firms as { name?: string } | null;
   const firmId = row.firm_id as string;
+  const requestId = row.id as string;
   return {
-    id: (row.payment_id as string) ?? (row.id as string),
+    id: requestId,
     firmId,
     subscriptionId: (row.subscription_id as string) ?? '',
     amount: Number(row.amount_yer),
@@ -360,7 +362,7 @@ function mapAdminPendingRequestRow(
     planLabel: getPlanLabel(row.plan as SubscriptionPlanId),
     transferReference: row.transfer_reference as string,
     receiptPath: row.receipt_path as string,
-    requestId: row.id as string
+    requestId
   };
 }
 
@@ -437,12 +439,50 @@ export async function getSubscriptionReceiptSignedUrl(path: string): Promise<str
   return data.signedUrl;
 }
 
+function mapSubscriptionReviewError(message: string): Error {
+  if (/rejection_reason_required/i.test(message)) {
+    return new Error('سبب الرفض مطلوب.');
+  }
+  if (/not_authorized/i.test(message)) {
+    return new Error('ليس لديك صلاحية مراجعة الاشتراكات. هذه الصفحة للسوبر أدمن فقط.');
+  }
+  if (/request_not_pending/i.test(message)) {
+    return new Error('تمت معالجة هذا الطلب مسبقاً. حدّث الصفحة.');
+  }
+  if (/request_not_found|payment_not_found/i.test(message)) {
+    return new Error('تعذر العثور على طلب الاشتراك. حدّث الصفحة ثم أعد المحاولة.');
+  }
+  if (/subscription_fields_protected/i.test(message)) {
+    return new Error('تعذر تفعيل الاشتراك — طبّق migration 058 في Supabase SQL Editor.');
+  }
+  if (/invalid_action/i.test(message)) {
+    return new Error('إجراء غير صالح.');
+  }
+  return new Error(message || 'فشلت مراجعة طلب الاشتراك.');
+}
+
 export async function reviewPayment(input: {
   paymentId: string;
   action: 'approve' | 'reject';
   rejectionReason?: string;
   requestId?: string;
 }): Promise<void> {
+  const requestId = input.requestId ?? input.paymentId;
+  if (!requestId) {
+    throw new Error('معرّف الطلب غير متوفر.');
+  }
+
+  const { error: reqError } = await supabase.rpc('review_subscription_request', {
+    p_request_id: requestId,
+    p_action: input.action,
+    p_admin_notes: input.rejectionReason ?? null
+  });
+  if (!reqError) return;
+
+  if (!/request_not_found|payment_not_found/i.test(reqError.message)) {
+    throw mapSubscriptionReviewError(reqError.message);
+  }
+
   const { error } = await supabase.rpc('review_payment', {
     p_payment_id: input.paymentId,
     p_action: input.action,
@@ -450,36 +490,7 @@ export async function reviewPayment(input: {
   });
   if (!error) return;
 
-  const fallbackRequestId = input.requestId ?? input.paymentId;
-  if (/request_not_found|payment_not_found/i.test(error.message) && fallbackRequestId) {
-    const { error: reqError } = await supabase.rpc('review_subscription_request', {
-      p_request_id: fallbackRequestId,
-      p_action: input.action,
-      p_admin_notes: input.rejectionReason ?? null
-    });
-    if (!reqError) return;
-    if (/rejection_reason_required/i.test(reqError.message)) {
-      throw new Error('سبب الرفض مطلوب.');
-    }
-    if (/not_authorized/i.test(reqError.message)) {
-      throw new Error('ليس لديك صلاحية مراجعة الاشتراكات. فعّل صلاحيات الأدمن من صفحة الفوترة.');
-    }
-    if (/subscription_fields_protected/i.test(reqError.message)) {
-      throw new Error('تعذر تفعيل الاشتراك — طبّق migration 058 في Supabase SQL Editor.');
-    }
-    throw toSupabaseQueryError(reqError);
-  }
-
-  if (/rejection_reason_required/i.test(error.message)) {
-    throw new Error('سبب الرفض مطلوب.');
-  }
-  if (/not_authorized/i.test(error.message)) {
-    throw new Error('ليس لديك صلاحية مراجعة الاشتراكات. فعّل صلاحيات الأدمن من صفحة الفوترة.');
-  }
-  if (/subscription_fields_protected/i.test(error.message)) {
-    throw new Error('تعذر تفعيل الاشتراك — طبّق migration 058 في Supabase SQL Editor.');
-  }
-  throw toSupabaseQueryError(error);
+  throw mapSubscriptionReviewError(error.message);
 }
 
 export async function reviewSubscriptionRequest(input: {
@@ -493,16 +504,7 @@ export async function reviewSubscriptionRequest(input: {
     p_admin_notes: input.adminNotes ?? null
   });
   if (error) {
-    if (/rejection_reason_required/i.test(error.message)) {
-      throw new Error('سبب الرفض مطلوب.');
-    }
-    if (/not_authorized/i.test(error.message)) {
-      throw new Error('ليس لديك صلاحية مراجعة الاشتراكات. فعّل صلاحيات الأدمن من صفحة الفوترة.');
-    }
-    if (/subscription_fields_protected/i.test(error.message)) {
-      throw new Error('تعذر تفعيل الاشتراك — طبّق migration 058 في Supabase SQL Editor.');
-    }
-    throw toSupabaseQueryError(error);
+    throw mapSubscriptionReviewError(error.message);
   }
 }
 
