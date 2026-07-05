@@ -90,8 +90,7 @@ export interface WorkspaceRoutesProps {
   smsReportsEnabled: boolean;
   canSendClientReport: boolean;
   remindersEnabled: boolean;
-  isBillingAdmin: boolean;
-  isBillingAdminLoading: boolean;
+  isSuperAdmin: boolean;
   currentUserLawyerId: string;
   stats: {
     totalClients: number;
@@ -181,8 +180,7 @@ export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
     whatsappReportsEnabled,
     canSendClientReport,
     remindersEnabled,
-    isBillingAdmin,
-    isBillingAdminLoading,
+    isSuperAdmin,
     currentUserLawyerId,
     stats,
     monthlyData,
@@ -540,7 +538,7 @@ export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
 
       {currentPage === 'subscription' && user && <SubscriptionPage />}
 
-      {currentPage === 'admin-billing' && user && (isBillingAdmin || isBillingAdminLoading) && (
+      {currentPage === 'admin-billing' && user && isSuperAdmin && (
         <AdminSubscriptionPage onNotify={(message, type = 'info') => showAlert(message, type)} />
       )}
 

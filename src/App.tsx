@@ -38,7 +38,6 @@ import { QueryErrorBanner, toArabicQueryError } from './components/QueryErrorBan
 import { isBillingAdminAccess, isSuperAdminRole, resolvePageFromLocation, syncLocationForPage, syncCaseDetailLocation, clearCaseDetailLocation, stashCaseDetailTab, stashArchiveTab } from './lib/appRoutes';
 import { supabase } from './lib/supabaseClient';
 import type { CaseDetailTab } from './types/app';
-import { useBillingAdmin } from './hooks/useBillingAdmin';
 import { PUBLIC_PAGES } from './app/workspaceForms';
 import { useMyPermissions } from './hooks/useMyPermissions';
 import { canAccessCaseDetail, canAccessPage } from './lib/permissions';
@@ -104,9 +103,6 @@ export default function App() {
   const canShowFirmCode = Boolean(user && canManageOffice(user.role));
   const { data: firmProfile } = useFirmProfile(isAuth && canShowFirmCode);
   const isSuperAdmin = Boolean(user && isSuperAdminRole(user.role));
-  const needsBillingAdminCheck = isAuth && (currentPage === 'admin-billing' || isSuperAdmin);
-  const { data: isBillingAdminDb = false, isLoading: isBillingAdminLoading } = useBillingAdmin(needsBillingAdminCheck);
-  const isBillingAdmin = isBillingAdminDb || Boolean(user && isSuperAdminRole(user.role));
   const firmCode = office?.firmCode ?? firmProfile?.officeCode;
   const firmName = office?.name ?? firmProfile?.officeName ?? user?.company;
 
@@ -223,11 +219,11 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    if (currentPage === 'admin-billing' && !isBillingAdminAccess(user.role, isBillingAdminDb) && !isBillingAdminLoading) {
+    if (currentPage === 'admin-billing' && !isBillingAdminAccess(user.role)) {
       setCurrentPage('dashboard');
       workspace.showAlert('صفحة قبول الاشتراكات متاحة لسوبر أدمن المنصة فقط.', 'error');
     }
-  }, [currentPage, isBillingAdminDb, isBillingAdminLoading, workspace.showAlert, user]);
+  }, [currentPage, workspace.showAlert, user]);
 
   useEffect(() => {
     if (!user || auth.isLoading) return;
@@ -367,7 +363,6 @@ export default function App() {
           firmName={firmName}
           onFirmCodeCopied={(msg) => workspace.showAlert(msg, 'success')}
           isSuperAdmin={isSuperAdmin}
-          isBillingAdmin={isBillingAdmin}
         />
       )}
 
@@ -417,8 +412,7 @@ export default function App() {
             smsReportsEnabled={smsReportsEnabled}
             canSendClientReport={canSendClientReport}
             remindersEnabled={remindersEnabled}
-            isBillingAdmin={isBillingAdmin}
-            isBillingAdminLoading={isBillingAdminLoading}
+            isSuperAdmin={isSuperAdmin}
             currentUserLawyerId={currentUserLawyerId}
             stats={derived.stats}
             monthlyData={derived.monthlyData}

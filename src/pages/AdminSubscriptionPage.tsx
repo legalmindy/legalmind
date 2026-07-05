@@ -81,13 +81,15 @@ function ReceiptThumbnail({
 export function AdminSubscriptionPage({ onNotify }: AdminSubscriptionPageProps) {
   const queryClient = useQueryClient();
   const { refreshUser, user } = useAuth();
-  const { data: isBillingAdmin = false, isLoading: isCheckingAccess, refetch: refetchAccess } = useBillingAdmin(true);
+  const isSuperAdmin = user?.role === 'super_admin';
+  const { data: isBillingAdminDb = false, isLoading: isCheckingAccess, refetch: refetchAccess } = useBillingAdmin(isSuperAdmin);
+  const isBillingAdmin = isSuperAdmin && isBillingAdminDb;
 
   useEffect(() => {
-    if (isBillingAdmin && user?.role !== 'super_admin') {
+    if (isBillingAdminDb && user?.role !== 'super_admin') {
       void refreshUser();
     }
-  }, [isBillingAdmin, refreshUser, user?.role]);
+  }, [isBillingAdminDb, refreshUser, user?.role]);
   const { data: payments = [], isLoading: isLoadingPayments, isError, error, refetch } = useAdminPendingPayments(isBillingAdmin);
   const claimAdmin = useMutation({
     mutationFn: claimBillingAdminSetup,
@@ -151,6 +153,24 @@ export function AdminSubscriptionPage({ onNotify }: AdminSubscriptionPageProps) 
     return (
       <div className="flex justify-center py-24 text-[#7A1F2B]">
         <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 mt-10 text-right">
+        <div className="bg-white rounded-2xl border border-[#E8D5D8] shadow-sm overflow-hidden">
+          <div className="bg-[#7A1F2B] px-6 py-5 text-white">
+            <h1 className="text-xl font-black">قبول الاشتراكات — سوبر أدمن</h1>
+            <p className="text-xs text-white/80 mt-1">هذه الصفحة مخصصة لمسؤول منصة LegalMind فقط.</p>
+          </div>
+          <div className="p-8 space-y-5 text-center">
+            <p className="text-sm text-slate-600 leading-relaxed">
+              ليس لديك صلاحية الوصول إلى هذه الصفحة. تواصل مع مسؤول المنصة إذا كنت بحاجة للمساعدة.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }

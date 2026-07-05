@@ -112,6 +112,6 @@ export function isSuperAdminRole(role: string): boolean {
   return role === 'super_admin';
 }
 
-export function isBillingAdminAccess(role: string, isBillingAdminDb: boolean): boolean {
-  return isSuperAdminRole(role) || isBillingAdminDb;
+export function isBillingAdminAccess(role: string, _isBillingAdminDb?: boolean): boolean {
+  return isSuperAdminRole(role);
 }

@@ -141,6 +141,18 @@ function mapAuthError(error: AuthError): string {
     return 'رابط إعادة التوجيه غير مسموح. أضف https://www.legalmindyemen.com/reset-password في Supabase → Authentication → URL Configuration → Redirect URLs.';
   }
 
+  if (/friendly name|factor.*already exists|duplicate.*factor/i.test(raw)) {
+    return 'يوجد إعداد تحقق بخطوتين قيد الانتظار. أعد المحاولة — سيتم إلغاء الإعداد السابق تلقائياً.';
+  }
+
+  if (/invalid totp|totp code entered|mfa.*verify/i.test(raw)) {
+    return 'رمز التحقق غير صحيح. تأكد من مزامنة وقت جهازك واستخدام الرمز الحالي من تطبيق المصادقة.';
+  }
+
+  if (/mfa.*enroll|too many.*factor|maximum.*factor/i.test(raw)) {
+    return 'تعذر إنشاء عامل تحقق جديد. ألغِ التفعيل السابق من الإعدادات ثم أعد المحاولة.';
+  }
+
   if (/signup provisioning failed/i.test(raw)) {
     if (/firm code does not exist/i.test(raw)) {
       return 'كود المكتب غير موجود. تحقق من الكود مع مدير المكتب.';
@@ -825,6 +837,14 @@ async function buildAppUser(authUser: SupabaseUser): Promise<User | null> {
 }
 
 // ─── MFA / 2FA ────────────────────────────────────────────────
+async function cleanupUnverifiedMfaFactors(): Promise<void> {
+  const { data } = await supabase.auth.mfa.listFactors();
+  const pending = (data?.totp ?? []).filter((f: Factor) => f.status === 'unverified');
+  await Promise.all(
+    pending.map((factor) => supabase.auth.mfa.unenroll({ factorId: factor.id }))
+  );
+}
+
 async function checkMfaRequired(): Promise<{ needsMfa: boolean; factorId?: string }> {
   const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   if (error || !data) return { needsMfa: false };
@@ -838,8 +858,26 @@ async function checkMfaRequired(): Promise<{ needsMfa: boolean; factorId?: strin
 }
 
 export async function enrollMfa(): Promise<{ qrCode?: string; secret?: string; factorId?: string; error?: string }> {
-  const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'LegalMind Yemen' });
-  if (error) return { error: mapAuthError(error) };
+  await cleanupUnverifiedMfaFactors();
+
+  const friendlyName = `LegalMind-${Date.now()}`;
+  const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName });
+  if (error) {
+    if (/friendly name|factor.*already exists|duplicate.*factor/i.test(error.message ?? '')) {
+      await cleanupUnverifiedMfaFactors();
+      const retry = await supabase.auth.mfa.enroll({
+        factorType: 'totp',
+        friendlyName: `LegalMind-${Date.now()}`
+      });
+      if (retry.error) return { error: mapAuthError(retry.error) };
+      return {
+        qrCode: retry.data.totp.qr_code,
+        secret: retry.data.totp.secret,
+        factorId: retry.data.id
+      };
+    }
+    return { error: mapAuthError(error) };
+  }
   return {
     qrCode: data.totp.qr_code,
     secret: data.totp.secret,
@@ -848,26 +886,36 @@ export async function enrollMfa(): Promise<{ qrCode?: string; secret?: string; f
 }
 
 export async function verifyMfaEnrollment(factorId: string, code: string): Promise<AuthResult> {
+  const normalizedCode = code.replace(/\D/g, '').trim();
+  if (normalizedCode.length !== 6) {
+    return { success: false, error: 'أدخل رمزاً مكوناً من 6 أرقام.' };
+  }
+
   const challenge = await supabase.auth.mfa.challenge({ factorId });
   if (challenge.error) return { success: false, error: mapAuthError(challenge.error) };
 
   const verify = await supabase.auth.mfa.verify({
     factorId,
     challengeId: challenge.data.id,
-    code
+    code: normalizedCode
   });
   if (verify.error) return { success: false, error: mapAuthError(verify.error) };
   return { success: true };
 }
 
 export async function verifyMfaLogin(factorId: string, code: string): Promise<AuthResult> {
+  const normalizedCode = code.replace(/\D/g, '').trim();
+  if (normalizedCode.length !== 6) {
+    return { success: false, error: 'أدخل رمزاً مكوناً من 6 أرقام.' };
+  }
+
   const challenge = await supabase.auth.mfa.challenge({ factorId });
   if (challenge.error) return { success: false, error: mapAuthError(challenge.error) };
 
   const verify = await supabase.auth.mfa.verify({
     factorId,
     challengeId: challenge.data.id,
-    code
+    code: normalizedCode
   });
   if (verify.error) return { success: false, error: mapAuthError(verify.error) };
   return { success: true };

@@ -90,8 +90,8 @@ export const HeaderBar = memo(function HeaderBar({
   firmCode,
   firmName,
   onFirmCodeCopied,
-  isSuperAdmin: _isSuperAdmin = false,
-  isBillingAdmin = false
+  isSuperAdmin = false,
+  isBillingAdmin: _isBillingAdmin = false
 }: HeaderBarProps) {
   const unreadCount = useMemo(() => notifications.filter((item) => !item.read).length, [notifications]);
   const alertCount = useMemo(
@@ -242,7 +242,7 @@ export const HeaderBar = memo(function HeaderBar({
                   <CreditCard className="h-4 w-4 text-slate-400" />
                   <span>الباقة والفوترة</span>
                 </button>
-                {isBillingAdmin ? (
+                {isSuperAdmin ? (
                   <button
                     type="button"
                     onClick={() => {

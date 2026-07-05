@@ -4,17 +4,15 @@ import { FirmCodeCard } from '../../components/FirmCodeCard';
 import { PlatformBankSettings } from '../../components/PlatformBankSettings';
 import { SecurityEventsPanel } from '../../components/SecurityEventsPanel';
 import { SettingsToggleRow } from '../../components/SettingsToggleRow';
-import { useBillingAdmin } from '../../hooks/useBillingAdmin';
 import { useFirmProfile } from '../../hooks/useSupabaseQueries';
 import { useFirmSettings, useFirmSettingsMutations } from '../../hooks/useFirmSettings';
-import { claimBillingAdminSetup } from '../../lib/subscription';
 import type { Office, PageId } from '../../types/app';
 import type { SettingsPageProps } from './types';
 export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied, onNavigate }: SettingsPageProps) {
   const isAdmin = user.role === 'admin' || user.role === 'firm_manager' || user.role === 'super_admin';
+  const isSuperAdmin = user.role === 'super_admin';
   const { data: firmProfile } = useFirmProfile(isAdmin);
   const { data: firmSettings, isLoading: settingsLoading } = useFirmSettings(isAdmin);
-  const { data: isBillingAdmin = false, refetch: refetchBillingAdmin } = useBillingAdmin(isAdmin);
   const { updateSettings } = useFirmSettingsMutations();
   const firmCode = office?.firmCode ?? firmProfile?.officeCode;
   const firmName = office?.name ?? firmProfile?.officeName ?? user.company;
@@ -133,26 +131,10 @@ export function SettingsPage({ user, office, onSaveOffice, onFirmCodeCopied, onN
             {updateSettings.isPending ? 'جاري الحفظ...' : 'تحديث إعدادات الأمان'}
           </button>
         ) : null}
-        {isBillingAdmin ? (
+        {isSuperAdmin ? (
           <PlatformBankSettings
             onNotify={(message) => onFirmCodeCopied?.(message)}
           />
-        ) : isAdmin ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 space-y-2">
-            <p>لحفظ بيانات الحساب البنكي للاشتراكات، فعّل صلاحيات مدير المنصة أولاً.</p>
-            <button
-              type="button"
-              onClick={() => {
-                void claimBillingAdminSetup()
-                  .then(() => refetchBillingAdmin())
-                  .then(() => onFirmCodeCopied?.('تم تفعيل صلاحيات سوبر أدمن — يمكنك حفظ بيانات البنك الآن.'))
-                  .catch((err) => onFirmCodeCopied?.(err instanceof Error ? err.message : 'تعذر التفعيل.'));
-              }}
-              className="rounded-lg bg-amber-700 px-3 py-1.5 font-bold text-white"
-            >
-              تفعيل صلاحيات سوبر أدمن
-            </button>
-          </div>
         ) : null}
         {isAdmin ? <SecurityEventsPanel /> : null}
         {isAdmin ? (
