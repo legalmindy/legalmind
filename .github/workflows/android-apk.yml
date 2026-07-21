@@ -68,9 +68,22 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      - name: Build debug APK
+      - name: Clean build outputs
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew clean --no-daemon --stacktrace
+
+      - name: Build debug APK (full warnings surfaced)
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace --warning-mode all
+
+      - name: Validate release build path (R8/ProGuard/manifest only, not published)
+        # Distribution still uses the debug build (see keystore.properties.sample / prior decision
+        # to avoid committing a real release signing key to this public repo). This step only proves
+        # the release variant's manifest merge + R8/ProGuard shrinking succeed on their own, so any
+        # future switch to real release signing doesn't silently ship a broken build.
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace --warning-mode all
+        continue-on-error: true
 
       - name: Package release artifact
         id: prep
