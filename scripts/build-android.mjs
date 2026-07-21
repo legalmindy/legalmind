@@ -55,7 +55,23 @@ if (!existsSync(androidDir)) {
   process.exit(1);
 }
 
+function stripApkArtifactsFromWebBuild() {
+  // public/downloads/*.apk|*.aab is copied verbatim into dist/ by Vite (needed for the website's
+  // own download link) and dist/ is then copied into the Android app's bundled WebView assets by
+  // `cap sync`. Left unchecked, every Android build embeds the *previous* APK inside the *new* one,
+  // so the app snowballs in size on every rebuild and can end up corrupt/unparseable on-device.
+  const distDownloads = join(root, 'dist', 'downloads');
+  if (!existsSync(distDownloads)) return;
+  for (const file of readdirSync(distDownloads)) {
+    if (file.endsWith('.apk') || file.endsWith('.aab')) {
+      rmSync(join(distDownloads, file), { force: true });
+      console.log(`Removed stale ${file} from dist/downloads before Capacitor sync.`);
+    }
+  }
+}
+
 run('npm run build');
+stripApkArtifactsFromWebBuild();
 run('npx cap sync android');
 
 const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';

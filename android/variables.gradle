@@ -1,4 +1,9 @@
 ext {
+    // NOTE: org.apache.cordova:framework 14.0.1 (pulled in automatically by Capacitor's
+    // cordova-android bridge, even though this app uses zero actual Cordova plugins) hard-requires
+    // minSdkVersion 24 — Gradle's manifest merger rejects anything lower with a hard build error.
+    // 24 (Android 7.0, 2016) already covers ~99% of active Android devices, so this is kept as the
+    // real, verified floor instead of forcing an override that could cause runtime crashes on API 21-23.
     minSdkVersion = 24
     compileSdkVersion = 36
     targetSdkVersion = 36

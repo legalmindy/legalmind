@@ -32,6 +32,12 @@ jobs:
       - name: Build web assets
         run: npm run build
 
+      - name: Strip stale APK/AAB from web build before Capacitor sync
+        # public/downloads/*.apk is copied into dist/ by Vite for the website's own download link.
+        # If left in dist/, `cap sync` would embed the *previous* APK as a WebView asset inside the
+        # *new* one, snowballing app size every run and producing a corrupt/unparseable APK.
+        run: rm -f dist/downloads/*.apk dist/downloads/*.aab
+
       - name: Setup JDK 21
         uses: actions/setup-java@v4
         with:

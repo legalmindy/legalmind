@@ -1,5 +1,18 @@
 apply plugin: 'com.android.application'
 
+// Release signing is optional: it only activates when android/keystore.properties exists.
+// This keeps the real signing key out of the (public) git history — see android/keystore.properties.sample.
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+def keystoreProperties = new Properties()
+def hasReleaseSigning = keystorePropertiesFile.exists()
+if (hasReleaseSigning) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+    hasReleaseSigning = rootProject.file(keystoreProperties.getProperty('storeFile', '')).exists()
+}
+
+// Standard Android debug keystore location, generated automatically by the Android SDK/Gradle.
+def debugKeystoreFile = file(System.getProperty('user.home') + '/.android/debug.keystore')
+
 android {
     namespace = "com.legalmind.yemen"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -13,7 +26,41 @@ android {
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
-            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+            // *.apk/*.aab excluded as a safety net: public/downloads/ (copied into the web build's
+            // dist/ and then into these Android assets by `cap sync`) hosts the distributable APK for
+            // the website. Without this exclusion the previous APK gets embedded inside the next one,
+            // snowballing the app size on every rebuild (was the real cause behind corrupt/oversized
+            // APKs triggering "There was a problem parsing the package").
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:*.apk:*.aab'
+        }
+    }
+    signingConfigs {
+        debug {
+            // Explicit (not implicit) debug signing config so v1/v2/v3 are guaranteed enabled —
+            // relying on AGP's built-in default can silently disable v1, which breaks installs
+            // on devices below Android 7.0 (API 24) with "There was a problem parsing the package".
+            if (debugKeystoreFile.exists()) {
+                storeFile debugKeystoreFile
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+            enableV4Signing true
+        }
+        if (hasReleaseSigning) {
+            release {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+                enableV4Signing true
+            }
         }
     }
     buildTypes {
@@ -21,9 +68,13 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
         debug {
             minifyEnabled false
+            signingConfig signingConfigs.debug
         }
     }
 }
