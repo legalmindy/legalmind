@@ -4,7 +4,7 @@
   "releasedAt": "2026-07-21",
   "apkFileName": "legalmind-yemen-1.0.0.apk",
   "apkUrl": "/downloads/legalmind-yemen-1.0.0.apk",
-  "minAndroidSdk": 24,
+  "minAndroidSdk": 21,
   "changelog": [
     "إطلاق تطبيق LegalMind Yemen لنظام Android",
     "تجربة موحّدة مع الموقع — قضايا، عملاء، جلسات، مستندات",
