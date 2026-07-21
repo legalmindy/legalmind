@@ -1,11 +1,17 @@
 #!/usr/bin/env node
 /**
- * Build LegalMind Yemen Android artifacts (APK debug/release, AAB release).
+ * Build LegalMind Yemen Android artifacts and publish them to public/downloads
+ * so the /download page + in-app update checker always point at a real file.
+ *
  * Usage:
  *   node scripts/build-android.mjs [--debug|--release|--aab]
+ *
+ * Debug builds are signed automatically by the Android Gradle Plugin's default
+ * debug keystore, so the resulting APK installs on any device with "unknown
+ * sources" enabled — no extra signing setup required.
  */
 import { execSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,16 +24,30 @@ const mode = process.argv.includes('--aab')
   ? 'aab'
   : process.argv.includes('--debug')
     ? 'debug'
-    : 'release';
+    : process.argv.includes('--release')
+      ? 'release'
+      : 'debug';
 
 function run(cmd, opts = {}) {
   console.log(`\n> ${cmd}`);
-  execSync(cmd, { stdio: 'inherit', cwd: root, ...opts });
+  execSync(cmd, { stdio: 'inherit', cwd: root, shell: true, ...opts });
 }
 
 function readVersion() {
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf-8'));
   return pkg.version;
+}
+
+function versionCodeFor(version) {
+  const [major, minor, patch] = version.split('.').map((n) => Number(n) || 0);
+  return major * 100 + minor * 10 + patch;
+}
+
+function clearOldArtifacts(extension) {
+  mkdirSync(downloadsDir, { recursive: true });
+  for (const file of readdirSync(downloadsDir)) {
+    if (file.endsWith(extension)) rmSync(join(downloadsDir, file), { force: true });
+  }
 }
 
 if (!existsSync(androidDir)) {
@@ -38,36 +58,42 @@ if (!existsSync(androidDir)) {
 run('npm run build');
 run('npx cap sync android');
 
+const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
+const version = readVersion();
+const versionCode = versionCodeFor(version);
+
 if (mode === 'aab') {
-  run('cd android && ./gradlew bundleRelease');
-  const version = readVersion();
+  run(`${gradlew} bundleRelease`, { cwd: androidDir });
   const aabSrc = join(androidDir, 'app', 'build', 'outputs', 'bundle', 'release', 'app-release.aab');
-  mkdirSync(downloadsDir, { recursive: true });
+  clearOldArtifacts('.aab');
   const aabDest = join(downloadsDir, `legalmind-yemen-${version}.aab`);
   if (existsSync(aabSrc)) {
     cpSync(aabSrc, aabDest);
     console.log(`\nAAB copied to ${aabDest}`);
   }
-} else if (mode === 'debug') {
-  run(process.platform === 'win32' ? 'cd android && gradlew.bat assembleDebug' : 'cd android && ./gradlew assembleDebug');
-  const version = readVersion();
-  const apkSrc = join(androidDir, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
-  mkdirSync(downloadsDir, { recursive: true });
-  const apkDest = join(downloadsDir, `legalmind-yemen-${version}-debug.apk`);
+} else if (mode === 'release') {
+  run(`${gradlew} assembleRelease`, { cwd: androidDir });
+  const apkSrc = join(androidDir, 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
+  clearOldArtifacts('.apk');
+  const filename = `legalmind-yemen-${version}.apk`;
+  const apkDest = join(downloadsDir, filename);
   if (existsSync(apkSrc)) {
     cpSync(apkSrc, apkDest);
-    console.log(`\nDebug APK copied to ${apkDest}`);
+    run(`node scripts/update-release-manifest.mjs ${version} ${versionCode} ${filename}`);
+    console.log(`\nRelease APK published to ${apkDest}`);
+    console.log('NOTE: release builds need a real signingConfig in android/app/build.gradle before this APK can be installed.');
   }
 } else {
-  run(process.platform === 'win32' ? 'cd android && gradlew.bat assembleRelease' : 'cd android && ./gradlew assembleRelease');
-  const version = readVersion();
-  const apkSrc = join(androidDir, 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
-  mkdirSync(downloadsDir, { recursive: true });
-  const apkDest = join(downloadsDir, `legalmind-yemen-${version}.apk`);
+  run(`${gradlew} assembleDebug`, { cwd: androidDir });
+  const apkSrc = join(androidDir, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+  clearOldArtifacts('.apk');
+  const filename = `legalmind-yemen-${version}.apk`;
+  const apkDest = join(downloadsDir, filename);
   if (existsSync(apkSrc)) {
     cpSync(apkSrc, apkDest);
-    console.log(`\nRelease APK copied to ${apkDest}`);
-    console.log('Update public/app-release.json with the new version and apkUrl.');
+    run(`node scripts/update-release-manifest.mjs ${version} ${versionCode} ${filename}`);
+    console.log(`\nDebug APK published to ${apkDest} and public/app-release.json updated.`);
+    console.log('Commit + push public/downloads and public/app-release.json to publish it on the website.');
   }
 }
 
