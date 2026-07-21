@@ -1,5 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Capacitor 8 / cordova-android and the Capacitor plugins below officially require
+      minSdkVersion 24 and would normally fail the manifest merge against our lower
+      minSdkVersion (see android/variables.gradle). overrideLibrary force-resolves that
+      conflict so the app keeps installing on Android 5.0+ (API 21) devices.
+      This is unsupported upstream: watch for crashes on API 21-23 devices using these APIs.
+    -->
+    <uses-sdk tools:overrideLibrary="org.apache.cordova,
+        com.getcapacitor.android,
+        com.capacitorjs.plugins.app,
+        com.capacitorjs.plugins.camera,
+        com.capacitorjs.plugins.clipboard,
+        com.capacitorjs.plugins.filesystem,
+        com.capacitorjs.plugins.keyboard,
+        com.capacitorjs.plugins.network,
+        com.capacitorjs.plugins.preferences,
+        com.capacitorjs.plugins.share,
+        com.capacitorjs.plugins.splashscreen,
+        com.capacitorjs.plugins.statusbar" />
 
     <application
         android:allowBackup="false"
