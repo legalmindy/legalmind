@@ -21,7 +21,17 @@
         com.capacitorjs.plugins.share,
         com.capacitorjs.plugins.splashscreen,
         com.capacitorjs.plugins.statusbar,
-        io.ionic.libs.ioncameralib" />
+        io.ionic.libs.ioncameralib,
+        io.ionic.libs.ionfilesystemlib,
+        io.ionic.libs.ionsharelib,
+        io.ionic.libs.ionclipboardlib,
+        io.ionic.libs.ionpreferenceslib,
+        io.ionic.libs.ionnetworklib,
+        io.ionic.libs.ionkeyboardlib,
+        io.ionic.libs.ionstatusbarlib,
+        io.ionic.libs.ionsplashscreenlib,
+        io.ionic.libs.ionapplib,
+        io.ionic.libs.ionpermissionslib" />
 
     <application
         android:allowBackup="false"
