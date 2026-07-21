@@ -84,6 +84,12 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon --stacktrace --warning-mode all
 
+      - name: Debug - locate actual debug keystore file
+        run: |
+          echo "Expected path: $DEBUG_KEYSTORE_PATH"
+          ls -la "$HOME/.android/" 2>&1 || echo "$HOME/.android does not exist"
+          find / -xdev -iname "debug.keystore" 2>/dev/null || true
+
       - name: Validate release build path (R8/ProGuard/manifest only, not published)
         # Distribution still uses the debug build (see keystore.properties.sample / prior decision
         # to avoid committing a real release signing key to this public repo). This step only proves
