@@ -26,13 +26,18 @@ export async function initNativeApp(): Promise<void> {
   }
 
   applyColorScheme();
+  if (typeof window.matchMedia !== 'undefined') {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyColorScheme);
+  }
 
   window.setTimeout(() => {
     void SplashScreen.hide({ fadeOutDuration: 400 });
   }, 600);
 }
 
+/** Dark mode is a native-app-only feature; the website always keeps its original light design. */
 export function applyColorScheme(): void {
+  if (!Capacitor.isNativePlatform()) return;
   const dark = prefersDarkMode();
   document.documentElement.classList.toggle('dark', dark);
   document.documentElement.style.colorScheme = dark ? 'dark' : 'light';

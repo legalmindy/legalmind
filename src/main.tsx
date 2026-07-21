@@ -8,7 +8,7 @@ import { queryClient } from './lib/queryClient';
 import App from './App';
 import './styles/index.css';
 import { reportWebVitals } from './lib/monitoring';
-import { initNativeApp, applyColorScheme } from './lib/platform/initNativeApp';
+import { initNativeApp } from './lib/platform/initNativeApp';
 import { isNativeApp } from './lib/platform';
 
 async function loadFonts() {
@@ -30,11 +30,6 @@ async function loadFonts() {
 }
 
 async function bootstrap() {
-  applyColorScheme();
-  if (typeof window.matchMedia !== 'undefined') {
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyColorScheme);
-  }
-
   await Promise.all([loadFonts(), initNativeApp()]);
   reportWebVitals();
 
