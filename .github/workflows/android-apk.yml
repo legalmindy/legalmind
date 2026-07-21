@@ -50,16 +50,24 @@ jobs:
       - name: Install Android SDK platform & build-tools
         run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0" > /dev/null
 
+      - name: Resolve debug keystore path
+        # actions/cache does not expand "~" (confirmed via CI log: "Path Validation Error: Path(s)
+        # specified in the action for caching do(es) not exist, hence no cache is being saved" — the
+        # cache below was a silent no-op every run despite looking correctly configured, so every
+        # build kept signing with a brand new random debug cert). Resolve $HOME to an absolute path
+        # first and reuse that for both the cache step and mkdir below.
+        run: echo "DEBUG_KEYSTORE_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
+
       - name: Restore persistent debug keystore
-        # GitHub-hosted runners are ephemeral: with no cache, every run's ~/.android/debug.keystore
-        # would be freshly (re)generated with a *different* random signing certificate. Installing a
-        # newer APK signed with a different cert over an already-installed older one is rejected by
+        # GitHub-hosted runners are ephemeral: with no cache, every run's debug.keystore would be
+        # freshly (re)generated with a *different* random signing certificate. Installing a newer
+        # APK signed with a different cert over an already-installed older one is rejected by
         # Android (surfaces to users as "There was a problem parsing the package"). Caching the
         # keystore with a static key makes every build share the same debug signing identity so
         # users can always update in place.
         uses: actions/cache@v4
         with:
-          path: ~/.android/debug.keystore
+          path: ${{ env.DEBUG_KEYSTORE_PATH }}
           key: android-debug-keystore-v1
 
       - name: Sync Capacitor Android project
