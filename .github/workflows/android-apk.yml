@@ -52,11 +52,13 @@ jobs:
 
       - name: Resolve debug keystore path
         # actions/cache does not expand "~" (confirmed via CI log: "Path Validation Error: Path(s)
-        # specified in the action for caching do(es) not exist, hence no cache is being saved" — the
-        # cache below was a silent no-op every run despite looking correctly configured, so every
-        # build kept signing with a brand new random debug cert). Resolve $HOME to an absolute path
-        # first and reuse that for both the cache step and mkdir below.
-        run: echo "DEBUG_KEYSTORE_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
+        # specified in the action for caching do(es) not exist, hence no cache is being saved"), and
+        # the real file this AGP/Gradle version generates lives under the XDG-style
+        # ~/.config/.android/ path, not the classic ~/.android/ path (confirmed via a diagnostic
+        # `find / -iname debug.keystore` run on the actual GitHub-hosted runner) — so the cache was a
+        # silent no-op every run on both counts, and every build kept signing with a brand new random
+        # debug cert. Resolve $HOME to an absolute path first and reuse it for the cache step.
+        run: echo "DEBUG_KEYSTORE_PATH=$HOME/.config/.android/debug.keystore" >> "$GITHUB_ENV"
 
       - name: Restore persistent debug keystore
         # GitHub-hosted runners are ephemeral: with no cache, every run's debug.keystore would be
@@ -68,7 +70,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.DEBUG_KEYSTORE_PATH }}
-          key: android-debug-keystore-v1
+          key: android-debug-keystore-v2
 
       - name: Sync Capacitor Android project
         run: npx cap sync android
@@ -83,12 +85,6 @@ jobs:
       - name: Build debug APK (full warnings surfaced)
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon --stacktrace --warning-mode all
-
-      - name: Debug - locate actual debug keystore file
-        run: |
-          echo "Expected path: $DEBUG_KEYSTORE_PATH"
-          ls -la "$HOME/.android/" 2>&1 || echo "$HOME/.android does not exist"
-          find / -xdev -iname "debug.keystore" 2>/dev/null || true
 
       - name: Validate release build path (R8/ProGuard/manifest only, not published)
         # Distribution still uses the debug build (see keystore.properties.sample / prior decision
