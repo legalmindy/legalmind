@@ -20,7 +20,8 @@
         com.capacitorjs.plugins.preferences,
         com.capacitorjs.plugins.share,
         com.capacitorjs.plugins.splashscreen,
-        com.capacitorjs.plugins.statusbar" />
+        com.capacitorjs.plugins.statusbar,
+        io.ionic.libs.ioncameralib" />
 
     <application
         android:allowBackup="false"
