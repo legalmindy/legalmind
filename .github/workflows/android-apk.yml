@@ -50,6 +50,18 @@ jobs:
       - name: Install Android SDK platform & build-tools
         run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0" > /dev/null
 
+      - name: Restore persistent debug keystore
+        # GitHub-hosted runners are ephemeral: with no cache, every run's ~/.android/debug.keystore
+        # would be freshly (re)generated with a *different* random signing certificate. Installing a
+        # newer APK signed with a different cert over an already-installed older one is rejected by
+        # Android (surfaces to users as "There was a problem parsing the package"). Caching the
+        # keystore with a static key makes every build share the same debug signing identity so
+        # users can always update in place.
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-v1
+
       - name: Sync Capacitor Android project
         run: npx cap sync android
 
