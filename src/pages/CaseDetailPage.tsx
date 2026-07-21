@@ -35,7 +35,7 @@ import { createReceiptVoucher, fetchCaseReceipts, reprintReceiptVoucher } from '
 import { hasPermission, fetchMyPermissions } from '../lib/permissions';
 import { isFirmManagerRole } from '../lib/roleAccess';
 import { consumeCaseDetailTab } from '../lib/appRoutes';
-import { printReceiptElement, ReceiptVoucherPrint } from '../components/case/ReceiptVoucherPrint';
+import { printReceiptVoucher, ReceiptVoucherPrint } from '../components/case/ReceiptVoucherPrint';
 import { CaseExportToolbar } from '../components/case/CaseExportToolbar';
 import { RichTextContent } from '../components/ui/RichTextEditor';
 import { toArabicQueryError } from '../components/QueryErrorBanner';
@@ -561,7 +561,7 @@ export function CaseDetailPage({
                     voucher={activeVoucher}
                     firmName={firmName}
                     onPrint={() => {
-                      printReceiptElement();
+                      printReceiptVoucher(activeVoucher, firmName);
                       void reprintReceiptVoucher(activeVoucher.id);
                     }}
                   />

@@ -4,7 +4,7 @@ import { Loader2, Plus, Printer, X } from 'lucide-react';
 import type { CaseRecord, ReceiptVoucher } from '../types/app';
 import { addCasePayment, fetchCaseFinancialSummary, fetchCasePayments } from '../lib/caseFinancials';
 import { createReceiptVoucher, fetchCaseReceipts } from '../lib/receiptVoucher';
-import { printReceiptElement, ReceiptVoucherPrint } from './case/ReceiptVoucherPrint';
+import { printReceiptVoucher, ReceiptVoucherPrint } from './case/ReceiptVoucherPrint';
 import { toArabicQueryError } from './QueryErrorBanner';
 
 interface ReceiptVoucherModalProps {
@@ -218,7 +218,7 @@ export function ReceiptVoucherModal({
               <ReceiptVoucherPrint
                 voucher={voucher}
                 firmName={firmName}
-                onPrint={printReceiptElement}
+                onPrint={() => printReceiptVoucher(voucher, firmName)}
               />
               <div className="flex gap-2 justify-end">
                 <button

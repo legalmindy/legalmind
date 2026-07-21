@@ -1,12 +1,17 @@
 import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Briefcase, Lock, Plus, Printer, Trash2, TrendingUp, TrendingDown, Wallet, ChevronDown, ChevronUp, FileSpreadsheet, Loader2, Receipt } from 'lucide-react';
 import { buildFinancialReport, formatPercent, formatYer } from '../../lib/dashboardAnalytics';
 import { exportToCsv, printHtml } from '../../lib/reportsApi';
 import { escapeHtml } from '../../lib/sanitize';
 import { hasPermission } from '../../lib/permissions';
 import { isFirmManagerRole } from '../../lib/roleAccess';
-import { useArchivedCases, useExpenses, useExpenseMutations, useReceiptVouchers } from '../../hooks/useSupabaseQueries';
+import { queryKeys, useArchivedCases, useExpenses, useExpenseMutations, useReceiptVouchers } from '../../hooks/useSupabaseQueries';
 import { ReceiptVoucherModal } from '../../components/ReceiptVoucherModal';
+import { printReceiptVoucher } from '../../components/case/ReceiptVoucherPrint';
+import { reprintReceiptVoucher } from '../../lib/receiptVoucher';
+import { toArabicQueryError } from '../../components/QueryErrorBanner';
+import type { ReceiptVoucher } from '../../types/app';
 import type { ReportsPageProps } from './types';
 
 const EXPENSE_CATS = [
@@ -39,6 +44,7 @@ function formatVoucherDateTime(iso: string): string {
 }
 
 export function ReportsPage({ role, permissions, performance, cases, year: propYear, firmName = 'المكتب' }: ReportsPageProps) {
+  const queryClient = useQueryClient();
   const canViewFinancials = hasPermission(permissions, 'financials.view', role);
   const canAddPayments = hasPermission(permissions, 'financials.add_payments', role);
   const canPrintReports = hasPermission(permissions, 'financials.print_receipts', role) || canViewFinancials;
@@ -56,11 +62,30 @@ export function ReportsPage({ role, permissions, performance, cases, year: propY
   const [deleteError, setDeleteError] = useState('');
   const [exporting, setExporting] = useState<'pdf' | 'excel' | null>(null);
   const [printError, setPrintError] = useState('');
+  const [printingVoucherId, setPrintingVoucherId] = useState<string | null>(null);
 
   const { data: archivedCases = [] } = useArchivedCases(true);
   const { data: expenses = [], isLoading: expLoading } = useExpenses(true);
   const { data: receiptVouchers = [], isLoading: vouchersLoading } = useReceiptVouchers(selectedYear, true);
   const expMutations = useExpenseMutations();
+
+  const handlePrintVoucher = async (voucher: ReceiptVoucher) => {
+    if (!canPrintReports) {
+      setPrintError('ليس لديك صلاحية طباعة سندات القبض.');
+      return;
+    }
+    setPrintError('');
+    setPrintingVoucherId(voucher.id);
+    try {
+      printReceiptVoucher(voucher, firmName);
+      await reprintReceiptVoucher(voucher.id);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.receiptVouchers(selectedYear) });
+    } catch (err) {
+      setPrintError(toArabicQueryError(err, 'طباعة السند'));
+    } finally {
+      setPrintingVoucherId(null);
+    }
+  };
 
   const handleDeleteExpense = async (id: string) => {
     if (!window.confirm('حذف هذا المصروف؟')) return;
@@ -383,13 +408,16 @@ export function ReportsPage({ role, permissions, performance, cases, year: propY
                   <th className="px-4 py-3 font-extrabold text-slate-500 text-right">التاريخ والوقت</th>
                   <th className="px-4 py-3 font-extrabold text-slate-500 text-right">طريقة الدفع</th>
                   <th className="px-4 py-3 font-extrabold text-slate-500 text-left font-mono">المبلغ</th>
+                  {canPrintReports ? (
+                    <th className="px-4 py-3 font-extrabold text-slate-500 text-center">طباعة</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {receiptVouchers.map((v) => (
                   <tr key={v.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="px-4 py-3">
-                      <span className="font-mono font-black text-indigo-800">{v.receiptNumber}</span>
+                      <span className="font-mono font-black text-[#7A1F2B]">{v.receiptNumber}</span>
                       {v.reprintCount > 0 ? (
                         <span className="mr-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
                           إعادة طباعة ×{v.reprintCount}
@@ -406,6 +434,24 @@ export function ReportsPage({ role, permissions, performance, cases, year: propY
                       <span className="bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded-lg">{v.paymentMethod ?? '—'}</span>
                     </td>
                     <td className="px-4 py-3 text-left font-mono font-black text-emerald-700">{formatYer(v.amount)}</td>
+                    {canPrintReports ? (
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          type="button"
+                          title={`طباعة ${v.receiptNumber}`}
+                          disabled={printingVoucherId === v.id}
+                          onClick={() => void handlePrintVoucher(v)}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-[#7A1F2B]/20 bg-[#7A1F2B]/5 px-3 py-1.5 text-[11px] font-bold text-[#7A1F2B] transition-colors hover:bg-[#7A1F2B] hover:text-white disabled:opacity-60"
+                        >
+                          {printingVoucherId === v.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Printer className="h-3.5 w-3.5" />
+                          )}
+                          طباعة
+                        </button>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
@@ -413,6 +459,7 @@ export function ReportsPage({ role, permissions, performance, cases, year: propY
                 <tr className="bg-emerald-50 border-t-2 border-emerald-100">
                   <td colSpan={5} className="px-4 py-3 font-extrabold text-emerald-800 text-sm">إجمالي السندات ({receiptVouchers.length})</td>
                   <td className="px-4 py-3 text-left font-mono font-black text-emerald-800 text-sm">{formatYer(vouchersTotal)}</td>
+                  {canPrintReports ? <td /> : null}
                 </tr>
               </tfoot>
             </table>
