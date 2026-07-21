@@ -30,7 +30,19 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Build web assets
-        run: npm run build
+        # Vite bakes VITE_* into the JS bundle at build time. Without these, the APK ships with
+        # empty Supabase config and the app shows "إعداد Supabase مطلوب" on first launch.
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_APP_URL: ${{ secrets.VITE_APP_URL }}
+        run: |
+          set -e
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+            echo "::error::Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY GitHub Actions secrets."
+            exit 1
+          fi
+          npm run build
 
       - name: Strip stale APK/AAB from web build before Capacitor sync
         # public/downloads/*.apk is copied into dist/ by Vite for the website's own download link.
