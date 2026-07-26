@@ -98,47 +98,7 @@ on conflict (id) do update set
   allowed_mime_types = excluded.allowed_mime_types;
 
 -- ─── Permission helpers for financial actions ──────────────────────────────────
-create or replace function private.can_view_case_financials(target_case_id uuid default null)
-returns boolean
-language sql
-stable
-security definer
-set search_path = private, public
-as $$
-  select
-    private.is_firm_subscription_active()
-    and (
-      private.is_office_admin()
-      or private.get_current_role() = 'assistant'
-      or private.has_permission('financials.view')
-      or (
-        target_case_id is not null
-        and private.can_access_case(target_case_id)
-        and (
-          private.has_permission('financials.view')
-          or private.get_current_role() in ('lawyer', 'firm_manager', 'admin', 'super_admin')
-        )
-      )
-    );
-$$;
-
-create or replace function private.can_manage_case_financials(target_case_id uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = private, public
-as $$
-  select
-    private.is_firm_subscription_active()
-    and private.can_access_case(target_case_id)
-    and (
-      private.is_office_admin()
-      or private.has_permission('financials.add_payments')
-    );
-$$;
-
--- Stub until 061 seeds permissions — maps legacy roles
+-- Stub until 061 seeds permissions — maps legacy roles (must precede can_* SQL helpers)
 create or replace function private.has_permission(perm_key text)
 returns boolean
 language plpgsql
@@ -182,6 +142,46 @@ begin
     else private.is_office_admin()
   end;
 end;
+$$;
+
+create or replace function private.can_view_case_financials(target_case_id uuid default null)
+returns boolean
+language sql
+stable
+security definer
+set search_path = private, public
+as $$
+  select
+    private.is_firm_subscription_active()
+    and (
+      private.is_office_admin()
+      or private.get_current_role() = 'assistant'
+      or private.has_permission('financials.view')
+      or (
+        target_case_id is not null
+        and private.can_access_case(target_case_id)
+        and (
+          private.has_permission('financials.view')
+          or private.get_current_role() in ('lawyer', 'firm_manager', 'admin', 'super_admin')
+        )
+      )
+    );
+$$;
+
+create or replace function private.can_manage_case_financials(target_case_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = private, public
+as $$
+  select
+    private.is_firm_subscription_active()
+    and private.can_access_case(target_case_id)
+    and (
+      private.is_office_admin()
+      or private.has_permission('financials.add_payments')
+    );
 $$;
 
 -- ─── RLS: case_payments ───────────────────────────────────────────────────────
