@@ -121,6 +121,12 @@ function mapAuthError(error: AuthError): string {
     if (/previous membership request was rejected/i.test(raw)) {
       return 'تم رفض طلب انضمامك سابقاً لهذا المكتب. اطلب دعوة جديدة من مالك المكتب.';
     }
+    if (/firm code does not exist|invalid firm code|role not found/i.test(raw)) {
+      return 'كود المكتب أو نوع الصلاحية غير صالح. تحقق من البيانات مع مدير المكتب.';
+    }
+    if (/profile_role_enum|employee_role_enum|cannot cast|type mismatch/i.test(raw)) {
+      return 'تعذر إكمال الحساب بسبب إعدادات قاعدة البيانات. تواصل مع الدعم بعد تطبيق آخر التحديثات.';
+    }
     return 'تعذر إنشاء الحساب. تأكد أن البريد غير مستخدم مسبقاً، ثم أعد المحاولة أو تواصل مع مدير المكتب.';
   }
 
