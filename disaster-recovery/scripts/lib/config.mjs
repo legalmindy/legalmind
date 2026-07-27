@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '../..');
+const ROOT = path.resolve(__dirname, '../../..');
 
 function parseEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -68,7 +68,7 @@ export function loadDrConfig() {
   if (!config.supabase.url) {
     console.warn('[DR] SUPABASE_URL missing — sync will be disabled until configured.');
   }
-  if (!config.supabase.serviceRoleKey) {
+  if (!config.supabase.serviceRoleKey && process.env.DR_REQUIRE_SERVICE_ROLE === '1') {
     console.warn('[DR] SUPABASE_SERVICE_ROLE_KEY missing — sync requires service role.');
   }
 

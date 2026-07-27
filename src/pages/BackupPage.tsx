@@ -201,8 +201,22 @@ export function BackupPage() {
         </div>
       </div>
 
-      {message ? <p className="rounded-xl bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800">{message}</p> : null}
+      {message ? <p className="rounded-xl bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800 whitespace-pre-wrap">{message}</p> : null}
       {error ? <p className="rounded-xl bg-rose-50 px-4 py-3 text-xs font-bold text-rose-700">{error}</p> : null}
+
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-xs text-slate-700 space-y-2">
+        <h2 className="text-sm font-black text-slate-900">التعافي من الكوارث (محلي)</h2>
+        <p>
+          النسخ الاحتياطي الدائم يعمل على PostgreSQL المحلي <code className="font-mono">legalmind_backup</code> مع مزامنة تلقائية من
+          Supabase، ونسخ ليلية في <code className="font-mono">D:\LegalMind_Backups</code>.
+        </p>
+        <ul className="list-disc pr-5 space-y-1 text-slate-600">
+          <li>لوحة الحالة: <code className="font-mono">D:\LegalMind_Backups\dashboard.html</code></li>
+          <li>تشغيل المزامنة: <code className="font-mono">npm run dr:sync</code></li>
+          <li>نسخة ليلية فورية: <code className="font-mono">npm run dr:backup</code></li>
+          <li>استعادة لمشروع جديد: <code className="font-mono">npm run dr:restore -- --source …</code></li>
+        </ul>
+      </div>
     </div>
   );
 }

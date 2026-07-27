@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { createClient } from '@supabase/supabase-js';
+import { fileURLToPath } from 'node:url';
 import { loadDrConfig, ensureDirs, localConnEnv } from './lib/config.mjs';
 
 function psqlJson(config, sql) {
@@ -43,12 +43,18 @@ async function main() {
   }
 
   let supabaseOk = false;
-  if (config.supabase.url && config.supabase.serviceRoleKey) {
-    const supabase = createClient(config.supabase.url, config.supabase.serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false }
+  try {
+    const tmp = path.join(process.env.TEMP || 'C:\\Users\\Public', `lm-dash-ping-${Date.now()}.sql`);
+    fs.writeFileSync(tmp, 'select 1 as ok;');
+    const res = spawnSync('npx', ['supabase', 'db', 'query', '--linked', '-f', tmp], {
+      encoding: 'utf8',
+      shell: true,
+      cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
     });
-    const { error } = await supabase.from('firms').select('id').limit(1);
-    supabaseOk = !error;
+    supabaseOk = res.status === 0 && /"ok"\s*:\s*1|"ok":1/.test(res.stdout || '');
+    try { fs.unlinkSync(tmp); } catch { /* ignore */ }
+  } catch {
+    supabaseOk = false;
   }
 
   const syncState = psqlJson(

@@ -33,11 +33,15 @@ function run(cmd, args, env) {
 function psqlAdmin(config, sql, database = 'postgres') {
   const res = spawnSync(
     config.local.psqlPath,
-    ['-h', config.local.host, '-p', String(config.local.port), '-U', config.local.user, '-d', database, '-v', 'ON_ERROR_STOP=1', '-c', sql],
+    ['-h', config.local.host, '-p', String(config.local.port), '-U', config.local.user, '-d', database, '-tAc', sql],
     { env: localConnEnv(config), encoding: 'utf8' }
   );
   if (res.status !== 0) throw new Error(res.stderr || res.stdout || 'psql failed');
-  return (res.stdout || '').trim();
+  return (res.stdout || '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !/^INSERT\b/i.test(l) && !/^UPDATE\b/i.test(l) && !/^DELETE\b/i.test(l) && !/^-+$/i.test(l) && !/^\(/i.test(l) && l !== 'id')
+    [0] || '';
 }
 
 async function main() {

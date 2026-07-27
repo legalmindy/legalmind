@@ -29,7 +29,11 @@ function psql(config, sql) {
     { env: localConnEnv(config), encoding: 'utf8' }
   );
   if (res.status !== 0) throw new Error(res.stderr || res.stdout || 'psql failed');
-  return (res.stdout || '').trim();
+  return (res.stdout || '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !/^INSERT\b/i.test(l) && !/^UPDATE\b/i.test(l) && !/^DELETE\b/i.test(l))
+    [0] || '';
 }
 
 function verifyDumpIntegrity(config, dumpPath, sqlPath) {
@@ -139,8 +143,6 @@ async function main() {
     );
 
     const integrity = verifyDumpIntegrity(config, dumpPath, sqlPath);
-    compressZip([dumpPath, sqlPath, metaPath], zipPath);
-    // write integrity before zip — rewrite zip if needed
     fs.writeFileSync(metaPath, JSON.stringify(integrity, null, 2));
     compressZip([dumpPath, sqlPath, metaPath], zipPath);
 
