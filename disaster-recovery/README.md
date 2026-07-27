@@ -53,6 +53,18 @@ npm run dr:restore -- --source ....dump --database-url "postgresql://postgres:..
 npm run dr:test
 ```
 
+9. Storage backup / restore check / settings export / orphan audit:
+
+```bash
+npm run dr:storage-backup
+npm run dr:storage-restore -- --dry-run
+npm run dr:export-settings
+npm run dr:orphan-audit
+```
+
+Full cutover steps: [DISASTER_RECOVERY_CHECKLIST.md](./DISASTER_RECOVERY_CHECKLIST.md)  
+Latest readiness verdict: [FINAL_REPORT.md](./FINAL_REPORT.md)
+
 ## Safety guarantees
 
 - Never runs `DROP DATABASE` / `DROP SCHEMA` / `TRUNCATE` without explicit flags and protected-name checks.
@@ -60,6 +72,7 @@ npm run dr:test
 - Sync failures retry via `dr.sync_outbox` with exponential backoff and durable logs in `D:\LegalMind_Backups\logs\sync.jsonl`.
 - Sync inventory is taken from the **local** backup DB (avoids empty remote discovery / CLI races).
 - Supabase CLI calls are serialized with a lock file under `D:\LegalMind_Backups\sync\`.
+- Storage backup is read-only on production; orphans are reported, never auto-deleted.
 
 See also: [MIGRATION_NOTES.md](./MIGRATION_NOTES.md) (explains the 051→053 numbering gap).
 
@@ -67,16 +80,24 @@ See also: [MIGRATION_NOTES.md](./MIGRATION_NOTES.md) (explains the 051→053 num
 
 ```
 disaster-recovery/
+  DISASTER_RECOVERY_CHECKLIST.md
+  FINAL_REPORT.md
+  PROJECT_SETTINGS_EXPORT.md
+  STORAGE_ORPHAN_AUDIT.md
   sql/000_local_bootstrap.sql
   scripts/
     setup-local.ps1
     apply-migrations.mjs
     sync-service.mjs
     nightly-backup.mjs
+    storage-backup.mjs
+    storage-restore.mjs
+    export-project-settings.mjs
+    orphan-storage-audit.mjs
     restore-to-new-project.mjs
     test-dr-restore.mjs
     dr-dashboard-status.mjs
     install-windows-tasks.ps1
 D:\LegalMind_Backups\
-  nightly/  logs/  sync/  archive/  dashboard.html
+  nightly/  logs/  sync/  archive/  storage/  dashboard.html
 ```
