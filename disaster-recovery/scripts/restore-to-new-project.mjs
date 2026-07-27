@@ -24,8 +24,13 @@ function hasFlag(name) {
   return process.argv.includes(name);
 }
 
-function run(cmd, args, env) {
+function runRestore(cmd, args, env) {
   const res = spawnSync(cmd, args, { env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  return res;
+}
+
+function run(cmd, args, env) {
+  const res = runRestore(cmd, args, env);
   if (res.status !== 0) throw new Error(`${cmd} ${args.join(' ')} => ${res.stderr || res.stdout}`);
   return res;
 }
@@ -90,25 +95,22 @@ async function main() {
     }
 
     const env = localConnEnv(config);
+    let restoreWarnings = null;
     if (source.endsWith('.dump') || source.endsWith('.backup')) {
-      const args = ['-v', '--no-owner', '--no-acl', '-d', databaseUrl || targetDb];
-      if (!databaseUrl) {
-        args.push('-h', config.local.host, '-p', String(config.local.port), '-U', config.local.user);
-      }
-      args.push(source);
-      // pg_restore -d with URL: use connection URI as -d value
-      if (databaseUrl) {
-        run(config.local.pgRestorePath, ['-v', '--no-owner', '--no-acl', '-d', databaseUrl, source], env);
-      } else {
-        run(
-          config.local.pgRestorePath,
-          [
-            '-v', '--no-owner', '--no-acl',
-            '-h', config.local.host, '-p', String(config.local.port),
-            '-U', config.local.user, '-d', targetDb, source
-          ],
-          env
-        );
+      // pg_restore often exits non-zero for ignorable ACL/role warnings; verify via table count below.
+      const restoreRes = databaseUrl
+        ? runRestore(config.local.pgRestorePath, ['-v', '--no-owner', '--no-acl', '-d', databaseUrl, source], env)
+        : runRestore(
+            config.local.pgRestorePath,
+            [
+              '-v', '--no-owner', '--no-acl',
+              '-h', config.local.host, '-p', String(config.local.port),
+              '-U', config.local.user, '-d', targetDb, source
+            ],
+            env
+          );
+      if (restoreRes.status !== 0) {
+        restoreWarnings = (restoreRes.stderr || restoreRes.stdout || '').slice(-2000);
       }
     } else if (source.endsWith('.sql')) {
       if (databaseUrl) {
@@ -130,15 +132,26 @@ async function main() {
 
     // Integrity: count relations in target
     let tableCount = 'n/a';
+    let publicCount = 'n/a';
     if (!databaseUrl) {
       tableCount = psqlAdmin(
         config,
         `select count(*) from pg_tables where schemaname in ('public','private','storage','auth','dr')`,
         targetDb
       );
+      publicCount = psqlAdmin(
+        config,
+        `select count(*) from pg_tables where schemaname='public'`,
+        targetDb
+      );
+      if (Number(publicCount) < 1) {
+        throw new Error(
+          `Restore produced no public tables (pg_restore warnings: ${restoreWarnings?.slice(0, 400) || 'none'})`
+        );
+      }
     }
 
-    const detail = { tableCount, targetDb, source };
+    const detail = { tableCount, publicCount, targetDb, source, restoreWarnings: restoreWarnings ? true : false };
     psqlAdmin(
       config,
       `update dr.restore_runs set finished_at=now(), status='ok', integrity_ok=true,

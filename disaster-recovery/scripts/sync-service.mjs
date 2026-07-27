@@ -52,8 +52,8 @@ function localPsql(config, sql) {
     process.env.TEMP || config.paths.sync,
     `lm-local-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.sql`
   );
-  // UTF-8 no BOM — critical for Arabic enums/check constraints on Windows
-  fs.writeFileSync(tmp, `set client_encoding to 'UTF8';\n${sql}\n`, { encoding: 'utf8' });
+  // UTF-8 with BOM helps Windows psql honor Unicode for Arabic enums
+  fs.writeFileSync(tmp, `\uFEFFset client_encoding to 'UTF8';\n${sql}\n`, { encoding: 'utf8' });
   const res = spawnSync(
     config.local.psqlPath,
     [
@@ -168,17 +168,24 @@ function remoteQuery(config, sqlText) {
       let err = '';
       try { out = fs.readFileSync(outFile, 'utf8'); } catch { out = res.stdout || ''; }
       try { err = fs.readFileSync(`${outFile}.err`, 'utf8'); } catch { err = res.stderr || ''; }
-      const combined = `${out}\n${err}`;
+      // npm/devdir warnings are noise — not sync failures
+      const errClean = String(err)
+        .split(/\r?\n/)
+        .filter((l) => !/npm warn|Unknown env config|new version of Supabase CLI|updating the supabase cli|Initialising login role/i.test(l))
+        .join('\n')
+        .trim();
+      const combined = `${out}\n${errClean}`;
       const busy = /EPERM|telemetry\.json\.tmp|operation not permitted/i.test(combined);
-      if ((res.status === 0 || /"boundary"/.test(out)) && !busy && /"rows"/.test(out)) {
+      const hasPayload = /"boundary"\s*:/.test(out) && /"rows"\s*:/.test(out);
+      if (hasPayload && !busy) {
         try { fs.unlinkSync(tmp); } catch { /* ignore */ }
         try { fs.unlinkSync(outFile); } catch { /* ignore */ }
         try { fs.unlinkSync(`${outFile}.err`); } catch { /* ignore */ }
         return out;
       }
-      if (!busy && res.status !== 0 && !/"boundary"/.test(out)) {
-        last = { status: res.status, stderr: err || out, stdout: out };
-        break;
+      if (!busy && !hasPayload) {
+        last = { status: res.status, stderr: errClean || out.slice(0, 500), stdout: out.slice(0, 200) };
+        // keep retrying a couple times for empty/transient CLI output
       }
       sleep(400 * attempt);
     }
@@ -354,6 +361,12 @@ function fetchRemoteTable(config, schema, table) {
   return [];
 }
 
+function isCorruptPayload(payload) {
+  const s = typeof payload === 'string' ? payload : JSON.stringify(payload ?? {});
+  // Legacy outbox rows corrupted by Windows console encoding (Arabic → ???)
+  return /\?{3,}/.test(s) || /\uFFFD/.test(s);
+}
+
 function processOutbox(config, colCache = new Map()) {
   const raw = localPsqlScalar(
     config,
@@ -368,6 +381,19 @@ function processOutbox(config, colCache = new Map()) {
   let done = 0;
   for (const item of rows) {
     try {
+      if (isCorruptPayload(item.payload)) {
+        // Do not delete — mark superseded so live sync owns the row
+        localPsql(
+          config,
+          `update dr.sync_outbox
+           set processed_at = now(),
+               last_error = 'skipped_corrupt_legacy_payload_superseded_by_live_sync'
+           where id = ${item.id}`
+        );
+        appendSyncLog(config, 'warn', 'outbox_skipped_corrupt', { id: item.id, table: item.table_name });
+        done += 1;
+        continue;
+      }
       upsertRow(config, item.table_schema || 'public', item.table_name, item.payload, colCache);
       localPsql(config, `update dr.sync_outbox set processed_at = now(), last_error = null where id = ${item.id}`);
       done += 1;

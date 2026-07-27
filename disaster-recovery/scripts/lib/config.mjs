@@ -52,7 +52,8 @@ export function loadDrConfig() {
       nightly: path.join(env.BACKUP_ROOT || 'D:\\LegalMind_Backups', 'nightly'),
       logs: path.join(env.BACKUP_ROOT || 'D:\\LegalMind_Backups', 'logs'),
       sync: path.join(env.BACKUP_ROOT || 'D:\\LegalMind_Backups', 'sync'),
-      archive: path.join(env.BACKUP_ROOT || 'D:\\LegalMind_Backups', 'archive')
+      archive: path.join(env.BACKUP_ROOT || 'D:\\LegalMind_Backups', 'archive'),
+      storage: path.join(env.BACKUP_ROOT || 'D:\\LegalMind_Backups', 'storage')
     },
     sync: {
       pollIntervalMs: Number(env.SYNC_POLL_INTERVAL_MS || 15000),

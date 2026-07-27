@@ -57,7 +57,11 @@ try {
 }
 
 $results += Register-LegalMindTask -Name "LegalMind-DR-NightlyBackup" -ScriptRel "disaster-recovery\scripts\nightly-backup.mjs" `
-  -Trigger (New-ScheduledTaskTrigger -Daily -At 2:15AM) -Description "LegalMind nightly dump sql zip"
+  -Trigger (New-ScheduledTaskTrigger -Daily -At 2:15AM) -Description "LegalMind nightly dump sql zip and storage"
+
+$storageTrigger = New-ScheduledTaskTrigger -Daily -At 3:00AM
+$results += Register-LegalMindTask -Name "LegalMind-DR-StorageBackup" -ScriptRel "disaster-recovery\scripts\storage-backup.mjs" `
+  -Trigger $storageTrigger -Description "LegalMind Storage buckets local backup"
 
 $dashTrigger = New-ScheduledTaskTrigger -Once -At ((Get-Date).AddMinutes(1)) -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration ([TimeSpan]::FromDays(3650))
 $results += Register-LegalMindTask -Name "LegalMind-DR-Dashboard" -ScriptRel "disaster-recovery\scripts\dr-dashboard-status.mjs" `

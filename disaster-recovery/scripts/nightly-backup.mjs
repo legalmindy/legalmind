@@ -6,7 +6,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { loadDrConfig, ensureDirs, appendSyncLog, localConnEnv } from './lib/config.mjs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function run(cmd, args, env) {
   const res = spawnSync(cmd, args, { env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
@@ -156,10 +159,32 @@ async function main() {
     );
 
     rotateRetention(config);
+
+    // Storage binary backup (local only — never mutates production)
+    let storageResult = null;
+    const storageScript = path.join(__dirname, 'storage-backup.mjs');
+    if (fs.existsSync(storageScript)) {
+      const st = spawnSync(process.execPath, [storageScript], {
+        cwd: path.resolve(__dirname, '../..'),
+        encoding: 'utf8',
+        maxBuffer: 64 * 1024 * 1024
+      });
+      storageResult = {
+        status: st.status,
+        stdoutTail: (st.stdout || '').slice(-500),
+        stderrTail: (st.stderr || '').slice(-300)
+      };
+      if (st.status !== 0) {
+        appendSyncLog(config, 'warn', 'storage_backup_nightly_warn', storageResult);
+      } else {
+        appendSyncLog(config, 'info', 'storage_backup_nightly_ok', storageResult);
+      }
+    }
+
     appendSyncLog(config, integrity.ok ? 'info' : 'error', 'nightly_backup', {
-      dumpPath, sqlPath, zipPath, size, integrity
+      dumpPath, sqlPath, zipPath, size, integrity, storageResult
     });
-    console.log(JSON.stringify({ ok: integrity.ok, dumpPath, sqlPath, zipPath, size, runId }, null, 2));
+    console.log(JSON.stringify({ ok: integrity.ok, dumpPath, sqlPath, zipPath, size, runId, storageResult }, null, 2));
     if (!integrity.ok) process.exit(2);
   } catch (err) {
     try {
