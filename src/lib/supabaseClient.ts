@@ -3,6 +3,20 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
+/** Deleted / retired Supabase projects — never ship these hosts. */
+const RETIRED_SUPABASE_HOSTS = ['dlkxzjyvcmsgnovwmntd.supabase.co'] as const;
+
+function isRetiredSupabaseUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  return RETIRED_SUPABASE_HOSTS.some((host) => url.includes(host));
+}
+
+if (import.meta.env.DEV && isRetiredSupabaseUrl(supabaseUrl)) {
+  console.error(
+    '[Supabase] VITE_SUPABASE_URL points to a deleted project. Use https://gnsjjsvugafxkwgmvcev.supabase.co and restart the dev server.'
+  );
+}
+
 /** Default: each browser tab has its own login. Set VITE_AUTH_SHARED_SESSION=true to share login across tabs. */
 const useSessionStoragePerTab = import.meta.env.VITE_AUTH_SHARED_SESSION !== 'true';
 
@@ -12,7 +26,10 @@ function createAuthStorage(): Storage | undefined {
 }
 
 export const isSupabaseConfigured = (): boolean =>
-  Boolean(supabaseUrl && supabaseAnonKey);
+  Boolean(supabaseUrl && supabaseAnonKey && !isRetiredSupabaseUrl(supabaseUrl));
+
+/** True when env still targets a known-deleted Supabase project. */
+export const isRetiredSupabaseConfigured = (): boolean => isRetiredSupabaseUrl(supabaseUrl);
 
 export const isAuthSessionPerTab = (): boolean => useSessionStoragePerTab;
 

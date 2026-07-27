@@ -448,15 +448,15 @@ export async function deleteCaseRecord(caseId: string): Promise<{ id: string }> 
 const SESSION_SELECT = '*, cases(title)';
 
 export async function fetchSessions(): Promise<SessionItem[]> {
-  // Single query using firm_id column (added in migration 034)
-  // instead of a two-hop case-id harvest + large IN() list.
+  // Cap result size for list views; case detail should filter by case_id separately.
   const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('sessions')
     .select(SESSION_SELECT)
     .eq('firm_id', firmId)
     .is('deleted_at', null)
-    .order('session_date', { ascending: true });
+    .order('session_date', { ascending: false })
+    .limit(300);
   if (error) throw error;
   return (data as DbSession[]).map(mapDbSession);
 }
@@ -538,18 +538,18 @@ export async function deleteSessionRecord(sessionId: string): Promise<{ id: stri
 }
 
 // ─── Documents ────────────────────────────────────────────────
-const DOC_SELECT = '*, cases(title)';
+const DOC_SELECT = '*, cases!inner(title, firm_id)';
 
 export async function fetchDocuments(): Promise<DocumentItem[]> {
-  // Direct firm_id query via the cases join to avoid the two-hop
-  // case-id harvest + large IN() list that breaks at scale.
+  // Require inner join so firm_id filter applies to parent documents rows.
   const firmId = await getCurrentFirmId();
   const { data, error } = await supabase
     .from('documents')
     .select(DOC_SELECT)
     .eq('cases.firm_id', firmId)
     .is('deleted_at', null)
-    .order('uploaded_at', { ascending: false });
+    .order('uploaded_at', { ascending: false })
+    .limit(300);
   if (error) throw error;
   return (data as DbDocument[]).map(mapDbDocument);
 }

@@ -1,10 +1,21 @@
 # Supabase Setup Guide for LegalMind Yemen
 
-## ✅ Configuration Complete
+## ✅ Active project
 
-Your application has been configured with the following Supabase credentials:
-- **Project URL**: https://dlkxzjyvcmsgnovwmntd.supabase.co
-- **Anon Key**: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsa3h6anl2Y21zZ25vdndtbnRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5MjA1MjcsImV4cCI6MjA5NjQ5NjUyN30.yszpvAQLGhDEZeHeNNg5n6_AAcuLyzq1RnQXQwwfUjU
+Use the restored **LegalMindYemen** project (do **not** use the deleted `LegalMindYemen2` ref):
+
+- **Project URL**: `https://gnsjjsvugafxkwgmvcev.supabase.co`
+- **Dashboard**: https://supabase.com/dashboard/project/gnsjjsvugafxkwgmvcev
+- **Anon Key**: copy from Dashboard → Project Settings → API (never commit keys to git)
+
+Local env (`.env.local`):
+
+```env
+VITE_SUPABASE_URL=https://gnsjjsvugafxkwgmvcev.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon-key-from-dashboard>
+```
+
+> The old host `dlkxzjyvcmsgnovwmntd.supabase.co` was deleted and returns `ERR_NAME_NOT_RESOLVED`. If the browser console still shows that host, hard-refresh (`Ctrl+Shift+R`) or restart the Vite/dev server so it reloads `.env.local`.
 
 ## 📋 Database Schema Application
 
@@ -15,7 +26,7 @@ supabase/migrations/001_production_schema.sql
 
 ### Method 1: Using Supabase SQL Editor (Recommended)
 
-1. Go to your Supabase project: https://supabase.com/dashboard/project/dlkxzjyvcmsgnovwmntd
+1. Go to your Supabase project: https://supabase.com/dashboard/project/gnsjjsvugafxkwgmvcev
 2. Navigate to **SQL Editor** in the left sidebar
 3. Click **New Query**
 4. Copy the entire contents of `supabase/migrations/001_production_schema.sql`
@@ -32,7 +43,7 @@ npm install -g supabase
 supabase login
 
 # Link to your project
-supabase link --project-ref dlkxzjyvcmsgnovwmntd
+supabase link --project-ref gnsjjsvugafxkwgmvcev
 
 # Push the migration
 supabase db push

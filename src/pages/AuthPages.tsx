@@ -12,6 +12,7 @@ import { resolveRoleDisplayName } from '../lib/roleLabels';
 import type { PageId } from '../types/app';
 import { ForgotPasswordPage } from './ForgotPasswordPage';
 import { ResetPasswordPage } from './ResetPasswordPage';
+import { isRetiredSupabaseConfigured } from '../lib/supabaseClient';
 
 interface AuthPagesProps {
   currentPage: 'login' | 'register-office' | 'register-lawyer' | 'register' | 'invite' | 'forgot' | 'reset-password' | 'accept-invite';
@@ -121,7 +122,7 @@ export function AuthPages({
         .catch(() => {
           setFirmCodeStatus('invalid');
           setFirmPreviewName('');
-          setFirmCodeError('تعذر التحقق من الكود. تحقق من الاتصال بالإنترنت.');
+          setFirmCodeError('تعذر الاتصال بالخادم. حدّث الصفحة بقوة (Ctrl+Shift+R) ثم أعد المحاولة.');
           setFirmRoles([]);
           setSelectedRoleSlug('');
         });
@@ -135,10 +136,18 @@ export function AuthPages({
       <div className="max-w-md mx-auto mt-24 px-4 text-center">
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8">
           <h2 className="text-lg font-bold text-amber-900 mb-2">إعداد Supabase مطلوب</h2>
-          <p className="text-sm text-amber-700">
-            يرجى إضافة <code className="bg-amber-100 px-1 rounded">VITE_SUPABASE_URL</code> و{' '}
-            <code className="bg-amber-100 px-1 rounded">VITE_SUPABASE_ANON_KEY</code> في ملف .env.local
-          </p>
+          {isRetiredSupabaseConfigured() ? (
+            <p className="text-sm text-amber-700">
+              إعدادات المشروع تشير إلى مشروع Supabase محذوف. حدّث{' '}
+              <code className="bg-amber-100 px-1 rounded">VITE_SUPABASE_URL</code> إلى المشروع النشط ثم أعد تشغيل الخادم أو حدّث الصفحة بقوة
+              (Ctrl+Shift+R).
+            </p>
+          ) : (
+            <p className="text-sm text-amber-700">
+              يرجى إضافة <code className="bg-amber-100 px-1 rounded">VITE_SUPABASE_URL</code> و{' '}
+              <code className="bg-amber-100 px-1 rounded">VITE_SUPABASE_ANON_KEY</code> في ملف .env.local
+            </p>
+          )}
         </div>
       </div>
     );

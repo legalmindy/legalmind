@@ -110,18 +110,13 @@ const LEGACY_ROLE_PERMISSIONS: Record<string, Partial<Record<PermissionKey, bool
   }
 };
 
-let cachedPermissions: Record<string, boolean> | null = null;
-
 export async function fetchMyPermissions(): Promise<Record<string, boolean>> {
-  if (cachedPermissions) return cachedPermissions;
-
   const { data: session } = await supabase.auth.getSession();
   if (!session.session) return {};
 
   const { data, error } = await supabase.rpc('get_my_permissions');
   if (!error && data && typeof data === 'object') {
-    cachedPermissions = data as Record<string, boolean>;
-    return cachedPermissions;
+    return data as Record<string, boolean>;
   }
 
   const { data: employee } = await supabase
@@ -140,16 +135,15 @@ export async function fetchMyPermissions(): Promise<Record<string, boolean>> {
   const legacyRole = String((employee as { role?: string }).role ?? '');
 
   if (individual && Object.keys(individual).length > 0) {
-    cachedPermissions = individual;
-  } else if (rolePerms && Object.keys(rolePerms).length > 0) {
-    cachedPermissions = rolePerms;
-  } else if (LEGACY_ROLE_PERMISSIONS[legacyRole]) {
-    cachedPermissions = LEGACY_ROLE_PERMISSIONS[legacyRole] as Record<string, boolean>;
-  } else {
-    cachedPermissions = {};
+    return individual;
   }
-
-  return cachedPermissions;
+  if (rolePerms && Object.keys(rolePerms).length > 0) {
+    return rolePerms;
+  }
+  if (LEGACY_ROLE_PERMISSIONS[legacyRole]) {
+    return LEGACY_ROLE_PERMISSIONS[legacyRole] as Record<string, boolean>;
+  }
+  return {};
 }
 
 export function hasPermission(
@@ -177,8 +171,9 @@ export function canAccessCaseDetail(
   );
 }
 
+/** Kept for call-site compatibility; React Query owns permissions caching now. */
 export function clearPermissionsCache(): void {
-  cachedPermissions = null;
+  // no-op
 }
 
 export const NON_ASSIGNABLE_FIRM_ROLE_SLUGS = ['firm_owner'] as const;

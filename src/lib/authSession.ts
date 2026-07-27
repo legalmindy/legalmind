@@ -2,7 +2,20 @@ import { supabase } from './supabaseClient';
 
 export function isInvalidAuthError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? '');
-  return /401|403|jwt|invalid|expired|session|unauthorized|PGRST301/i.test(message);
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String((error as { code?: string }).code ?? '')
+      : '';
+
+  // Match auth/session failures only — bare "invalid" matches Postgres enum errors
+  // and would incorrectly sign the user out mid-flow.
+  return (
+    /PGRST301|JWT|refresh.?token|not authenticated|unauthorized|session.?expired|jwt expired|invalid.?jwt|invalid.?claim|invalid.?refresh/i.test(
+      message
+    ) ||
+    /PGRST301|401|403|invalid_grant|bad_jwt/i.test(code) ||
+    /\b401\b|\b403\b/.test(message)
+  );
 }
 
 export async function signOutLocal(): Promise<void> {

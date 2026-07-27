@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { initializeLocalDatabase, getLocalSyncStatus, type SyncStatus } from '../lib/localDbClient';
+import { initializeLocalDatabase, getLocalSyncStatus, isTauriRuntime, type SyncStatus } from '../lib/localDbClient';
 import { isOnline, isSyncTemporarilyDisabled, runSyncCycle, type SyncResult } from '../lib/syncEngine';
 
 export interface OfflineSyncState extends SyncStatus {
@@ -14,6 +14,7 @@ const SYNC_INTERVAL_MS = 90_000;
 const INITIAL_SYNC_DELAY_MS = 4_000;
 
 export function useOfflineSync(enabled: boolean) {
+  const canSync = enabled && isTauriRuntime();
   const [state, setState] = useState<OfflineSyncState>({
     online: isOnline(),
     syncing: false,
@@ -23,6 +24,10 @@ export function useOfflineSync(enabled: boolean) {
   const syncTimerRef = useRef<number | null>(null);
 
   const refreshStatus = useCallback(async () => {
+    if (!isTauriRuntime()) {
+      setState((current) => ({ ...current, online: isOnline(), pendingEvents: 0, conflicts: 0 }));
+      return;
+    }
     const status = await getLocalSyncStatus();
     setState((current) => ({
       ...current,
@@ -33,7 +38,7 @@ export function useOfflineSync(enabled: boolean) {
   }, []);
 
   const syncNow = useCallback(async () => {
-    if (!enabled) return;
+    if (!canSync) return;
     if (isSyncTemporarilyDisabled()) {
       setState((current) => ({ ...current, syncPaused: true, online: isOnline() }));
       return;
@@ -59,38 +64,39 @@ export function useOfflineSync(enabled: boolean) {
         error: err instanceof Error ? err.message : 'فشلت المزامنة'
       }));
     }
-  }, [enabled]);
+  }, [canSync]);
 
   const scheduleSync = useCallback((delayMs: number) => {
+    if (!canSync) return;
     if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current);
     syncTimerRef.current = window.setTimeout(() => {
       syncTimerRef.current = null;
       void syncNow();
     }, delayMs);
-  }, [syncNow]);
+  }, [canSync, syncNow]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!canSync) return;
     initializeLocalDatabase()
       .then((status) => setState((current) => ({ ...current, ...status, online: isOnline() })))
       .catch((err) => setState((current) => ({
         ...current,
         error: err instanceof Error ? err.message : String(err)
       })));
-  }, [enabled]);
+  }, [canSync]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!canSync) return;
     scheduleSync(INITIAL_SYNC_DELAY_MS);
     return () => {
       if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current);
     };
-  }, [enabled, scheduleSync]);
+  }, [canSync, scheduleSync]);
 
   useEffect(() => {
     const onOnline = () => {
       setState((current) => ({ ...current, online: true }));
-      if (enabled) scheduleSync(1_500);
+      if (canSync) scheduleSync(1_500);
     };
     const onOffline = () => {
       setState((current) => ({ ...current, online: false }));
@@ -101,16 +107,16 @@ export function useOfflineSync(enabled: boolean) {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
     };
-  }, [enabled, scheduleSync]);
+  }, [canSync, scheduleSync]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!canSync) return;
     const interval = window.setInterval(() => {
       if (isOnline()) scheduleSync(500);
       else void refreshStatus();
     }, SYNC_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [enabled, refreshStatus, scheduleSync]);
+  }, [canSync, refreshStatus, scheduleSync]);
 
   return { ...state, syncNow, refreshStatus };
 }
