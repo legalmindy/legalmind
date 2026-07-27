@@ -46,12 +46,18 @@ async function main() {
   try {
     const tmp = path.join(process.env.TEMP || 'C:\\Users\\Public', `lm-dash-ping-${Date.now()}.sql`);
     fs.writeFileSync(tmp, 'select 1 as ok;');
-    const res = spawnSync('npx', ['supabase', 'db', 'query', '--linked', '-f', tmp], {
-      encoding: 'utf8',
-      shell: true,
-      cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
-    });
-    supabaseOk = res.status === 0 && /"ok"\s*:\s*1|"ok":1/.test(res.stdout || '');
+    const res = spawnSync(
+      'npx',
+      ['supabase', 'db', 'query', '--linked', '-f', tmp],
+      {
+        encoding: 'utf8',
+        cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'),
+        windowsHide: true,
+        shell: true,
+        env: { ...process.env, SUPABASE_INTERNAL_NO_TELEMETRY: '1' }
+      }
+    );
+    supabaseOk = res.status === 0 && /"ok"\s*:\s*1|"ok":1|rows/.test(res.stdout || '');
     try { fs.unlinkSync(tmp); } catch { /* ignore */ }
   } catch {
     supabaseOk = false;
@@ -68,7 +74,11 @@ async function main() {
     `select to_json(t) from (
        select max(last_synced_at) as last_sync_time,
               sum(rows_synced)::bigint as records_synchronized,
-              count(*) filter (where status='error')::int as error_tables
+              count(*) filter (
+                where status = 'error'
+                  and updated_at > now() - interval '30 minutes'
+              )::int as error_tables_recent,
+              count(*) filter (where status = 'error')::int as error_tables_all
        from dr.sync_state
      ) t`
   ) || {};
@@ -77,7 +87,9 @@ async function main() {
     config,
     `select coalesce(json_agg(row_to_json(l)), '[]'::json) from (
        select level, event, detail, created_at from dr.sync_log
-       where level in ('error','warn') order by id desc limit 20
+       where level in ('error','warn')
+         and created_at > now() - interval '2 hours'
+       order by id desc limit 20
      ) l`
   ) || [];
 
@@ -105,12 +117,22 @@ async function main() {
     ? fs.readdirSync(config.paths.nightly).filter((f) => f.endsWith('.zip')).length
     : 0;
 
+  // Prefer live tick health; fall back to recent DB error window (ignore stale errors)
+  let syncStatus = 'idle';
+  if (fileStatus?.health === 'ok' && Number(fileStatus.tables || 0) > 0) {
+    syncStatus = 'ok';
+  } else if (fileStatus?.health === 'degraded' || Number(lastSync.error_tables_recent || 0) > 0) {
+    syncStatus = 'degraded';
+  } else if (fileStatus || lastSync.last_sync_time) {
+    syncStatus = Number(fileStatus?.tables || 0) > 0 ? 'ok' : 'idle';
+  }
+
   const report = {
     generatedAt: new Date().toISOString(),
     postgresqlConnectionStatus: localOk ? 'connected' : 'down',
     supabaseConnectionStatus: supabaseOk ? 'connected' : 'down_or_unconfigured',
     lastSyncTime: lastSync.last_sync_time || fileStatus?.ts || null,
-    syncStatus: (lastSync.error_tables || 0) > 0 ? 'degraded' : fileStatus ? 'ok' : 'idle',
+    syncStatus,
     backupStatus: backupStatus?.status || 'none',
     restoreStatus: restoreStatus?.status || 'none',
     recordsSynchronized: Number(lastSync.records_synchronized || fileStatus?.rowsSynced || 0),
@@ -119,7 +141,9 @@ async function main() {
     nightlyBackupCount: nightlyCount,
     lastBackup: backupStatus,
     lastRestore: restoreStatus,
-    fileTick: fileStatus
+    fileTick: fileStatus,
+    errorTablesRecent: Number(lastSync.error_tables_recent || 0),
+    errorTablesAll: Number(lastSync.error_tables_all || 0)
   };
 
   const outJson = path.join(config.paths.root, 'dashboard-status.json');

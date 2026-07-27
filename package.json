@@ -33,6 +33,7 @@
     "dr:dashboard": "node disaster-recovery/scripts/dr-dashboard-status.mjs",
     "dr:restore": "node disaster-recovery/scripts/restore-to-new-project.mjs",
     "dr:test": "node disaster-recovery/scripts/test-dr-restore.mjs",
+    "dr:dry-run": "node disaster-recovery/scripts/dr-full-dry-run.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },

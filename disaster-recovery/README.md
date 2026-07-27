@@ -58,6 +58,10 @@ npm run dr:test
 - Never runs `DROP DATABASE` / `DROP SCHEMA` / `TRUNCATE` without explicit flags and protected-name checks.
 - Nightly retention keeps 90 active ZIPs; older files are **moved** to `D:\LegalMind_Backups\archive` (never deleted).
 - Sync failures retry via `dr.sync_outbox` with exponential backoff and durable logs in `D:\LegalMind_Backups\logs\sync.jsonl`.
+- Sync inventory is taken from the **local** backup DB (avoids empty remote discovery / CLI races).
+- Supabase CLI calls are serialized with a lock file under `D:\LegalMind_Backups\sync\`.
+
+See also: [MIGRATION_NOTES.md](./MIGRATION_NOTES.md) (explains the 051→053 numbering gap).
 
 ## Layout
 

@@ -1,25 +1,72 @@
 # Register Windows Scheduled Tasks for sync + nightly backup (no data deletion).
-# Run once in elevated PowerShell from repo root:
+# Prefer elevated PowerShell, but falls back to current-user tasks.
 #   powershell -ExecutionPolicy Bypass -File disaster-recovery\scripts\install-windows-tasks.ps1
 
 $ErrorActionPreference = "Stop"
-$repo = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+$repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $node = (Get-Command node).Source
+$envFile = Join-Path $repo ".env.disaster-recovery"
 
-$syncAction = New-ScheduledTaskAction -Execute $node -Argument "`"$repo\disaster-recovery\scripts\sync-service.mjs`"" -WorkingDirectory $repo
-$syncTrigger = New-ScheduledTaskTrigger -AtStartup
-Register-ScheduledTask -TaskName "LegalMind-DR-Sync" -Action $syncAction -Trigger $syncTrigger -RunLevel Highest -Force | Out-Null
+function Register-LegalMindTask {
+  param(
+    [string]$Name,
+    [string]$ScriptRel,
+    [object]$Trigger,
+    [string]$Description
+  )
+  $scriptPath = Join-Path $repo $ScriptRel
+  $arg = "`"$scriptPath`""
+  $action = New-ScheduledTaskAction -Execute $node -Argument $arg -WorkingDirectory $repo
+  $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero)
+  try {
+    Register-ScheduledTask -TaskName $Name -Action $action -Trigger $Trigger -Settings $settings -Description $Description -Force | Out-Null
+    Write-Host "OK  $Name (machine/admin)"
+    return $true
+  } catch {
+    try {
+      Register-ScheduledTask -TaskName $Name -Action $action -Trigger $Trigger -Settings $settings -Description $Description -Force -User $env:USERNAME | Out-Null
+      Write-Host "OK  $Name (current user)"
+      return $true
+    } catch {
+      Write-Host "FAIL $Name - $($_.Exception.Message)"
+      return $false
+    }
+  }
+}
 
-$backupAction = New-ScheduledTaskAction -Execute $node -Argument "`"$repo\disaster-recovery\scripts\nightly-backup.mjs`"" -WorkingDirectory $repo
-$backupTrigger = New-ScheduledTaskTrigger -Daily -At 2:15AM
-Register-ScheduledTask -TaskName "LegalMind-DR-NightlyBackup" -Action $backupAction -Trigger $backupTrigger -RunLevel Highest -Force | Out-Null
+$results = @()
 
-$dashAction = New-ScheduledTaskAction -Execute $node -Argument "`"$repo\disaster-recovery\scripts\dr-dashboard-status.mjs`"" -WorkingDirectory $repo
-$dashTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration ([TimeSpan]::MaxValue)
-Register-ScheduledTask -TaskName "LegalMind-DR-Dashboard" -Action $dashAction -Trigger $dashTrigger -RunLevel Highest -Force | Out-Null
+# Continuous sync: watchdog every 5 minutes starts the service only if not already running
+$syncWatch = New-ScheduledTaskTrigger -Once -At ((Get-Date).AddMinutes(1)) -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration ([TimeSpan]::FromDays(3650))
+$syncScript = Join-Path $repo "disaster-recovery\scripts\start-sync-if-needed.ps1"
+$syncAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$syncScript`"" -WorkingDirectory $repo
+$syncSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 2)
+try {
+  Register-ScheduledTask -TaskName "LegalMind-DR-Sync" -Action $syncAction -Trigger $syncWatch -Settings $syncSettings -Description "LegalMind sync watchdog" -Force | Out-Null
+  Write-Host "OK  LegalMind-DR-Sync (machine/admin)"
+  $results += $true
+} catch {
+  try {
+    Register-ScheduledTask -TaskName "LegalMind-DR-Sync" -Action $syncAction -Trigger $syncWatch -Settings $syncSettings -Description "LegalMind sync watchdog" -Force -User $env:USERNAME | Out-Null
+    Write-Host "OK  LegalMind-DR-Sync (current user)"
+    $results += $true
+  } catch {
+    Write-Host "FAIL LegalMind-DR-Sync - $($_.Exception.Message)"
+    $results += $false
+  }
+}
 
-Write-Host "Scheduled tasks registered:"
-Write-Host "  LegalMind-DR-Sync (at startup)"
-Write-Host "  LegalMind-DR-NightlyBackup (02:15 daily)"
-Write-Host "  LegalMind-DR-Dashboard (every 5 minutes)"
+$results += Register-LegalMindTask -Name "LegalMind-DR-NightlyBackup" -ScriptRel "disaster-recovery\scripts\nightly-backup.mjs" `
+  -Trigger (New-ScheduledTaskTrigger -Daily -At 2:15AM) -Description "LegalMind nightly dump sql zip"
+
+$dashTrigger = New-ScheduledTaskTrigger -Once -At ((Get-Date).AddMinutes(1)) -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration ([TimeSpan]::FromDays(3650))
+$results += Register-LegalMindTask -Name "LegalMind-DR-Dashboard" -ScriptRel "disaster-recovery\scripts\dr-dashboard-status.mjs" `
+  -Trigger $dashTrigger -Description "LegalMind DR dashboard refresh"
+
+$passed = @($results | Where-Object { $_ -eq $true }).Count
+Write-Host ""
+Write-Host "Registered $passed / $($results.Count) tasks"
+Get-ScheduledTask -TaskName "LegalMind-DR-*" -ErrorAction SilentlyContinue | Select-Object TaskName, State | Format-Table -AutoSize
+Write-Host "Ensure $envFile contains SUPABASE and LOCAL_PG settings."
 Write-Host "Open D:\LegalMind_Backups\dashboard.html after first dashboard run."
+if ($passed -lt $results.Count) { exit 1 }
