@@ -1,5 +1,9 @@
 /**
- * Supabase → local PostgreSQL continuous sync (production-grade).
+ * Supabase → local PostgreSQL mirror refresh (READ production only).
+ *
+ * Default / recommended: --once (used by daily backup; process exits).
+ * Continuous polling is DISABLED unless --allow-continuous is passed
+ * (not used by Task Scheduler — low-resource mode).
  *
  * Design:
  * - Table list comes from LOCAL backup DB (authoritative mirror inventory).
@@ -7,7 +11,7 @@
  * - Upserts use session_replication_role=replica to avoid FK ordering loss.
  * - Failures go to dr.sync_outbox with exponential backoff (never dropped).
  *
- * Usage: node sync-service.mjs [--once]
+ * Usage: node sync-service.mjs --once
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -499,12 +503,16 @@ async function main() {
     throw err;
   }
 
-  console.log(`[sync] local-inventory sync every ${config.sync.pollIntervalMs}ms`);
-  await tick(config);
-  if (process.argv.includes('--once')) {
+  const once = process.argv.includes('--once') || !process.argv.includes('--allow-continuous');
+  if (once) {
+    console.log('[sync] one-shot mirror refresh (low-resource mode)');
+    await tick(config);
     console.log('[sync] --once complete');
     return;
   }
+
+  console.log(`[sync] CONTINUOUS mode every ${config.sync.pollIntervalMs}ms (--allow-continuous)`);
+  await tick(config);
   setInterval(() => {
     tick(config).catch((err) => {
       console.error('[sync] tick failed', err);
