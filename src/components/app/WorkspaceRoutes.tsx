@@ -355,6 +355,9 @@ export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
               !hasPermission(permissions, 'cases.edit', user.role);
             navigateToCaseDetail(cr.id, financialOnly ? 'payments' : undefined);
           }}
+          onViewCaseExpenses={(cr) => {
+            navigateToCaseDetail(cr.id, 'expenses');
+          }}
           onArchiveCase={openArchiveCase}
           onDeleteCase={(id) => void deleteCase(id)}
           canSendPaymentReminder={whatsappReportsEnabled}
