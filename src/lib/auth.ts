@@ -14,6 +14,7 @@ import { isValidYemeniPhone, normalizeYemeniPhoneForStorage } from '../utils/for
 import { logSecurityEvent, logSecurityEventPublic } from './securityEvents';
 import { employeeStatusMessage, getEmployeeAccessStatus } from './memberRegistration';
 import { resolveRoleDisplayName } from './roleLabels';
+import { formatInvitationError } from './invitationErrors';
 
 function clearSessionCaches(): void {
   clearFirmIdCache();
@@ -101,6 +102,10 @@ function mapAuthError(error: AuthError): string {
     otp_expired: 'انتهت صلاحية رمز التحقق. يرجى طلب رمز جديد.'
   };
 
+  if (/invalid refresh token|refresh token not found/i.test(raw)) {
+    return 'انتهت صلاحية الجلسة السابقة. امسح بيانات الموقع أو افتح نافذة خاصة ثم أعد المحاولة.';
+  }
+
   if (/invalid login credentials/i.test(raw)) {
     return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
   }
@@ -115,6 +120,12 @@ function mapAuthError(error: AuthError): string {
     }
     if (/previous membership request was rejected/i.test(raw)) {
       return 'تم رفض طلب انضمامك سابقاً لهذا المكتب. اطلب دعوة جديدة من مالك المكتب.';
+    }
+    if (/firm code does not exist|invalid firm code|role not found/i.test(raw)) {
+      return 'كود المكتب أو نوع الصلاحية غير صالح. تحقق من البيانات مع مدير المكتب.';
+    }
+    if (/profile_role_enum|employee_role_enum|cannot cast|type mismatch/i.test(raw)) {
+      return 'تعذر إكمال الحساب بسبب إعدادات قاعدة البيانات. تواصل مع الدعم بعد تطبيق آخر التحديثات.';
     }
     return 'تعذر إنشاء الحساب. تأكد أن البريد غير مستخدم مسبقاً، ثم أعد المحاولة أو تواصل مع مدير المكتب.';
   }
@@ -266,7 +277,7 @@ export async function registerOffice(data: OfficeRegistrationData): Promise<Auth
         phone: normalizedPhone,
         role: 'admin'
       },
-      emailRedirectTo: `${window.location.origin}/login`
+      emailRedirectTo: getAuthRedirectUrl('/login')
     }
   });
 
@@ -329,7 +340,7 @@ export async function registerLawyer(data: LawyerRegistrationData): Promise<Auth
         full_name: data.fullName,
         role: roleSlug.includes('lawyer') ? 'lawyer' : 'assistant'
       },
-      emailRedirectTo: `${window.location.origin}/login`
+      emailRedirectTo: getAuthRedirectUrl('/login')
     }
   });
 
@@ -366,11 +377,6 @@ function isExistingAccountAuthError(error: AuthError): boolean {
   return /already registered|already exists|user already/i.test(raw);
 }
 
-function isInviteProvisioningAuthError(error: AuthError): boolean {
-  const raw = error.message ?? '';
-  return /database error saving new user|signup provisioning failed/i.test(raw);
-}
-
 async function completeInvitedRegistration(
   email: string,
   password: string,
@@ -402,12 +408,13 @@ export async function registerInvitedUser(data: InvitedUserRegistrationData): Pr
         full_name: invitedFullName,
         role: preview.role
       },
-      emailRedirectTo: `${window.location.origin}/login`
+      emailRedirectTo: getAuthRedirectUrl('/login')
     }
   });
 
   if (error) {
-    if (isExistingAccountAuthError(error) || isInviteProvisioningAuthError(error)) {
+    // Only recover when the account already exists — do not mask real provisioning failures.
+    if (isExistingAccountAuthError(error)) {
       const recovery = await completeInvitedRegistration(data.email, data.password, data.invitationToken);
       if (recovery.success) return recovery;
     }
@@ -428,7 +435,7 @@ export async function registerInvitedUser(data: InvitedUserRegistrationData): Pr
 
 export async function acceptInvitation(token: string): Promise<AuthResult> {
   const { error } = await supabase.rpc('accept_invitation_for_auth_user', { raw_token: token });
-  if (error) return { success: false, error: error.message };
+  if (error) return { success: false, error: formatInvitationError(error) };
   return { success: true };
 }
 
@@ -942,7 +949,13 @@ export async function hasVerifiedMfaFactor(): Promise<boolean> {
 }
 
 export function onAuthStateChange(callback: (user: User | null) => void) {
-  return supabase.auth.onAuthStateChange(async (_event, session) => {
+  return supabase.auth.onAuthStateChange(async (event, session) => {
+    // Token refresh must not rebuild the full profile — it re-renders the whole app.
+    if (event === 'TOKEN_REFRESHED') return;
+    if (event === 'INITIAL_SESSION' && !session?.user) {
+      callback(null);
+      return;
+    }
     if (session?.user) {
       callback(await fetchCurrentUser());
     } else {

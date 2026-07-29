@@ -535,6 +535,8 @@ export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
           performance={dashboardPerformance}
           financials={dashboardFinancials}
           cases={cases}
+          clients={clients}
+          lawyers={lawyers}
           firmName={firmName ?? user.company}
         />
       )}

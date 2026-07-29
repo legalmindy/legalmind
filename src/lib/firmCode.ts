@@ -126,6 +126,13 @@ export async function validateFirmCodeForRegistration(code: string): Promise<Fir
         error: 'تعذر التحقق من كود المكتب. أعد تحميل الصفحة أو سجّل الخروج ثم حاول مجدداً.'
       };
     }
+    if (/ERR_NAME_NOT_RESOLVED|Failed to fetch|NetworkError|abort|timed out|Load failed/i.test(message)) {
+      return {
+        valid: false,
+        normalizedCode,
+        error: 'تعذر الاتصال بالخادم. حدّث الصفحة بقوة (Ctrl+Shift+R) ثم أعد المحاولة.'
+      };
+    }
     return { valid: false, normalizedCode, error: 'تعذر التحقق من كود المكتب. تحقق من الاتصال.' };
   }
 }

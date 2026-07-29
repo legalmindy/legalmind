@@ -56,6 +56,15 @@ export async function rejectMemberRegistration(employeeId: string): Promise<void
 }
 
 export async function getEmployeeAccessStatus(authUserId: string): Promise<string | null> {
+  // Prefer SECURITY DEFINER RPC — avoids RLS chicken/egg during login.
+  const { data: rpcStatus, error: rpcError } = await supabase.rpc('get_my_employee_access_status');
+  if (!rpcError && typeof rpcStatus === 'string') {
+    return rpcStatus;
+  }
+  if (!rpcError && rpcStatus == null) {
+    return null;
+  }
+
   const { data, error } = await supabase
     .from('employees')
     .select('status, deleted_at')
@@ -64,7 +73,14 @@ export async function getEmployeeAccessStatus(authUserId: string): Promise<strin
     .limit(1)
     .maybeSingle();
 
-  if (error) return null;
+  // Soft-fail: do not block login on transient RLS/network errors when status is unknown.
+  // Hard blocks (pending/suspended/disabled) still come from successful reads above.
+  if (error) {
+    if (import.meta.env.DEV) {
+      console.warn('[AUTH] employee status check failed:', error.message, rpcError?.message);
+    }
+    return null;
+  }
   if (!data) return null;
   if (data.deleted_at != null) return 'disabled';
   return data.status ?? null;

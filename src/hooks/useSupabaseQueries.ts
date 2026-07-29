@@ -24,6 +24,8 @@ import {
   fetchAllCases,
   fetchAllClients,
   fetchArchivedCases,
+  fetchCases,
+  fetchClients,
   fetchDocuments,
   uploadDocumentFile,
   fetchEmployees,
@@ -81,9 +83,13 @@ async function fetchLawyersWithFallback() {
   return localPeopleRepository.listLawyers();
 }
 
-async function fetchCasesWithFallback(): Promise<CaseRecord[]> {
+async function fetchCasesWithFallback(params?: PaginationParams): Promise<CaseRecord[]> {
   if (isSupabaseConfigured() && isOnline()) {
     try {
+      if (params?.page || params?.pageSize || params?.search) {
+        const result = await fetchCases(params);
+        return result.data;
+      }
       return await fetchAllCases();
     } catch (err) {
       console.error('[useCases] Supabase fetch failed, using local cache:', err);
@@ -92,9 +98,13 @@ async function fetchCasesWithFallback(): Promise<CaseRecord[]> {
   return localCaseRepository.list();
 }
 
-async function fetchClientsWithFallback(): Promise<Client[]> {
+async function fetchClientsWithFallback(params?: PaginationParams): Promise<Client[]> {
   if (isSupabaseConfigured() && isOnline()) {
     try {
+      if (params?.page || params?.pageSize || params?.search) {
+        const result = await fetchClients(params);
+        return result.data;
+      }
       return await fetchAllClients();
     } catch (err) {
       console.error('[useClients] Supabase fetch failed, using local cache:', err);
@@ -134,7 +144,7 @@ export const queryKeys = {
 export function useClients(enabled = true, params?: PaginationParams) {
   return useQuery({
     queryKey: queryKeys.clients(params),
-    queryFn: fetchClientsWithFallback,
+    queryFn: () => fetchClientsWithFallback(params),
     enabled,
     staleTime: 30_000,
     refetchOnWindowFocus: true
@@ -144,7 +154,7 @@ export function useClients(enabled = true, params?: PaginationParams) {
 export function useCases(enabled = true, params?: PaginationParams) {
   return useQuery({
     queryKey: queryKeys.cases(params),
-    queryFn: fetchCasesWithFallback,
+    queryFn: () => fetchCasesWithFallback(params),
     enabled,
     staleTime: 30_000,
     refetchOnWindowFocus: true

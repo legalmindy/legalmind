@@ -38,6 +38,7 @@ export type CaseDetailTab =
   | 'documents'
   | 'financials'
   | 'payments'
+  | 'expenses'
   | 'receipts'
   | 'timeline'
   | 'notes'
@@ -220,6 +221,83 @@ export interface CaseFinancialSummary {
   lastPaymentAmount?: number;
   currency: string;
   contractDate?: string;
+  expenseBudget?: number;
+  totalExpenses?: number;
+  totalExpensesPaid?: number;
+  totalExpensesUnpaid?: number;
+  expensesCount?: number;
+  expensesPaidByClient?: number;
+  expensesPaidByOffice?: number;
+  netOfficeFeesAfterExpenses?: number;
+}
+
+export type CaseExpensePaymentStatus = 'مدفوع' | 'غير مدفوع';
+export type CaseExpensePaidBy = 'الموكل' | 'المحامي' | 'الطرف الآخر';
+
+export interface CaseExpenseType {
+  id: string;
+  name: string;
+  isSystem: boolean;
+  sortOrder: number;
+}
+
+export interface CaseExpense {
+  id: string;
+  caseId: string;
+  expenseType: string;
+  amount: number;
+  expenseDate: string;
+  paymentStatus: CaseExpensePaymentStatus;
+  paidBy: CaseExpensePaidBy;
+  courtName?: string;
+  receiptNumber?: string;
+  notes?: string;
+  dueDate?: string;
+  attachmentPath?: string;
+  attachmentFileName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CaseExpenseReportRow {
+  expenseId: string;
+  caseId: string;
+  caseTitle: string;
+  courtCaseNumber: string;
+  clientId?: string;
+  clientName: string;
+  lawyerId?: string;
+  lawyerName?: string;
+  expenseType: string;
+  amount: number;
+  expenseDate: string;
+  paymentStatus: CaseExpensePaymentStatus;
+  paidBy: CaseExpensePaidBy;
+  courtName?: string;
+  receiptNumber?: string;
+  notes?: string;
+  dueDate?: string;
+  attachmentPath?: string;
+  attachmentFileName?: string;
+}
+
+export interface CaseExpenseAlerts {
+  unpaidCount: number;
+  unpaidAmount: number;
+  dueSoon: Array<{
+    expenseId: string;
+    caseId: string;
+    caseTitle: string;
+    expenseType: string;
+    amount: number;
+    dueDate: string;
+  }>;
+  overBudget: Array<{
+    caseId: string;
+    caseTitle: string;
+    expenseBudget: number;
+    totalExpenses: number;
+  }>;
 }
 
 export interface ReceiptVoucher {
