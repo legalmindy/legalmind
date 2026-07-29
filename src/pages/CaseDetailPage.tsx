@@ -345,20 +345,22 @@ export function CaseDetailPage({
       ) : null}
 
       {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-100 bg-white p-1 scrollbar-none">
-        {visibleTabs.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setTab(id)}
-            className={`flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-2 text-[11px] font-bold transition-colors sm:px-3 sm:text-xs ${
-              tab === id ? 'bg-[#7A1F2B] text-white' : 'text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            <Icon className="h-3.5 w-3.5" />
-            {label}
-          </button>
-        ))}
+      <div className="rounded-xl border border-slate-100 bg-white p-1 shadow-sm">
+        <div className="flex gap-1 overflow-x-auto scrollbar-thin pb-0.5">
+          {visibleTabs.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors whitespace-nowrap ${
+                tab === id ? 'bg-[#7A1F2B] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-6">

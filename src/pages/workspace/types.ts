@@ -55,6 +55,7 @@ export interface CasesPageProps {
   onCreateCase: () => void;
   onEditCase: (caseRecord: CaseRecord) => void;
   onViewCase: (caseRecord: CaseRecord) => void;
+  onViewCaseExpenses?: (caseRecord: CaseRecord) => void;
   onArchiveCase: (caseRecord: CaseRecord) => void;
   onDeleteCase: (id: string) => void;
   onSendPaymentReminder?: (caseRecord: CaseRecord) => void;
