@@ -87,6 +87,8 @@ export interface ReportsPageProps {
   performance: DashboardPerformance;
   financials: DashboardFinancials;
   cases: CaseRecord[];
+  clients?: Client[];
+  lawyers?: Lawyer[];
   year?: number;
   firmName?: string;
 }

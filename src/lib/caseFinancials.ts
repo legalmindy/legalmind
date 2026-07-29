@@ -51,7 +51,15 @@ export async function fetchCaseFinancialSummary(caseId: string): Promise<CaseFin
     lastPaymentDate: (row.last_payment_date as string) ?? undefined,
     lastPaymentAmount: row.last_payment_amount != null ? Number(row.last_payment_amount) : undefined,
     currency: String(row.contract_currency ?? 'YER'),
-    contractDate: (row.contract_date as string) ?? undefined
+    contractDate: (row.contract_date as string) ?? undefined,
+    expenseBudget: row.expense_budget != null ? Number(row.expense_budget) : undefined,
+    totalExpenses: Number(row.total_expenses ?? 0),
+    totalExpensesPaid: Number(row.total_expenses_paid ?? 0),
+    totalExpensesUnpaid: Number(row.total_expenses_unpaid ?? 0),
+    expensesCount: Number(row.expenses_count ?? 0),
+    expensesPaidByClient: Number(row.expenses_paid_by_client ?? 0),
+    expensesPaidByOffice: Number(row.expenses_paid_by_office ?? 0),
+    netOfficeFeesAfterExpenses: Number(row.net_office_fees_after_expenses ?? row.contract_total ?? 0)
   };
 }
 

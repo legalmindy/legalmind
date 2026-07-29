@@ -56,6 +56,7 @@ export function consumeCaseDetailTab(): CaseDetailTab | null {
     stored === 'documents' ||
     stored === 'financials' ||
     stored === 'payments' ||
+    stored === 'expenses' ||
     stored === 'receipts' ||
     stored === 'timeline' ||
     stored === 'notes' ||

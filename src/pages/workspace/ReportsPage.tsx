@@ -9,6 +9,7 @@ import { isFirmManagerRole } from '../../lib/roleAccess';
 import { queryKeys, useArchivedCases, useExpenses, useExpenseMutations, useReceiptVouchers } from '../../hooks/useSupabaseQueries';
 import { ReceiptVoucherModal } from '../../components/ReceiptVoucherModal';
 import { printReceiptVoucher } from '../../components/case/ReceiptVoucherPrint';
+import { CaseExpensesReportSection } from '../../components/reports/CaseExpensesReportSection';
 import { reprintReceiptVoucher } from '../../lib/receiptVoucher';
 import { toArabicQueryError } from '../../components/QueryErrorBanner';
 import type { ReceiptVoucher } from '../../types/app';
@@ -43,7 +44,7 @@ function formatVoucherDateTime(iso: string): string {
   });
 }
 
-export function ReportsPage({ role, permissions, performance, cases, year: propYear, firmName = 'المكتب' }: ReportsPageProps) {
+export function ReportsPage({ role, permissions, performance, cases, clients = [], lawyers = [], year: propYear, firmName = 'المكتب' }: ReportsPageProps) {
   const queryClient = useQueryClient();
   const canViewFinancials = hasPermission(permissions, 'financials.view', role);
   const canAddPayments = hasPermission(permissions, 'financials.add_payments', role);
@@ -310,6 +311,13 @@ export function ReportsPage({ role, permissions, performance, cases, year: propY
           </button>
         </div>
       ) : null}
+
+      <CaseExpensesReportSection
+        cases={cases}
+        clients={clients}
+        lawyers={lawyers}
+        canExport={canPrintReports}
+      />
 
       <ReceiptVoucherModal
         open={showReceiptModal}

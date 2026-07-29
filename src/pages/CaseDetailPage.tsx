@@ -13,7 +13,8 @@ import {
   Receipt,
   Scale,
   StickyNote,
-  User
+  User,
+  Wallet
 } from 'lucide-react';
 import type {
   CaseDetailTab,
@@ -37,6 +38,7 @@ import { isFirmManagerRole } from '../lib/roleAccess';
 import { consumeCaseDetailTab } from '../lib/appRoutes';
 import { printReceiptVoucher, ReceiptVoucherPrint } from '../components/case/ReceiptVoucherPrint';
 import { CaseExportToolbar } from '../components/case/CaseExportToolbar';
+import { CaseExpensesPanel } from '../components/case/CaseExpensesPanel';
 import { RichTextContent } from '../components/ui/RichTextEditor';
 import { toArabicQueryError } from '../components/QueryErrorBanner';
 import {
@@ -52,6 +54,7 @@ const TABS: Array<{ id: CaseDetailTab; label: string; icon: typeof Scale }> = [
   { id: 'documents', label: 'المستندات', icon: FileText },
   { id: 'financials', label: 'المالية', icon: Banknote },
   { id: 'payments', label: 'الدفعات', icon: Receipt },
+  { id: 'expenses', label: 'المصاريف', icon: Wallet },
   { id: 'receipts', label: 'السندات', icon: Printer },
   { id: 'timeline', label: 'السجل', icon: History },
   { id: 'notes', label: 'ملاحظات', icon: StickyNote },
@@ -106,7 +109,8 @@ export function CaseDetailPage({
     queryFn: fetchMyPermissions
   });
 
-  const needsFinancialData = tab === 'overview' || tab === 'financials' || tab === 'payments' || tab === 'receipts';
+  const needsFinancialData =
+    tab === 'overview' || tab === 'financials' || tab === 'payments' || tab === 'receipts' || tab === 'expenses';
 
   const { data: summary, refetch: refetchSummary } = useQuery({
     queryKey: ['case-financial-summary', caseId],
@@ -148,12 +152,12 @@ export function CaseDetailPage({
 
   const visibleTabs = useMemo(() => {
     if (isFinancialFocus) {
-      return TABS.filter((item) => ['overview', 'financials', 'payments', 'receipts'].includes(item.id));
+      return TABS.filter((item) => ['overview', 'financials', 'payments', 'expenses', 'receipts'].includes(item.id));
     }
     return TABS.filter((item) => {
       if (item.id === 'sessions') return canViewSessions;
       if (item.id === 'documents') return canViewDocuments;
-      if (['financials', 'payments', 'receipts'].includes(item.id)) {
+      if (['financials', 'payments', 'expenses', 'receipts'].includes(item.id)) {
         return canViewFinancials || canAddPayment || canPrintReceipt;
       }
       return true;
@@ -173,6 +177,7 @@ export function CaseDetailPage({
     void refetchReceipts();
     void queryClient.invalidateQueries({ queryKey: ['case-detail', caseId] });
     void queryClient.invalidateQueries({ queryKey: ['case-timeline', caseId] });
+    void queryClient.invalidateQueries({ queryKey: ['case-expenses', caseId] });
     void queryClient.invalidateQueries({ queryKey: ['cases'] });
   }, [caseId, queryClient, refetchPayments, refetchReceipts, refetchSummary]);
 
@@ -317,17 +322,22 @@ export function CaseDetailPage({
 
       {/* Financial summary strip */}
       {summary ? (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           {[
-            { label: 'قيمة العقد', value: summary.contractTotal, color: 'text-slate-900' },
-            { label: 'المدفوع', value: summary.totalPaid, color: 'text-emerald-700' },
-            { label: 'المتبقي', value: summary.remaining, color: 'text-rose-700' },
-            { label: 'نسبة السداد', value: `${summary.paymentPercentage}%`, color: 'text-indigo-700', raw: true }
+            { label: 'أتعاب المحامي', value: summary.contractTotal, color: 'text-slate-900' },
+            { label: 'إجمالي مصروفات القضية', value: summary.totalExpenses ?? 0, color: 'text-indigo-700' },
+            { label: 'ما دفعه الموكل (أتعاب)', value: summary.totalPaid, color: 'text-emerald-700' },
+            { label: 'المتبقي على الموكل', value: summary.remaining, color: 'text-rose-700' },
+            {
+              label: 'صافي أتعاب المكتب',
+              value: summary.netOfficeFeesAfterExpenses ?? summary.contractTotal,
+              color: 'text-amber-800'
+            }
           ].map((item) => (
             <div key={item.label} className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
               <p className="text-[10px] text-slate-500">{item.label}</p>
               <p className={`text-lg font-black ${item.color}`}>
-                {item.raw ? item.value : Number(item.value).toLocaleString()} {!item.raw ? 'ر.ي' : ''}
+                {Number(item.value).toLocaleString('ar-YE')} ر.ي
               </p>
             </div>
           ))}
@@ -471,7 +481,14 @@ export function CaseDetailPage({
               <InfoRow label="عملة العقد" value={summary.currency} />
               <InfoRow label="تاريخ العقد" value={summary.contractDate ?? '—'} />
               <InfoRow label="آخر دفعة" value={summary.lastPaymentDate ?? '—'} />
-              <InfoRow label="مبلغ آخر دفعة" value={summary.lastPaymentAmount?.toLocaleString() ?? '—'} />
+              <InfoRow label="مبلغ آخر دفعة" value={summary.lastPaymentAmount?.toLocaleString('ar-YE') ?? '—'} />
+              <InfoRow label="مصاريف دفعها الموكل" value={`${(summary.expensesPaidByClient ?? 0).toLocaleString('ar-YE')} ر.ي`} />
+              <InfoRow label="مصاريف دفعها المكتب" value={`${(summary.expensesPaidByOffice ?? 0).toLocaleString('ar-YE')} ر.ي`} />
+              <InfoRow
+                label="ميزانية المصاريف"
+                value={summary.expenseBudget != null ? `${summary.expenseBudget.toLocaleString('ar-YE')} ر.ي` : 'غير محددة'}
+              />
+              <InfoRow label="نسبة سداد الأتعاب" value={`${summary.paymentPercentage}%`} />
             </div>
             <div className="h-3 overflow-hidden rounded-full bg-slate-100">
               <div
@@ -480,6 +497,17 @@ export function CaseDetailPage({
               />
             </div>
           </div>
+        )}
+
+        {tab === 'expenses' && (
+          <CaseExpensesPanel
+            caseId={caseId}
+            courtHint={caseRecord.court}
+            canManage={canAddPayment}
+            summary={summary}
+            onChanged={refreshFinancials}
+            onNotify={onNotify}
+          />
         )}
 
         {tab === 'payments' && (

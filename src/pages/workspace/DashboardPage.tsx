@@ -1,4 +1,4 @@
-import { Briefcase, Calendar, Clock, FileText, MapPin, Plus, Download, AlertCircle, User as UserIcon, TrendingUp, Banknote, HardDrive, Database, History, Lock } from 'lucide-react';
+import { Briefcase, Calendar, Clock, FileText, MapPin, Plus, Download, AlertCircle, User as UserIcon, TrendingUp, Banknote, HardDrive, Database, History, Lock, Wallet } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { SubscriptionStatusBanner } from '../../components/SubscriptionStatusBanner';
 import { StatCard } from '../../components/StatCard';
@@ -9,6 +9,7 @@ import { formatPercent, formatYer } from '../../lib/dashboardAnalytics';
 import { hasPermission } from '../../lib/permissions';
 import { fetchFirmSecurityStats } from '../../lib/securityApi';
 import { formatActivityDateTime } from '../../lib/auditLogLabels';
+import { fetchCaseExpenseAlerts } from '../../lib/caseExpenses';
 import type { DashboardPageProps } from './types';
 export function DashboardPage({
   user,
@@ -56,12 +57,23 @@ export function DashboardPage({
   const firmCode = office?.firmCode ?? firmProfile?.officeCode;
   const firmName = office?.name ?? firmProfile?.officeName ?? user.company;
 
+  const { data: expenseAlerts } = useQuery({
+    queryKey: ['case-expense-alerts'],
+    queryFn: () => fetchCaseExpenseAlerts(7),
+    enabled: canViewReports,
+    staleTime: 60_000
+  });
+
   // Reminder strip: sessions today and tomorrow
   const todayStr = new Date().toISOString().split('T')[0];
   const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0]; })();
   const todaySessions = sessions.filter((s) => s.date === todayStr && s.status !== 'ملغاة');
   const tomorrowSessions = sessions.filter((s) => s.date === tomorrowStr && s.status !== 'ملغاة');
   const showReminderStrip = remindersEnabled && (todaySessions.length > 0 || tomorrowSessions.length > 0);
+  const showExpenseAlerts =
+    canViewReports &&
+    expenseAlerts &&
+    (expenseAlerts.unpaidCount > 0 || expenseAlerts.dueSoon.length > 0 || expenseAlerts.overBudget.length > 0);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-6">
@@ -120,6 +132,54 @@ export function DashboardPage({
       </div>
 
       <SubscriptionStatusBanner subscription={subscription} onNavigate={setCurrentPage} />
+
+      {showExpenseAlerts && expenseAlerts ? (
+        <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-4 shadow-sm text-right" dir="rtl">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-amber-900">
+              <Wallet className="h-4 w-4" />
+              <h3 className="text-sm font-black">تنبيهات مصاريف القضايا</h3>
+            </div>
+            <button type="button" onClick={() => setCurrentPage('reports')} className="text-[11px] font-bold text-[#7A1F2B] hover:underline">
+              فتح التقارير
+            </button>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {expenseAlerts.unpaidCount > 0 ? (
+              <div className="rounded-xl border border-rose-100 bg-white p-3 text-xs">
+                <p className="font-bold text-rose-700">مصروفات غير مدفوعة</p>
+                <p className="mt-1 text-slate-600">
+                  {expenseAlerts.unpaidCount} مصروف · {formatYer(expenseAlerts.unpaidAmount)}
+                </p>
+              </div>
+            ) : null}
+            {expenseAlerts.dueSoon.length > 0 ? (
+              <div className="rounded-xl border border-amber-100 bg-white p-3 text-xs">
+                <p className="font-bold text-amber-800">مواعيد سداد قريبة</p>
+                <ul className="mt-1 space-y-1 text-slate-600">
+                  {expenseAlerts.dueSoon.slice(0, 3).map((item) => (
+                    <li key={item.expenseId}>
+                      {item.caseTitle} — {item.expenseType} ({item.dueDate})
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {expenseAlerts.overBudget.length > 0 ? (
+              <div className="rounded-xl border border-indigo-100 bg-white p-3 text-xs">
+                <p className="font-bold text-indigo-800">تجاوز ميزانية المصاريف</p>
+                <ul className="mt-1 space-y-1 text-slate-600">
+                  {expenseAlerts.overBudget.slice(0, 3).map((item) => (
+                    <li key={item.caseId}>
+                      {item.caseTitle}: {formatYer(item.totalExpenses)} / ميزانية {formatYer(item.expenseBudget)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="إجمالي القضايا النشطة" value={stats.activeCases} desc="قضايا تحت المرافعة" change={statHints.casesMonthlyChange} icon={Briefcase} iconBg="bg-amber-500/5" iconText="text-amber-500" borderStyle="border-amber-500/10" />
