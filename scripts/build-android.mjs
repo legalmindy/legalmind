@@ -71,8 +71,10 @@ function stripApkArtifactsFromWebBuild() {
 }
 
 run('npm run build');
+run('node scripts/assert-supabase-build.mjs');
 stripApkArtifactsFromWebBuild();
 run('npx cap sync android');
+run('node scripts/assert-android-assets.mjs');
 
 const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
 const version = readVersion();

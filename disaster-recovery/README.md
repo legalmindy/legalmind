@@ -1,103 +1,86 @@
 # Disaster Recovery — LegalMind Yemen
 
 Supabase remains the **primary production** database.  
-Local PostgreSQL `legalmind_backup` is the **permanent backup mirror**.
+Local PostgreSQL `legalmind_backup` is the **offline mirror** refreshed once per day.
+
+## Design (low resource)
+
+- **No** continuous sync service  
+- **No** persistent `node.exe` / polling every minute  
+- **One** automatic backup at **02:00** via Windows Task Scheduler (hidden window)  
+- If the PC is off at 02:00, a **startup catch-up** runs the backup once, then exits  
+- Idle CPU/RAM ≈ **zero** (nothing running between backups)
 
 ## Quick start
 
-1. PostgreSQL 18 is already installed on this machine.
-2. Configure secrets:
+1. Configure secrets:
 
 ```powershell
 copy disaster-recovery\.env.disaster-recovery.example .env.disaster-recovery
 # Edit .env.disaster-recovery — set SUPABASE_SERVICE_ROLE_KEY
 ```
 
-3. Bootstrap local DB + apply migrations:
+2. Bootstrap local DB (once):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File disaster-recovery\scripts\setup-local.ps1
 ```
 
-4. Start continuous sync:
+3. Install scheduled tasks (daily 02:00 + startup catch-up):
 
-```bash
-npm run dr:sync
+```powershell
+npm run dr:install-tasks
 ```
 
-5. Nightly dump (or install scheduled tasks):
+4. Manual backup now:
 
 ```bash
 npm run dr:backup
-powershell -ExecutionPolicy Bypass -File disaster-recovery\scripts\install-windows-tasks.ps1
 ```
 
-6. Dashboard:
+Artifacts land in `D:\LegalMind_Backups\daily\` (`.dump`, `.sql`, `.zip`, integrity JSON).  
+Logs: `D:\LegalMind_Backups\logs\`
 
-```bash
-npm run dr:dashboard
-start D:\LegalMind_Backups\dashboard.html
+5. One-click restore into a **new** database / Supabase project:
+
+```powershell
+npm run dr:restore:one-click
+# or with an explicit NEW project URL:
+powershell -ExecutionPolicy Bypass -File disaster-recovery\scripts\restore-one-click.ps1 `
+  -DumpPath "D:\LegalMind_Backups\daily\....dump" `
+  -DatabaseUrl "postgresql://postgres:...@db.<NEW_REF>.supabase.co:5432/postgres"
 ```
 
-7. One-click restore into a **new** database / Supabase project:
+Production project ref is refused. Never DROP DATABASE / SCHEMA / TABLE / TRUNCATE without your explicit approval flags.
 
-```bash
-npm run dr:restore -- --source D:\LegalMind_Backups\nightly\legalmind_backup_XXXX.dump
-# or
-npm run dr:restore -- --source ....dump --database-url "postgresql://postgres:...@db.<NEW_REF>.supabase.co:5432/postgres"
-```
-
-8. DR simulation (temp DB only):
+6. DR simulation (temp local DB only):
 
 ```bash
 npm run dr:test
 ```
 
-9. Storage backup / restore check / settings export / orphan audit:
-
-```bash
-npm run dr:storage-backup
-npm run dr:storage-restore -- --dry-run
-npm run dr:export-settings
-npm run dr:orphan-audit
-```
-
-Full cutover steps: [DISASTER_RECOVERY_CHECKLIST.md](./DISASTER_RECOVERY_CHECKLIST.md)  
-Latest readiness verdict: [FINAL_REPORT.md](./FINAL_REPORT.md)
-
 ## Safety guarantees
 
-- Never runs `DROP DATABASE` / `DROP SCHEMA` / `TRUNCATE` without explicit flags and protected-name checks.
-- Nightly retention keeps 90 active ZIPs; older files are **moved** to `D:\LegalMind_Backups\archive` (never deleted).
-- Sync failures retry via `dr.sync_outbox` with exponential backoff and durable logs in `D:\LegalMind_Backups\logs\sync.jsonl`.
-- Sync inventory is taken from the **local** backup DB (avoids empty remote discovery / CLI races).
-- Supabase CLI calls are serialized with a lock file under `D:\LegalMind_Backups\sync\`.
-- Storage backup is read-only on production; orphans are reported, never auto-deleted.
+- Production Supabase is **read-only** for mirror refresh (upserts into local only).
+- Retention keeps the latest **90** verified ZIP sets under `daily/`.
+- Every backup is verified (`pg_restore -l`, SQL size/content, local `select 1`, table count).
+- Scheduled tasks use **Hidden** window style — no Command Prompt / node windows.
 
-See also: [MIGRATION_NOTES.md](./MIGRATION_NOTES.md) (explains the 051→053 numbering gap).
+See: [BACKUP_SYSTEM_REPORT.md](./BACKUP_SYSTEM_REPORT.md) · [DISASTER_RECOVERY_CHECKLIST.md](./DISASTER_RECOVERY_CHECKLIST.md)
 
 ## Layout
 
 ```
 disaster-recovery/
+  BACKUP_SYSTEM_REPORT.md
   DISASTER_RECOVERY_CHECKLIST.md
-  FINAL_REPORT.md
-  PROJECT_SETTINGS_EXPORT.md
-  STORAGE_ORPHAN_AUDIT.md
-  sql/000_local_bootstrap.sql
   scripts/
-    setup-local.ps1
-    apply-migrations.mjs
-    sync-service.mjs
-    nightly-backup.mjs
-    storage-backup.mjs
-    storage-restore.mjs
-    export-project-settings.mjs
-    orphan-storage-audit.mjs
+    daily-backup.mjs              # one-shot mirror + dump + zip + verify
+    run-daily-backup-hidden.ps1   # Task Scheduler launcher (no window)
+    run-backup-on-startup.ps1     # catch-up if 02:00 was missed
+    install-windows-tasks.ps1     # register/remove tasks
+    sync-service.mjs              # --once only (default)
+    restore-one-click.ps1
     restore-to-new-project.mjs
-    test-dr-restore.mjs
-    dr-dashboard-status.mjs
-    install-windows-tasks.ps1
-D:\LegalMind_Backups\
-  nightly/  logs/  sync/  archive/  storage/  dashboard.html
+    ...
 ```

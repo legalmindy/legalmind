@@ -110,6 +110,10 @@ function mapAuthError(error: AuthError): string {
     return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
   }
 
+  if (/Failed to fetch|NetworkError|ERR_NAME_NOT_RESOLVED|Load failed|network request failed|abort|timed out|The user aborted/i.test(raw)) {
+    return 'تعذر الاتصال بالخادم. تحقق من اتصال الإنترنت، وتأكد أن التطبيق محدّث لآخر إصدار، ثم أعد المحاولة.';
+  }
+
   if (/database error saving new user/i.test(raw)) {
     console.error('[AUTH] Supabase signup provisioning error:', raw);
     if (/email already registered/i.test(raw)) {

@@ -13,6 +13,7 @@ import type { PageId } from '../types/app';
 import { ForgotPasswordPage } from './ForgotPasswordPage';
 import { ResetPasswordPage } from './ResetPasswordPage';
 import { isRetiredSupabaseConfigured } from '../lib/supabaseClient';
+import { isNativeApp } from '../lib/platform';
 
 interface AuthPagesProps {
   currentPage: 'login' | 'register-office' | 'register-lawyer' | 'register' | 'invite' | 'forgot' | 'reset-password' | 'accept-invite';
@@ -132,20 +133,22 @@ export function AuthPages({
   }, [currentPage, firmCodeInput]);
 
   if (!isConfigured) {
+    const native = isNativeApp();
     return (
       <div className="max-w-md mx-auto mt-24 px-4 text-center">
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8">
-          <h2 className="text-lg font-bold text-amber-900 mb-2">إعداد Supabase مطلوب</h2>
+          <h2 className="text-lg font-bold text-amber-900 mb-2">تعذر الاتصال بالخادم</h2>
           {isRetiredSupabaseConfigured() ? (
             <p className="text-sm text-amber-700">
-              إعدادات المشروع تشير إلى مشروع Supabase محذوف. حدّث{' '}
-              <code className="bg-amber-100 px-1 rounded">VITE_SUPABASE_URL</code> إلى المشروع النشط ثم أعد تشغيل الخادم أو حدّث الصفحة بقوة
-              (Ctrl+Shift+R).
+              {native
+                ? 'هذا الإصدار من التطبيق قديم ويشير إلى خادم غير متاح. احذف التطبيق ثم ثبّت أحدث نسخة من صفحة التحميل على الموقع.'
+                : 'إعدادات المشروع تشير إلى مشروع Supabase محذوف. حدّث VITE_SUPABASE_URL إلى المشروع النشط ثم أعد تشغيل الخادم أو حدّث الصفحة بقوة (Ctrl+Shift+R).'}
             </p>
           ) : (
             <p className="text-sm text-amber-700">
-              يرجى إضافة <code className="bg-amber-100 px-1 rounded">VITE_SUPABASE_URL</code> و{' '}
-              <code className="bg-amber-100 px-1 rounded">VITE_SUPABASE_ANON_KEY</code> في ملف .env.local
+              {native
+                ? 'تعذر تهيئة الاتصال بالخادم. ثبّت أحدث نسخة من التطبيق من صفحة التحميل على الموقع.'
+                : 'يرجى إضافة VITE_SUPABASE_URL و VITE_SUPABASE_ANON_KEY في ملف .env.local'}
             </p>
           )}
         </div>

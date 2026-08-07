@@ -61,8 +61,9 @@ export function loadDrConfig() {
       maxRetries: Number(env.SYNC_MAX_RETRIES || 12)
     },
     retention: {
+      // Keep latest N verified daily ZIP sets under daily/; older backup FILES are removed.
+      // Production Supabase is never deleted or modified.
       keepVerified: Number(env.BACKUP_KEEP_VERIFIED || 90)
-      // Never delete automatically — older backups are moved to archive/ only when explicitly requested.
     }
   };
 

@@ -59,6 +59,10 @@ async function main() {
   }
 
   const databaseUrl = arg('--database-url');
+  // Hard safety: never restore into known production Supabase project
+  if (databaseUrl && /gnsjjsvugafxkwgmvcev/i.test(databaseUrl) && !hasFlag('--allow-production')) {
+    throw new Error('Refusing restore into PRODUCTION Supabase (gnsjjsvugafxkwgmvcev). Use a NEW project URL.');
+  }
   let targetDb = arg('--target-db', `legalmind_restore_${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}`);
 
   // Hard safety: never target production names
