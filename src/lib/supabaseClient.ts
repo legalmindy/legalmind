@@ -41,12 +41,67 @@ const authOptions = {
   storageKey: useSessionStoragePerTab ? 'legalmind-auth-tab' : 'legalmind-auth'
 } as const;
 
-function createSupabaseClient(): SupabaseClient {
-  const fetchWithTimeout: typeof fetch = (input, init) => {
+/** Safe network diagnostics — never logs bodies/passwords/tokens. */
+function describeRequest(input: RequestInfo | URL, init?: RequestInit): { method: string; url: string } {
+  const method = (init?.method ?? (typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')).toUpperCase();
+  const rawUrl =
+    typeof input === 'string'
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : typeof Request !== 'undefined' && input instanceof Request
+          ? input.url
+          : String(input);
+  try {
+    const u = new URL(rawUrl);
+    return { method, url: `${u.origin}${u.pathname}` };
+  } catch {
+    return { method, url: rawUrl.split('?')[0] ?? rawUrl };
+  }
+}
+
+function createInstrumentedFetch(): typeof fetch {
+  const fetchWithTimeout: typeof fetch = async (input, init) => {
     const controller = new AbortController();
+    const outerSignal = init?.signal;
+    if (outerSignal) {
+      if (outerSignal.aborted) controller.abort(outerSignal.reason);
+      else outerSignal.addEventListener('abort', () => controller.abort(outerSignal.reason), { once: true });
+    }
     const timer = setTimeout(() => controller.abort(), 20_000);
-    return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+    const meta = describeRequest(input, init);
+    const started = Date.now();
+    try {
+      const response = await fetch(input, { ...init, signal: controller.signal });
+      if (!response.ok && (import.meta.env.DEV || import.meta.env.VITE_AUTH_DEBUG === 'true')) {
+        console.warn('[supabase-fetch]', {
+          ...meta,
+          status: response.status,
+          statusText: response.statusText,
+          ms: Date.now() - started
+        });
+      }
+      return response;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const name = err instanceof Error ? err.name : 'Error';
+      console.error('[supabase-fetch] network error', {
+        ...meta,
+        name,
+        message,
+        ms: Date.now() - started,
+        online: typeof navigator !== 'undefined' ? navigator.onLine : undefined
+      });
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   };
+  return fetchWithTimeout;
+}
+
+function createSupabaseClient(): SupabaseClient {
+  const fetchWithTimeout = createInstrumentedFetch();
 
   if (!isSupabaseConfigured()) {
     if (import.meta.env.DEV) {
@@ -67,11 +122,7 @@ export const supabase = createSupabaseClient();
 
 /** Client without persisted session — for pre-login RPCs (avoids 401 from stale JWT). */
 function createPublicSupabaseClient(): SupabaseClient {
-  const fetchWithTimeout: typeof fetch = (input, init) => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20_000);
-    return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
-  };
+  const fetchWithTimeout = createInstrumentedFetch();
 
   if (!isSupabaseConfigured()) {
     return createClient('https://placeholder.supabase.co', 'placeholder', {
